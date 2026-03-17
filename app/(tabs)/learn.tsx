@@ -1,111 +1,131 @@
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+// app/(tabs)/learn.tsx
+import { useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/constants/theme';
-import { useUserStore, useProgressStore } from '../../src/stores';
+import { useModules } from '../../src/hooks/useModules';
+import { useLessons } from '../../src/hooks/useLessons';
+import type { Module } from '../../src/hooks/useModules';
+import type { Lesson } from '../../src/hooks/useLessons';
 
-interface ModuleCardProps {
-  number: number;
-  title: string;
-  subtitle: string;
-  progress?: number;
-  isActive: boolean;
-  isLocked: boolean;
-}
+// ── Composant leçon ────────────────────────────────────────
 
-function ModuleCard({ number, title, subtitle, progress, isActive, isLocked }: ModuleCardProps) {
+function LessonRow({ lesson, onPress }: { lesson: Lesson; onPress: () => void }) {
   return (
-    <Pressable
-      style={[
-        styles.moduleCard,
-        isActive && styles.moduleCardActive,
-        isLocked && styles.moduleCardLocked,
-      ]}
-      disabled={isLocked}
-    >
-      <Text style={[styles.moduleLabel, isActive && styles.moduleLabelActive]}>
-        MODULE {number}
-      </Text>
-      <Text style={[styles.moduleTitle, isLocked && styles.moduleTitleLocked]}>
-        {title}
-      </Text>
-      <Text style={styles.moduleSubtitle}>{subtitle}</Text>
-      {progress !== undefined && progress > 0 && (
-        <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress}%` }]} />
-          </View>
-          <Text style={styles.progressText}>{progress}% terminé</Text>
+    <Pressable style={styles.lessonRow} onPress={onPress}>
+      <View style={styles.lessonLeft}>
+        <Text style={styles.lessonOrder}>{lesson.sort_order}.</Text>
+        <View style={styles.lessonTitles}>
+          <Text style={styles.lessonTitleAr}>{lesson.title_ar}</Text>
+          <Text style={styles.lessonTitleFr}>{lesson.title_fr}</Text>
         </View>
-      )}
+      </View>
+      <Text style={styles.lessonStatus}>🔓</Text>
     </Pressable>
   );
 }
 
-export default function LearnScreen() {
-  const user = useUserStore((s) => s.user);
-  const moduleProgress = useProgressStore((s) => s.moduleProgress);
+// ── Composant Module 1 (avec accordion leçons) ─────────────
 
-  const displayName = user?.display_name ?? 'Apprenant';
-  const streak = user?.streak_current ?? 0;
-  const xp = user?.total_xp ?? 0;
+function Module1Card({ module }: { module: Module }) {
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(true);
+  const { data: lessons, isLoading } = useLessons(module.id);
+
+  return (
+    <View style={[styles.moduleCard, styles.moduleCardActive]}>
+      <Pressable style={styles.moduleHeader} onPress={() => setExpanded(!expanded)}>
+        <View style={styles.moduleHeaderLeft}>
+          <Text style={styles.moduleLabel}>MODULE 1</Text>
+          <Text style={styles.moduleTitleAr}>{module.title_ar}</Text>
+          <Text style={styles.moduleTitleFr}>{module.title_fr}</Text>
+        </View>
+        <View style={styles.moduleHeaderRight}>
+          <Text style={styles.moduleLessonCount}>{lessons?.length ?? 0}/7</Text>
+          <Text style={styles.moduleChevron}>{expanded ? '▲' : '▼'}</Text>
+        </View>
+      </Pressable>
+
+      {expanded && (
+        <View style={styles.lessonsList}>
+          <View style={styles.lessonsDivider} />
+          {isLoading ? (
+            <ActivityIndicator size="small" color={Colors.primary} style={{ padding: Spacing.lg }} />
+          ) : (
+            lessons?.map((lesson) => (
+              <LessonRow
+                key={lesson.id}
+                lesson={lesson}
+                onPress={() => router.push(`/lesson/${lesson.id}`)}
+              />
+            ))
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Composant modules locked ───────────────────────────────
+
+function LockedModuleCard({ module, number }: { module: Module; number: number }) {
+  return (
+    <View style={[styles.moduleCard, styles.moduleCardLocked]}>
+      <View style={styles.moduleHeader}>
+        <View style={styles.moduleHeaderLeft}>
+          <Text style={styles.moduleLabel}>MODULE {number}</Text>
+          <Text style={styles.moduleTitleAr}>{module.title_ar}</Text>
+          <Text style={styles.moduleTitleFr}>{module.title_fr}</Text>
+        </View>
+        <Text style={styles.lockIcon}>🔒</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Écran principal ────────────────────────────────────────
+
+export default function LearnScreen() {
+  const { data: modules, isLoading } = useModules();
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
+      </SafeAreaView>
+    );
+  }
+
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Bonjour, {displayName}</Text>
-            <Text style={styles.subtitle}>Continue ton parcours</Text>
-          </View>
-          <View style={styles.statsRow}>
-            <View style={styles.statBadge}>
-              <Ionicons name="flame-outline" size={16} color={Colors.gold} />
-              <Text style={styles.statText}>{streak}</Text>
-            </View>
-            <View style={styles.statBadge}>
-              <Ionicons name="flash-outline" size={16} color={Colors.primary} />
-              <Text style={styles.statText}>{xp}</Text>
-            </View>
-          </View>
+          <Text style={styles.title}>Apprendre</Text>
         </View>
 
         {/* Modules */}
-        <View style={styles.modules}>
-          <ModuleCard
-            number={1}
-            title="L'alphabet vivant"
-            subtitle="28 lettres · 12 leçons"
-            progress={moduleProgress['module-1'] ?? 0}
-            isActive={true}
-            isLocked={false}
-          />
-          <ModuleCard
-            number={2}
-            title="Les harakats démystifiés"
-            subtitle="Voyelles courtes · 8 leçons"
-            isActive={false}
-            isLocked={false}
-          />
-          <ModuleCard
-            number={3}
-            title="Lire ses premiers mots"
-            subtitle="Connexion des lettres · 10 leçons"
-            isActive={false}
-            isLocked={true}
-          />
-          <ModuleCard
-            number={4}
-            title="Construire du sens"
-            subtitle="Vocabulaire de base · 14 leçons"
-            isActive={false}
-            isLocked={true}
-          />
+        <View style={styles.modulesList}>
+          {modules?.map((module, index) => {
+            if (index === 0) {
+              return <Module1Card key={module.id} module={module} />;
+            }
+            return (
+              <LockedModuleCard key={module.id} module={module} number={index + 1} />
+            );
+          })}
         </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -116,53 +136,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bg,
   },
+  loader: {
+    flex: 1,
+  },
   scroll: {
     padding: Layout.screenPaddingH,
     paddingBottom: 100,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing['3xl'],
+    marginBottom: Spacing['2xl'],
   },
-  greeting: {
+  title: {
     fontSize: FontSizes.title,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
-  subtitle: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  statBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.bgCard,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    ...Shadows.card,
-  },
-  statText: {
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  modules: {
+
+  // Modules
+  modulesList: {
     gap: Spacing.lg,
   },
   moduleCard: {
     backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
-    padding: Layout.cardPaddingH,
-    paddingVertical: Layout.cardPaddingV + 4,
+    overflow: 'hidden',
     ...Shadows.card,
   },
   moduleCardActive: {
@@ -172,48 +169,96 @@ const styles = StyleSheet.create({
   moduleCardLocked: {
     opacity: 0.5,
   },
+  moduleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: Spacing.lg,
+  },
+  moduleHeaderLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  moduleHeaderRight: {
+    alignItems: 'flex-end',
+    gap: Spacing.xs,
+  },
   moduleLabel: {
     fontSize: FontSizes.small,
     fontWeight: '700',
-    color: Colors.textMuted,
+    color: Colors.primary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginBottom: Spacing.sm,
-  },
-  moduleLabelActive: {
-    color: Colors.primary,
-  },
-  moduleTitle: {
-    fontSize: FontSizes.heading - 2,
-    fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: Spacing.xs,
   },
-  moduleTitleLocked: {
+  moduleTitleAr: {
+    fontFamily: 'Amiri',
+    fontSize: FontSizes.arabicXS,
+    color: Colors.textPrimary,
+    textAlign: 'left',
+  },
+  moduleTitleFr: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  moduleLessonCount: {
+    fontSize: FontSizes.caption,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  moduleChevron: {
+    fontSize: FontSizes.small,
     color: Colors.textMuted,
   },
-  moduleSubtitle: {
+  lockIcon: {
+    fontSize: 18,
+  },
+
+  // Leçons
+  lessonsDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.lg,
+  },
+  lessonsList: {
+    paddingBottom: Spacing.sm,
+  },
+  lessonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  lessonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    flex: 1,
+  },
+  lessonOrder: {
+    fontSize: FontSizes.caption,
+    color: Colors.textMuted,
+    fontWeight: '700',
+    width: 20,
+  },
+  lessonTitles: {
+    flex: 1,
+    gap: 2,
+  },
+  lessonTitleAr: {
+    fontFamily: 'Amiri',
+    fontSize: FontSizes.arabicXS,
+    color: Colors.textPrimary,
+  },
+  lessonTitleFr: {
     fontSize: FontSizes.caption,
     color: Colors.textSecondary,
   },
-  progressContainer: {
-    marginTop: Spacing.md,
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: Colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: FontSizes.small,
-    color: Colors.primary,
-    fontWeight: '600',
-    marginTop: Spacing.xs,
+  lessonStatus: {
+    fontSize: 16,
   },
 });

@@ -1,121 +1,150 @@
-import { useState } from 'react';
-import { Text, Pressable, StyleSheet } from 'react-native';
-import type { TextStyle } from 'react-native';
-import { Colors, FontSizes } from '../../constants/theme';
-import { useSettingsStore } from '../../stores';
-import type { HarakatsMode } from '../../types';
+// src/components/arabic/ArabicText.tsx
+import { useState, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
+import { Colors } from '../../constants/theme';
 
-/**
- * ArabicText — Core component for rendering Arabic text with adaptive harakats.
- *
- * Handles:
- * - Harakats display (always / adaptive / tap_reveal / never)
- * - RTL text direction
- * - Proper font sizing with diacritics space
- * - Tap-to-reveal interaction
- *
- * Usage:
- *   <ArabicText vocalized="كِتَاب" bare="كتاب" />
- *   <ArabicText vocalized="كِتَاب" bare="كتاب" harakatsOverride="tap_reveal" />
- */
+const SIZES = {
+  small:  { arabic: 20, sub: 12, lineHeight: 40 },
+  medium: { arabic: 28, sub: 14, lineHeight: 56 },
+  large:  { arabic: 40, sub: 16, lineHeight: 80 },
+  xlarge: { arabic: 56, sub: 18, lineHeight: 112 },
+} as const;
 
 interface ArabicTextProps {
-  /** Arabic text WITH harakats (diacritics) */
-  vocalized: string;
-  /** Arabic text WITHOUT harakats */
-  bare: string;
-  /** Override the global harakats setting for this instance */
-  harakatsOverride?: HarakatsMode;
-  /** Whether this word is "mastered" by the user (for adaptive mode) */
-  isMastered?: boolean;
-  /** Font size — defaults to arabicMD */
-  size?: number;
-  /** Additional text style */
-  style?: TextStyle;
-  /** Callback when tapped */
-  onPress?: () => void;
+  /** Texte arabe avec harakats (ex: كِتَاب) */
+  children: string;
+  /** Texte sans harakats — si fourni, utilisé quand harakats masqués (ex: كتاب) */
+  withoutHarakats?: string;
+  /** Translittération latine (ex: kitāb) — affichée en dessous si activée */
+  transliteration?: string;
+  /** Traduction française — affichée en dessous si activée */
+  translation?: string;
+  /** Mode d'affichage des harakats */
+  harakatsMode?: 'always' | 'never' | 'tap_reveal';
+  /** Afficher la translittération */
+  showTransliteration?: boolean;
+  /** Afficher la traduction */
+  showTranslation?: boolean;
+  /** Taille du texte arabe (défaut: 'large') */
+  size?: 'small' | 'medium' | 'large' | 'xlarge';
+  /** Style additionnel */
+  style?: StyleProp<ViewStyle>;
 }
 
-// Unicode ranges for Arabic diacritics (harakats)
+// Strip harakats (diacritics) from Arabic text
 const HARAKAT_REGEX = /[\u064B-\u065F\u0670]/g;
-
-/**
- * Strip all diacritics from Arabic text.
- */
 function stripHarakats(text: string): string {
   return text.replace(HARAKAT_REGEX, '');
 }
 
 export default function ArabicText({
-  vocalized,
-  bare,
-  harakatsOverride,
-  isMastered = false,
-  size = FontSizes.arabicMD,
+  children,
+  withoutHarakats,
+  transliteration,
+  translation,
+  harakatsMode = 'always',
+  showTransliteration = false,
+  showTranslation = false,
+  size = 'large',
   style,
-  onPress,
 }: ArabicTextProps) {
-  const globalMode = useSettingsStore((s) => s.settings.harakats_mode);
-  const mode = harakatsOverride ?? globalMode;
   const [revealed, setRevealed] = useState(false);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const s = SIZES[size];
 
-  // Determine which text to display
+  // Texte sans harakats : utiliser withoutHarakats si fourni, sinon stripper
+  const bareText = withoutHarakats ?? stripHarakats(children);
+
   let displayText: string;
-
-  switch (mode) {
+  switch (harakatsMode) {
     case 'always':
-      displayText = vocalized;
+      displayText = children;
       break;
     case 'never':
-      displayText = bare || stripHarakats(vocalized);
-      break;
-    case 'adaptive':
-      // Show harakats only if the word is NOT mastered
-      displayText = isMastered ? (bare || stripHarakats(vocalized)) : vocalized;
+      displayText = bareText;
       break;
     case 'tap_reveal':
-      displayText = revealed ? vocalized : (bare || stripHarakats(vocalized));
+      displayText = revealed ? children : bareText;
       break;
     default:
-      displayText = vocalized;
+      displayText = children;
   }
 
-  const handlePress = () => {
-    if (mode === 'tap_reveal') {
-      setRevealed(!revealed);
-    }
-    onPress?.();
-  };
-
-  const textStyle: TextStyle = {
-    fontSize: size,
-    lineHeight: size * 1.6, // Extra line height for diacritics
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    writingDirection: 'rtl',
-    ...style,
-  };
-
-  if (mode === 'tap_reveal' || onPress) {
-    return (
-      <Pressable onPress={handlePress} style={styles.pressable}>
-        <Text style={textStyle}>{displayText}</Text>
-        {mode === 'tap_reveal' && !revealed && (
-          <Text style={styles.tapHint}>tap pour les harakats</Text>
-        )}
-      </Pressable>
-    );
+  function handleTap() {
+    if (harakatsMode !== 'tap_reveal') return;
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    setRevealed(true);
+    revealTimer.current = setTimeout(() => setRevealed(false), 2000);
   }
 
-  return <Text style={textStyle}>{displayText}</Text>;
+  const arabicText = (
+    <Text
+      style={[
+        styles.arabic,
+        { fontSize: s.arabic, lineHeight: s.lineHeight },
+      ]}
+    >
+      {displayText}
+    </Text>
+  );
+
+  return (
+    <View style={[styles.container, style]}>
+      {harakatsMode === 'tap_reveal' ? (
+        <Pressable onPress={handleTap} style={styles.pressable}>
+          {arabicText}
+          {!revealed && (
+            <Text style={[styles.tapHint, { fontSize: s.sub - 2 }]}>
+              tap pour les harakats
+            </Text>
+          )}
+        </Pressable>
+      ) : (
+        arabicText
+      )}
+
+      {showTransliteration && transliteration ? (
+        <Text style={[styles.transliteration, { fontSize: s.sub }]}>
+          {transliteration}
+        </Text>
+      ) : null}
+
+      {showTranslation && translation ? (
+        <Text style={[styles.translation, { fontSize: s.sub }]}>
+          {translation}
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+  },
   pressable: {
     alignItems: 'center',
   },
+  arabic: {
+    fontFamily: 'Amiri',
+    color: Colors.textPrimary,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  transliteration: {
+    fontFamily: 'Inter',
+    color: Colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  translation: {
+    fontFamily: 'Inter',
+    color: Colors.textMuted,
+    marginTop: 2,
+    textAlign: 'center',
+  },
   tapHint: {
-    fontSize: 11,
     color: Colors.textMuted,
     marginTop: 4,
   },

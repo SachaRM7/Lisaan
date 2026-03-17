@@ -1,112 +1,137 @@
+// src/components/arabic/LetterCard.tsx
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSizes, Spacing, Radius, Shadows } from '../../constants/theme';
-import type { Letter } from '../../types';
-
-/**
- * LetterCard — Displays an Arabic letter with its properties.
- *
- * Used in:
- * - Lesson screens (hero display)
- * - MCQ exercise (option cards)
- * - Review cards
- */
+import { Colors, Spacing, Radius, Shadows, FontSizes } from '../../constants/theme';
+import ArabicText from './ArabicText';
 
 interface LetterCardProps {
-  letter: Letter;
-  /** Which form to display as the main letter */
-  displayForm?: 'isolated' | 'initial' | 'medial' | 'final';
-  /** Show all 4 positional forms below */
-  showAllForms?: boolean;
-  /** Show transliteration */
-  showTransliteration?: boolean;
-  /** Show audio play button */
-  showAudio?: boolean;
-  /** Card is selected */
-  isSelected?: boolean;
-  /** Card shows correct answer */
-  isCorrect?: boolean;
-  /** Compact mode for grid display */
-  compact?: boolean;
+  letter: {
+    name_ar: string;
+    name_fr: string;
+    transliteration: string;
+    ipa: string;
+    form_isolated: string;
+    form_initial: string;
+    form_medial: string;
+    form_final: string;
+    connects_left: boolean;
+    connects_right: boolean;
+    articulation_fr: string;
+  };
+  mode?: 'full' | 'compact' | 'quiz';
+  highlightedForm?: 'isolated' | 'initial' | 'medial' | 'final';
   onPress?: () => void;
-  onPlayAudio?: () => void;
 }
 
-const FORM_LABELS = {
-  isolated: 'Isolée',
-  initial: 'Initiale',
-  medial: 'Médiane',
-  final: 'Finale',
-} as const;
+// Ordre d'affichage RTL : Finale → Médiane → Initiale
+const SECONDARY_FORMS = [
+  { key: 'form_final',   label: 'Finale' },
+  { key: 'form_medial',  label: 'Médiane' },
+  { key: 'form_initial', label: 'Initiale' },
+] as const;
 
 export default function LetterCard({
   letter,
-  displayForm = 'isolated',
-  showAllForms = false,
-  showTransliteration = true,
-  showAudio = false,
-  isSelected = false,
-  isCorrect,
-  compact = false,
+  mode = 'full',
+  highlightedForm,
   onPress,
-  onPlayAudio,
 }: LetterCardProps) {
-  const mainForm = getForm(letter, displayForm);
 
+  // ── Mode QUIZ ──────────────────────────────────────────────
+  if (mode === 'quiz') {
+    const form = highlightedForm ?? 'isolated';
+    const formValue = getForm(letter, form);
+    return (
+      <Pressable style={[styles.card, styles.cardQuiz]} onPress={onPress}>
+        <ArabicText size="xlarge">{formValue}</ArabicText>
+      </Pressable>
+    );
+  }
+
+  // ── Mode COMPACT ───────────────────────────────────────────
+  if (mode === 'compact') {
+    return (
+      <Pressable style={[styles.card, styles.cardCompact]} onPress={onPress}>
+        <View style={styles.compactRow}>
+          <ArabicText size="medium">{letter.form_isolated}</ArabicText>
+          <View style={styles.compactInfo}>
+            <Text style={styles.nameFr}>{letter.name_fr}</Text>
+            <Text style={styles.ipa}>{letter.ipa}</Text>
+          </View>
+        </View>
+      </Pressable>
+    );
+  }
+
+  // ── Mode FULL (défaut) ─────────────────────────────────────
   return (
-    <Pressable
-      style={[
-        styles.card,
-        compact && styles.cardCompact,
-        isSelected && styles.cardSelected,
-        isCorrect === true && styles.cardCorrect,
-        isCorrect === false && styles.cardIncorrect,
-      ]}
-      onPress={onPress}
-    >
-      {/* Main letter display */}
-      <Text style={[styles.letterMain, compact && styles.letterMainCompact]}>
-        {mainForm}
+    <Pressable style={styles.card} onPress={onPress}>
+      {/* Forme isolée — hero */}
+      <View style={[
+        styles.heroContainer,
+        highlightedForm === 'isolated' && styles.formHighlighted,
+      ]}>
+        <ArabicText size="xlarge">{letter.form_isolated}</ArabicText>
+      </View>
+
+      {/* 3 autres formes — ordre RTL : Finale → Médiane → Initiale */}
+      <View style={styles.formsRow}>
+        {SECONDARY_FORMS.map(({ key, label }) => {
+          const formKey = key.replace('form_', '') as 'final' | 'medial' | 'initial';
+          const isHighlighted = highlightedForm === formKey;
+          return (
+            <View
+              key={key}
+              style={[styles.formCell, isHighlighted && styles.formHighlighted]}
+            >
+              <ArabicText size="medium">{letter[key]}</ArabicText>
+              <Text style={styles.formLabel}>{label}</Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Nom + translittération */}
+      <View style={styles.nameRow}>
+        <Text style={styles.nameFr}>{letter.name_fr}</Text>
+        <Text style={styles.translitParen}> ({letter.transliteration})</Text>
+      </View>
+
+      {/* IPA + articulation */}
+      <Text style={styles.articulation}>
+        {letter.ipa} — {letter.articulation_fr}
       </Text>
 
-      {/* Transliteration + audio */}
-      {showTransliteration && (
-        <View style={styles.transRow}>
-          <Text style={styles.transliteration}>{letter.transliteration}</Text>
-          {showAudio && (
-            <Pressable onPress={onPlayAudio} style={styles.audioButton}>
-              <Ionicons name="volume-medium-outline" size={18} color={Colors.primary} />
-            </Pressable>
-          )}
-        </View>
-      )}
-
-      {/* Positional form label (when in compact/option mode) */}
-      {compact && (
-        <Text style={styles.formLabel}>{FORM_LABELS[displayForm]}</Text>
-      )}
-
-      {/* All 4 forms grid */}
-      {showAllForms && (
-        <View style={styles.formsGrid}>
-          {(['initial', 'medial', 'final', 'isolated'] as const).map((form) => (
-            <View key={form} style={styles.formItem}>
-              <Text style={styles.formLetter}>{getForm(letter, form)}</Text>
-              <Text style={styles.formItemLabel}>{FORM_LABELS[form]}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+      {/* Connexions */}
+      <View style={styles.connectionsRow}>
+        {letter.connects_left && (
+          <View style={styles.connectionBadge}>
+            <Text style={styles.connectionText}>● Se connecte à gauche</Text>
+          </View>
+        )}
+        {letter.connects_right && (
+          <View style={styles.connectionBadge}>
+            <Text style={styles.connectionText}>● Se connecte à droite</Text>
+          </View>
+        )}
+        {!letter.connects_left && !letter.connects_right && (
+          <View style={styles.connectionBadge}>
+            <Text style={styles.connectionText}>● Ne se connecte pas</Text>
+          </View>
+        )}
+      </View>
     </Pressable>
   );
 }
 
-function getForm(letter: Letter, form: 'isolated' | 'initial' | 'medial' | 'final'): string {
+function getForm(
+  letter: LetterCardProps['letter'],
+  form: 'isolated' | 'initial' | 'medial' | 'final',
+): string {
   switch (form) {
     case 'isolated': return letter.form_isolated;
-    case 'initial': return letter.form_initial;
-    case 'medial': return letter.form_medial;
-    case 'final': return letter.form_final;
+    case 'initial':  return letter.form_initial;
+    case 'medial':   return letter.form_medial;
+    case 'final':    return letter.form_final;
   }
 }
 
@@ -114,76 +139,96 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: '#E8E2D9',
     padding: Spacing['2xl'],
     alignItems: 'center',
     ...Shadows.card,
   },
+  cardQuiz: {
+    padding: Spacing['3xl'],
+    minWidth: 120,
+  },
   cardCompact: {
     padding: Spacing.lg,
   },
-  cardSelected: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
+
+  // Hero (forme isolée)
+  heroContainer: {
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
-  cardCorrect: {
-    borderWidth: 2,
-    borderColor: Colors.success,
-    backgroundColor: Colors.successLight,
-  },
-  cardIncorrect: {
-    borderWidth: 2,
-    borderColor: Colors.error,
-    backgroundColor: Colors.errorLight,
-  },
-  letterMain: {
-    fontSize: FontSizes.arabicXL,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: FontSizes.arabicXL * 1.4,
-  },
-  letterMainCompact: {
-    fontSize: FontSizes.arabicMD,
-    lineHeight: FontSizes.arabicMD * 1.4,
-  },
-  transRow: {
+
+  // 3 formes secondaires
+  formsRow: {
     flexDirection: 'row',
+    gap: Spacing.xl,
+    marginBottom: Spacing.xl,
+  },
+  formCell: {
     alignItems: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
+    borderRadius: Radius.sm,
+    padding: Spacing.sm,
+    minWidth: 64,
   },
-  transliteration: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-  },
-  audioButton: {
-    padding: Spacing.xs,
+  formHighlighted: {
+    backgroundColor: Colors.primaryLight,
   },
   formLabel: {
     fontSize: FontSizes.small,
-    color: Colors.primary,
-    fontWeight: '600',
-    marginTop: Spacing.sm,
-  },
-  formsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-    marginTop: Spacing['2xl'],
-    justifyContent: 'center',
-  },
-  formItem: {
-    alignItems: 'center',
-    width: 70,
-  },
-  formLetter: {
-    fontSize: FontSizes.arabicSM,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  formItemLabel: {
-    fontSize: FontSizes.small,
     color: Colors.textMuted,
     marginTop: Spacing.xs,
+  },
+
+  // Nom
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: Spacing.xs,
+  },
+  nameFr: {
+    fontSize: FontSizes.body,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  translitParen: {
+    fontSize: FontSizes.body,
+    color: Colors.textSecondary,
+  },
+
+  // IPA
+  articulation: {
+    fontSize: FontSizes.caption,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+    textAlign: 'center',
+  },
+  ipa: {
+    fontSize: FontSizes.small,
+    color: Colors.textMuted,
+  },
+
+  // Connexions
+  connectionsRow: {
+    gap: Spacing.xs,
+    alignSelf: 'stretch',
+  },
+  connectionBadge: {
+    paddingVertical: 2,
+  },
+  connectionText: {
+    fontSize: FontSizes.caption,
+    color: Colors.textSecondary,
+  },
+
+  // Compact
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.lg,
+  },
+  compactInfo: {
+    gap: 2,
   },
 });
