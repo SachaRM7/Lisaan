@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { Colors } from '../src/constants/theme';
 import { useOnboardingStore } from '../src/stores/useOnboardingStore';
+import { supabase } from '../src/db/remote';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -31,6 +32,15 @@ export default function RootLayout() {
     'Inter': require('../assets/fonts/Inter-Variable.ttf'),
     'NotoNaskhArabic': require('../assets/fonts/NotoNaskhArabic-Variable.ttf'),
   });
+
+  // S'assurer qu'une session existe (sign-in anonyme si besoin)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        supabase.auth.signInAnonymously().catch(() => {/* silencieux */});
+      }
+    });
+  }, []);
 
   // Vérifier le statut d'onboarding au montage
   useEffect(() => {

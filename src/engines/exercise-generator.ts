@@ -23,6 +23,7 @@ export function generateLetterExercises(
       instruction_fr: 'Quelle est cette lettre ?',
       prompt: { ar: letter.form_isolated },
       options: generateOptions(letter, lessonLetters, allLetters, 'ar_to_fr'),
+      metadata: { letter_id: letter.id },
     });
 
     // Exercice 2 : nom français → lettre arabe
@@ -32,6 +33,7 @@ export function generateLetterExercises(
       instruction_fr: `Trouve la lettre "${letter.name_fr}"`,
       prompt: { fr: `${letter.name_fr} (${letter.transliteration})` },
       options: generateOptions(letter, lessonLetters, allLetters, 'fr_to_ar'),
+      metadata: { letter_id: letter.id },
     });
   }
 

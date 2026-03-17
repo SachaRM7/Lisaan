@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../src/db/remote';
 import { useLettersForLesson } from '../../src/hooks/useLetters';
+import { useCreateSRSCardsForLesson } from '../../src/hooks/useSRSCards';
 import LetterCard from '../../src/components/arabic/LetterCard';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
 
@@ -31,6 +32,7 @@ export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const createSRSCards = useCreateSRSCardsForLesson();
 
   // Charger la leçon
   const { data: lesson, isLoading: lessonLoading } = useQuery({
@@ -63,6 +65,10 @@ export default function LessonScreen() {
     if (!isLast) {
       setCurrentIndex(currentIndex + 1);
     } else {
+      // Créer les cartes SRS pour toutes les lettres de la leçon
+      if (letters && letters.length > 0) {
+        createSRSCards.mutate({ letterIds: letters.map((l) => l.id) });
+      }
       router.push(`/lesson/${id}/exercises` as never);
     }
   }

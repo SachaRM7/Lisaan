@@ -1,5 +1,5 @@
 // app/(tabs)/learn.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,32 +13,60 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/constants/theme';
 import { useModules } from '../../src/hooks/useModules';
 import { useLessons } from '../../src/hooks/useLessons';
+import { useProgress, useInitFirstLesson } from '../../src/hooks/useProgress';
 import type { Module } from '../../src/hooks/useModules';
 import type { Lesson } from '../../src/hooks/useLessons';
+import type { LessonProgress } from '../../src/hooks/useProgress';
 
 // ── Composant leçon ────────────────────────────────────────
 
-function LessonRow({ lesson, onPress }: { lesson: Lesson; onPress: () => void }) {
+function lessonStatusIcon(status: LessonProgress['status'] | undefined): string {
+  if (status === 'completed') return '✅';
+  if (status === 'available') return '🔓';
+  return '🔒';
+}
+
+function LessonRow({
+  lesson,
+  progress,
+  onPress,
+}: {
+  lesson: Lesson;
+  progress: LessonProgress | undefined;
+  onPress: () => void;
+}) {
+  const status = progress?.status;
+  const isLocked = !status || status === 'locked';
+
   return (
-    <Pressable style={styles.lessonRow} onPress={onPress}>
+    <Pressable
+      style={[styles.lessonRow, isLocked && styles.lessonRowLocked]}
+      onPress={isLocked ? undefined : onPress}
+    >
       <View style={styles.lessonLeft}>
         <Text style={styles.lessonOrder}>{lesson.sort_order}.</Text>
         <View style={styles.lessonTitles}>
-          <Text style={styles.lessonTitleAr}>{lesson.title_ar}</Text>
-          <Text style={styles.lessonTitleFr}>{lesson.title_fr}</Text>
+          <Text style={[styles.lessonTitleAr, isLocked && styles.lessonTextLocked]}>{lesson.title_ar}</Text>
+          <Text style={[styles.lessonTitleFr, isLocked && styles.lessonTextLocked]}>
+            {lesson.title_fr}
+            {status === 'completed' && progress?.score != null
+              ? `  ${progress.score}%`
+              : ''}
+          </Text>
         </View>
       </View>
-      <Text style={styles.lessonStatus}>🔓</Text>
+      <Text style={styles.lessonStatus}>{lessonStatusIcon(status)}</Text>
     </Pressable>
   );
 }
 
 // ── Composant Module 1 (avec accordion leçons) ─────────────
 
-function Module1Card({ module }: { module: Module }) {
+function Module1Card({ module, progressList }: { module: Module; progressList: LessonProgress[] }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(true);
   const { data: lessons, isLoading } = useLessons(module.id);
+  const completedCount = progressList.filter(p => p.status === 'completed').length;
 
   return (
     <View style={[styles.moduleCard, styles.moduleCardActive]}>
@@ -49,7 +77,7 @@ function Module1Card({ module }: { module: Module }) {
           <Text style={styles.moduleTitleFr}>{module.title_fr}</Text>
         </View>
         <View style={styles.moduleHeaderRight}>
-          <Text style={styles.moduleLessonCount}>{lessons?.length ?? 0}/7</Text>
+          <Text style={styles.moduleLessonCount}>{completedCount}/{lessons?.length ?? 0}</Text>
           <Text style={styles.moduleChevron}>{expanded ? '▲' : '▼'}</Text>
         </View>
       </Pressable>
@@ -60,13 +88,17 @@ function Module1Card({ module }: { module: Module }) {
           {isLoading ? (
             <ActivityIndicator size="small" color={Colors.primary} style={{ padding: Spacing.lg }} />
           ) : (
-            lessons?.map((lesson) => (
-              <LessonRow
-                key={lesson.id}
-                lesson={lesson}
-                onPress={() => router.push(`/lesson/${lesson.id}`)}
-              />
-            ))
+            lessons?.map((lesson) => {
+              const progress = progressList.find(p => p.lesson_id === lesson.id);
+              return (
+                <LessonRow
+                  key={lesson.id}
+                  lesson={lesson}
+                  progress={progress}
+                  onPress={() => router.push(`/lesson/${lesson.id}`)}
+                />
+              );
+            })
           )}
         </View>
       )}
@@ -95,6 +127,16 @@ function LockedModuleCard({ module, number }: { module: Module; number: number }
 
 export default function LearnScreen() {
   const { data: modules, isLoading } = useModules();
+  const { data: progress = [] } = useProgress();
+  const { data: module1Lessons } = useLessons(modules?.[0]?.id ?? '');
+  const initFirstLesson = useInitFirstLesson();
+
+  // Initialiser la leçon 1 si aucune progression n'existe
+  useEffect(() => {
+    if (progress.length === 0 && module1Lessons && module1Lessons.length > 0) {
+      initFirstLesson.mutate(module1Lessons[0].id);
+    }
+  }, [progress.length, module1Lessons]);
 
   if (isLoading) {
     return (
@@ -103,7 +145,6 @@ export default function LearnScreen() {
       </SafeAreaView>
     );
   }
-
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -118,7 +159,7 @@ export default function LearnScreen() {
         <View style={styles.modulesList}>
           {modules?.map((module, index) => {
             if (index === 0) {
-              return <Module1Card key={module.id} module={module} />;
+              return <Module1Card key={module.id} module={module} progressList={progress} />;
             }
             return (
               <LockedModuleCard key={module.id} module={module} number={index + 1} />
@@ -260,5 +301,11 @@ const styles = StyleSheet.create({
   },
   lessonStatus: {
     fontSize: 16,
+  },
+  lessonRowLocked: {
+    opacity: 0.4,
+  },
+  lessonTextLocked: {
+    color: Colors.textMuted,
   },
 });

@@ -15,6 +15,9 @@ import { useLetters, useLettersForLesson } from '../../../src/hooks/useLetters';
 import { generateLetterExercises } from '../../../src/engines/exercise-generator';
 import { ExerciseRenderer } from '../../../src/components/exercises/ExerciseRenderer';
 import type { ExerciseResult } from '../../../src/types/exercise';
+import { useUpdateSRSCard, useSRSCards } from '../../../src/hooks/useSRSCards';
+import { computeSRSUpdate, exerciseResultToQuality } from '../../../src/engines/srs';
+import { useCompleteLesson } from '../../../src/hooks/useProgress';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../../src/constants/theme';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
@@ -35,6 +38,9 @@ export default function ExercisesScreen() {
   const [results, setResults] = useState<ExerciseResult[]>([]);
   const [phase, setPhase] = useState<'exercises' | 'results'>('exercises');
   const startTime = useMemo(() => Date.now(), []);
+  const updateSRSCard = useUpdateSRSCard();
+  const { data: srsCards } = useSRSCards();
+  const completeLesson = useCompleteLesson();
 
   // Charger la leçon
   const { data: lesson } = useQuery({
@@ -61,6 +67,18 @@ export default function ExercisesScreen() {
     const newResults = [...results, result];
     setResults(newResults);
 
+    // Mettre à jour la carte SRS pour la lettre de cet exercice
+    const currentExercise = exercises[currentIndex];
+    const letterId = currentExercise?.metadata?.letter_id as string | undefined;
+    if (letterId && srsCards) {
+      const card = srsCards.find((c) => c.item_id === letterId);
+      if (card) {
+        const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
+        const update = computeSRSUpdate(card, quality);
+        updateSRSCard.mutate({ itemType: 'letter', itemId: letterId, update });
+      }
+    }
+
     if (currentIndex + 1 < exercises.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -74,6 +92,17 @@ export default function ExercisesScreen() {
     const total = results.length;
     const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
     const totalTime = Math.round((Date.now() - startTime) / 1000);
+
+    function handleContinue() {
+      if (id) {
+        completeLesson.mutate({
+          lessonId: id as string,
+          score: pct,
+          timeSpentSeconds: totalTime,
+        });
+      }
+      router.replace('/(tabs)/learn');
+    }
 
     return (
       <SafeAreaView style={styles.safe}>
@@ -98,7 +127,7 @@ export default function ExercisesScreen() {
 
           <TouchableOpacity
             style={styles.ctaBtn}
-            onPress={() => router.replace('/(tabs)/learn')}
+            onPress={handleContinue}
             activeOpacity={0.85}
           >
             <Text style={styles.ctaLabel}>Continuer →</Text>
