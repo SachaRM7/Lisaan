@@ -8,7 +8,7 @@ import { INTERVAL_LABELS } from '../../src/engines/srs';
 
 export default function ReviewScreen() {
   const streak = useUserStore((s) => s.user?.streak_current ?? 0);
-  const { cardsDue, mastery } = useProgressStore();
+  const { mastery } = useProgressStore();
   const [isFlipped, setIsFlipped] = useState(false);
 
   // Placeholder data — will be replaced with real SRS query

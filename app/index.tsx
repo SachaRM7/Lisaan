@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
-
+// La redirection est gérée par app/_layout.tsx via checkOnboardingStatus()
+// → onboarding si premier lancement, tabs si déjà complété
 export default function Index() {
-  return <Redirect href="/(tabs)/learn" />;
+  return null;
 }

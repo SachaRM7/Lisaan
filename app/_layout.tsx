@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { Colors } from '../src/constants/theme';
+import { useOnboardingStore } from '../src/stores/useOnboardingStore';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -21,6 +22,9 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  const router = useRouter();
+  const { isCompleted, isLoading, checkOnboardingStatus } = useOnboardingStore();
+
   const [fontsLoaded, _fontError] = useFonts({
     'Amiri': require('../assets/fonts/Amiri-Regular.ttf'),
     'Amiri-Bold': require('../assets/fonts/Amiri-Bold.ttf'),
@@ -28,13 +32,30 @@ export default function RootLayout() {
     'NotoNaskhArabic': require('../assets/fonts/NotoNaskhArabic-Variable.ttf'),
   });
 
+  // Vérifier le statut d'onboarding au montage
   useEffect(() => {
-    if (fontsLoaded) {
+    checkOnboardingStatus();
+  }, []);
+
+  // Cacher le splash screen une fois polices + statut chargés
+  useEffect(() => {
+    if (fontsLoaded && !isLoading) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, isLoading]);
 
-  if (!fontsLoaded && !_fontError) {
+  // Rediriger selon le statut d'onboarding
+  useEffect(() => {
+    if (!fontsLoaded || isLoading) return;
+    if (!isCompleted) {
+      router.replace('/(onboarding)/step1');
+    } else {
+      router.replace('/(tabs)/learn');
+    }
+  }, [fontsLoaded, isLoading, isCompleted]);
+
+  // Garder le splash visible pendant le chargement
+  if (!fontsLoaded || isLoading) {
     return null;
   }
 
@@ -50,6 +71,10 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="(onboarding)"
+            options={{ animation: 'fade', gestureEnabled: false }}
+          />
           <Stack.Screen
             name="onboarding"
             options={{ animation: 'fade', gestureEnabled: false }}
