@@ -34,10 +34,20 @@ export default function RootLayout() {
   });
 
   // S'assurer qu'une session existe (sign-in anonyme si besoin)
+  // et qu'une ligne existe dans public.users pour cet utilisateur.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      let userId = session?.user?.id;
+
       if (!session) {
-        supabase.auth.signInAnonymously().catch(() => {/* silencieux */});
+        const { data } = await supabase.auth.signInAnonymously().catch(() => ({ data: null }));
+        userId = data?.user?.id;
+      }
+
+      if (userId) {
+        await supabase
+          .from('users')
+          .upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true });
       }
     });
   }, []);
@@ -96,6 +106,10 @@ export default function RootLayout() {
           <Stack.Screen
             name="exercise/[id]"
             options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="review-session"
+            options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
           />
         </Stack>
       </QueryClientProvider>

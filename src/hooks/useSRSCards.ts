@@ -113,7 +113,11 @@ export function useCreateSRSCardsForLesson() {
           ignoreDuplicates: true,
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[SRS] createSRSCards error:', error);
+        throw error;
+      }
+      console.log('[SRS] createSRSCards ok — cartes créées:', cards.length);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SRS_QUERY_KEY });
