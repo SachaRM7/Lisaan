@@ -12,29 +12,34 @@ import type { Letter } from '../hooks/useLetters';
 export function generateLetterExercises(
   lessonLetters: Letter[],
   allLetters: Letter[],
+  direction: 'ar_to_fr' | 'fr_to_ar' | 'both' = 'both',
 ): ExerciseConfig[] {
   const exercises: ExerciseConfig[] = [];
 
   for (const letter of lessonLetters) {
     // Exercice 1 : lettre arabe → nom français
-    exercises.push({
-      id: `mcq-ar-to-fr-${letter.id}`,
-      type: 'mcq',
-      instruction_fr: 'Quelle est cette lettre ?',
-      prompt: { ar: letter.form_isolated },
-      options: generateOptions(letter, lessonLetters, allLetters, 'ar_to_fr'),
-      metadata: { letter_id: letter.id },
-    });
+    if (direction === 'ar_to_fr' || direction === 'both') {
+      exercises.push({
+        id: `mcq-ar-to-fr-${letter.id}`,
+        type: 'mcq',
+        instruction_fr: 'Quelle est cette lettre ?',
+        prompt: { ar: letter.form_isolated },
+        options: generateOptions(letter, lessonLetters, allLetters, 'ar_to_fr'),
+        metadata: { letter_id: letter.id },
+      });
+    }
 
     // Exercice 2 : nom français → lettre arabe
-    exercises.push({
-      id: `mcq-fr-to-ar-${letter.id}`,
-      type: 'mcq',
-      instruction_fr: `Trouve la lettre "${letter.name_fr}"`,
-      prompt: { fr: `${letter.name_fr} (${letter.transliteration})` },
-      options: generateOptions(letter, lessonLetters, allLetters, 'fr_to_ar'),
-      metadata: { letter_id: letter.id },
-    });
+    if (direction === 'fr_to_ar' || direction === 'both') {
+      exercises.push({
+        id: `mcq-fr-to-ar-${letter.id}`,
+        type: 'mcq',
+        instruction_fr: `Trouve la lettre "${letter.name_fr}"`,
+        prompt: { fr: `${letter.name_fr} (${letter.transliteration})` },
+        options: generateOptions(letter, lessonLetters, allLetters, 'fr_to_ar'),
+        metadata: { letter_id: letter.id },
+      });
+    }
   }
 
   return shuffleArray(exercises);

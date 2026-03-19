@@ -1,5 +1,5 @@
 // app/lesson/[id]/exercises.tsx
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,9 @@ import type { ExerciseResult } from '../../../src/types/exercise';
 import { useUpdateSRSCard, useSRSCards } from '../../../src/hooks/useSRSCards';
 import { computeSRSUpdate, exerciseResultToQuality } from '../../../src/engines/srs';
 import { useCompleteLesson } from '../../../src/hooks/useProgress';
+import { useSettingsStore } from '../../../src/stores/useSettingsStore';
+import { updateStreak } from '../../../src/engines/streak';
+import { addXP, calculateLessonXP } from '../../../src/engines/xp';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../../src/constants/theme';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
@@ -37,6 +40,7 @@ export default function ExercisesScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<ExerciseResult[]>([]);
   const [phase, setPhase] = useState<'exercises' | 'results'>('exercises');
+  const [updatedStreakCurrent, setUpdatedStreakCurrent] = useState<number | null>(null);
   const startTime = useMemo(() => Date.now(), []);
   const updateSRSCard = useUpdateSRSCard();
   const { data: srsCards } = useSRSCards();
@@ -45,8 +49,9 @@ export default function ExercisesScreen() {
   // pour éviter d'incrémenter repetitions deux fois et fausser les intervalles.
   const updatedItemIds = useRef(new Set<string>());
   const completeLesson = useCompleteLesson();
+  const exercise_direction = useSettingsStore((s) => s.exercise_direction);
 
-  // Charger la leçon
+  // Charger la leçon (avant le useEffect qui en dépend)
   const { data: lesson } = useQuery({
     queryKey: ['lesson', id],
     queryFn: async () => {
@@ -58,14 +63,29 @@ export default function ExercisesScreen() {
     enabled: !!id,
   });
 
+  // Déclencher streak + XP dès l'entrée en phase résultats (pour affichage)
+  useEffect(() => {
+    if (phase !== 'results') return;
+    const correct = results.filter((r) => r.correct).length;
+    const total = results.length;
+    const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const baseXP = (lesson?.xp_reward as number | undefined) ?? 20;
+    const xp = calculateLessonXP(baseXP, pct);
+    addXP(xp);
+    updateStreak().then((data) => {
+      if (data) setUpdatedStreakCurrent(data.streak_current);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   const range = lesson ? LESSON_LETTER_RANGES[lesson.sort_order as number] : null;
   const { data: lessonLetters } = useLettersForLesson(range?.[0] ?? 0, range?.[1] ?? 0);
   const { data: allLetters } = useLetters();
 
   const exercises = useMemo(() => {
     if (!lessonLetters || !allLetters) return [];
-    return generateLetterExercises(lessonLetters, allLetters);
-  }, [lessonLetters, allLetters]);
+    return generateLetterExercises(lessonLetters, allLetters, exercise_direction);
+  }, [lessonLetters, allLetters, exercise_direction]);
 
   function handleComplete(result: ExerciseResult) {
     const newResults = [...results, result];
@@ -97,6 +117,9 @@ export default function ExercisesScreen() {
     const total = results.length;
     const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
     const totalTime = Math.round((Date.now() - startTime) / 1000);
+    const baseXP = (lesson?.xp_reward as number | undefined) ?? 20;
+    const earnedXP = calculateLessonXP(baseXP, pct);
+    const isPerfect = pct >= 100;
 
     function handleContinue() {
       if (id) {
@@ -123,6 +146,19 @@ export default function ExercisesScreen() {
               <View style={[styles.scoreBarFill, { width: `${pct}%` }]} />
             </View>
             <Text style={styles.scorePct}>{pct}%</Text>
+          </View>
+
+          {/* XP gagnés + streak */}
+          <View style={styles.xpBox}>
+            <Text style={styles.xpText}>
+              {isPerfect ? `+${earnedXP} XP 🎯` : `+${earnedXP} XP`}
+            </Text>
+            {isPerfect && (
+              <Text style={styles.xpBonus}>Bonus score parfait ×1,5 !</Text>
+            )}
+            {updatedStreakCurrent !== null && (
+              <Text style={styles.streakText}>🔥 Streak : {updatedStreakCurrent} jour{updatedStreakCurrent > 1 ? 's' : ''}</Text>
+            )}
           </View>
 
           {/* Temps */}
@@ -266,6 +302,28 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.heading,
     fontWeight: '700',
     color: Colors.primary,
+  },
+  xpBox: {
+    backgroundColor: Colors.primaryLight,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  xpText: {
+    fontSize: FontSizes.heading,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  xpBonus: {
+    fontSize: FontSizes.caption,
+    color: Colors.primary,
+  },
+  streakText: {
+    fontSize: FontSizes.caption,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   timeText: {
     fontSize: FontSizes.caption,

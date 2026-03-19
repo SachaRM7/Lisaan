@@ -18,6 +18,8 @@ import { CONFUSION_PAIRS } from '../src/constants/confusion-pairs';
 import { ExerciseRenderer } from '../src/components/exercises/ExerciseRenderer';
 import type { ExerciseResult } from '../src/types/exercise';
 import type { SRSCard } from '../src/engines/srs';
+import { updateStreak } from '../src/engines/streak';
+import { addXP, calculateReviewXP } from '../src/engines/xp';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../src/constants/theme';
 
 function formatTime(seconds: number): string {
@@ -81,6 +83,7 @@ export default function ReviewSession() {
     const correct = results.filter(r => r.correct).length;
     const wrong = results.length - correct;
     const totalTime = Math.round((Date.now() - startTime) / 1000);
+    const earnedXP = calculateReviewXP(totalCards);
 
     return (
       <SafeAreaView style={styles.safe}>
@@ -90,6 +93,7 @@ export default function ReviewSession() {
           <View style={styles.scoreBox}>
             <Text style={styles.scoreNumber}>{totalCards}</Text>
             <Text style={styles.scoreLabel}>cartes révisées</Text>
+            <Text style={styles.xpText}>+{earnedXP} XP</Text>
           </View>
 
           <View style={styles.detailBox}>
@@ -113,7 +117,11 @@ export default function ReviewSession() {
 
           <TouchableOpacity
             style={styles.ctaBtn}
-            onPress={() => router.replace('/(tabs)/review' as never)}
+            onPress={() => {
+              addXP(earnedXP); // fire-and-forget
+              updateStreak();   // fire-and-forget
+              router.replace('/(tabs)/review' as never);
+            }}
             activeOpacity={0.85}
           >
             <Text style={styles.ctaLabel}>Continuer →</Text>
@@ -241,6 +249,7 @@ const styles = StyleSheet.create({
     lineHeight: 64,
   },
   scoreLabel: { fontSize: FontSizes.body, color: Colors.textSecondary },
+  xpText: { fontSize: FontSizes.heading, fontWeight: '700', color: Colors.primary, marginTop: 4 },
   detailBox: {
     width: '100%',
     backgroundColor: Colors.bgCard,

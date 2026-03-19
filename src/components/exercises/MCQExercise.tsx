@@ -1,15 +1,18 @@
 // src/components/exercises/MCQExercise.tsx
 import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import type { ExerciseComponentProps, ExerciseOption } from '../../types/exercise';
 import ArabicText from '../arabic/ArabicText';
 import { Colors, Spacing, Radius, FontSizes, Layout } from '../../constants/theme';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
   const startTime = useRef(Date.now());
   const attempts = useRef(1);
+  const hapticFeedback = useSettingsStore((s) => s.haptic_feedback);
 
   const options = config.options ?? [];
   const correctOption = options.find((o) => o.correct);
@@ -22,6 +25,15 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
 
     const isCorrect = option.correct;
     if (!isCorrect) attempts.current = 2;
+
+    // Haptic feedback selon le réglage
+    if (hapticFeedback) {
+      if (isCorrect) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    }
 
     const delay = isCorrect ? 800 : 1200;
     setTimeout(() => {
@@ -61,7 +73,7 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
       {/* Prompt */}
       <View style={styles.promptBox}>
         {config.prompt.ar ? (
-          <ArabicText size="xlarge">{config.prompt.ar}</ArabicText>
+          <ArabicText>{config.prompt.ar}</ArabicText>
         ) : null}
         {config.prompt.fr ? (
           <Text style={styles.promptFr}>{config.prompt.fr}</Text>
@@ -79,7 +91,7 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
             activeOpacity={0.75}
           >
             {option.text.ar ? (
-              <ArabicText size="large">{option.text.ar}</ArabicText>
+              <ArabicText>{option.text.ar}</ArabicText>
             ) : null}
             {option.text.fr ? (
               <Text style={getOptionTextStyle(option)}>{option.text.fr}</Text>

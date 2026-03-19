@@ -1,15 +1,12 @@
 import { create } from 'zustand';
 import type {
   User,
-  UserSettings,
-  HarakatsMode,
-  DisplayMode,
-  ExerciseDirection,
-  AudioSpeed,
-  FontSizePref,
   OnboardingAnswers,
   VariantType,
 } from '../types';
+
+// Re-export the new settings store as the canonical useSettingsStore
+export { useSettingsStore } from './useSettingsStore';
 
 // ─── User Store ───────────────────────────────────────────
 
@@ -72,48 +69,6 @@ export const useUserStore = create<UserState>((set) => ({
   setActiveVariant: (variant) => set((state) => ({
     user: state.user ? { ...state.user, active_variant: variant } : null,
   })),
-}));
-
-// ─── Settings Store ───────────────────────────────────────
-
-interface SettingsState {
-  settings: UserSettings;
-
-  setHarakatsMode: (mode: HarakatsMode) => void;
-  setTransliterationMode: (mode: DisplayMode) => void;
-  setTranslationMode: (mode: DisplayMode) => void;
-  setExerciseDirection: (dir: ExerciseDirection) => void;
-  setAudioAutoplay: (enabled: boolean) => void;
-  setAudioSpeed: (speed: AudioSpeed) => void;
-  setFontSize: (size: FontSizePref) => void;
-  setHapticFeedback: (enabled: boolean) => void;
-  loadSettings: (settings: UserSettings) => void;
-}
-
-const DEFAULT_SETTINGS: UserSettings = {
-  user_id: '',
-  harakats_mode: 'always',
-  transliteration_mode: 'always',
-  translation_mode: 'always',
-  exercise_direction: 'both',
-  audio_autoplay: true,
-  audio_speed: 'slow',
-  font_size: 'medium',
-  haptic_feedback: true,
-};
-
-export const useSettingsStore = create<SettingsState>((set) => ({
-  settings: DEFAULT_SETTINGS,
-
-  setHarakatsMode: (mode) => set((s) => ({ settings: { ...s.settings, harakats_mode: mode } })),
-  setTransliterationMode: (mode) => set((s) => ({ settings: { ...s.settings, transliteration_mode: mode } })),
-  setTranslationMode: (mode) => set((s) => ({ settings: { ...s.settings, translation_mode: mode } })),
-  setExerciseDirection: (dir) => set((s) => ({ settings: { ...s.settings, exercise_direction: dir } })),
-  setAudioAutoplay: (enabled) => set((s) => ({ settings: { ...s.settings, audio_autoplay: enabled } })),
-  setAudioSpeed: (speed) => set((s) => ({ settings: { ...s.settings, audio_speed: speed } })),
-  setFontSize: (size) => set((s) => ({ settings: { ...s.settings, font_size: size } })),
-  setHapticFeedback: (enabled) => set((s) => ({ settings: { ...s.settings, haptic_feedback: enabled } })),
-  loadSettings: (settings) => set({ settings }),
 }));
 
 // ─── Progress Store ───────────────────────────────────────

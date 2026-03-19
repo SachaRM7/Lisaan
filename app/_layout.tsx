@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { Colors } from '../src/constants/theme';
 import { useOnboardingStore } from '../src/stores/useOnboardingStore';
+import { useSettingsStore } from '../src/stores/useSettingsStore';
 import { supabase } from '../src/db/remote';
 
 // Prevent splash screen from auto-hiding
@@ -25,6 +26,7 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const router = useRouter();
   const { isCompleted, isLoading, checkOnboardingStatus } = useOnboardingStore();
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
 
   const [fontsLoaded, _fontError] = useFonts({
     'Amiri': require('../assets/fonts/Amiri-Regular.ttf'),
@@ -52,9 +54,10 @@ export default function RootLayout() {
     });
   }, []);
 
-  // Vérifier le statut d'onboarding au montage
+  // Vérifier le statut d'onboarding et charger les réglages au montage
   useEffect(() => {
     checkOnboardingStatus();
+    loadSettings();
   }, []);
 
   // Cacher le splash screen une fois polices + statut chargés

@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/constants/theme';
 import { useModules } from '../../src/hooks/useModules';
 import { useLessons } from '../../src/hooks/useLessons';
 import { useProgress, useInitFirstLesson } from '../../src/hooks/useProgress';
+import { supabase } from '../../src/db/remote';
 import type { Module } from '../../src/hooks/useModules';
 import type { Lesson } from '../../src/hooks/useLessons';
 import type { LessonProgress } from '../../src/hooks/useProgress';
@@ -131,6 +133,20 @@ export default function LearnScreen() {
   const { data: module1Lessons } = useLessons(modules?.[0]?.id ?? '');
   const initFirstLesson = useInitFirstLesson();
 
+  const { data: userStats } = useQuery({
+    queryKey: ['user_stats_learn'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from('users')
+        .select('streak_current, total_xp')
+        .eq('id', user.id)
+        .single();
+      return data;
+    },
+  });
+
   // Initialiser la leçon 1 si aucune progression n'existe
   useEffect(() => {
     if (progress.length === 0 && module1Lessons && module1Lessons.length > 0) {
@@ -153,6 +169,14 @@ export default function LearnScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Apprendre</Text>
+          <View style={styles.statsChips}>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>🔥 {userStats?.streak_current ?? 0}</Text>
+            </View>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>⭐ {userStats?.total_xp ?? 0}</Text>
+            </View>
+          </View>
         </View>
 
         {/* Modules */}
@@ -185,12 +209,30 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: Spacing['2xl'],
   },
   title: {
     fontSize: FontSizes.title,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  statsChips: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  chip: {
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+  },
+  chipText: {
+    fontSize: FontSizes.caption,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 
   // Modules

@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Colors } from '../../constants/theme';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 const SIZES = {
   small:  { arabic: 20, sub: 12, lineHeight: 40 },
@@ -14,19 +15,31 @@ const SIZES = {
 interface ArabicTextProps {
   /** Texte arabe avec harakats (ex: كِتَاب) */
   children: string;
-  /** Texte sans harakats — si fourni, utilisé quand harakats masqués (ex: كتاب) */
+  /** Texte sans harakats — si fourni, utilisé quand harakats masqués */
   withoutHarakats?: string;
-  /** Translittération latine (ex: kitāb) — affichée en dessous si activée */
+  /** Translittération latine (ex: kitāb) */
   transliteration?: string;
-  /** Traduction française — affichée en dessous si activée */
+  /** Traduction française */
   translation?: string;
-  /** Mode d'affichage des harakats */
-  harakatsMode?: 'always' | 'never' | 'tap_reveal';
-  /** Afficher la translittération */
+  /**
+   * Mode d'affichage des harakats.
+   * Si non passé → lu depuis useSettingsStore.harakats_mode
+   */
+  harakatsMode?: 'always' | 'adaptive' | 'never' | 'tap_reveal';
+  /**
+   * Afficher la translittération.
+   * Si non passé → déterminé par useSettingsStore.transliteration_mode
+   */
   showTransliteration?: boolean;
-  /** Afficher la traduction */
+  /**
+   * Afficher la traduction.
+   * Si non passé → déterminé par useSettingsStore.translation_mode
+   */
   showTranslation?: boolean;
-  /** Taille du texte arabe (défaut: 'large') */
+  /**
+   * Taille du texte arabe.
+   * Si non passé → lu depuis useSettingsStore.font_size
+   */
   size?: 'small' | 'medium' | 'large' | 'xlarge';
   /** Style additionnel */
   style?: StyleProp<ViewStyle>;
@@ -43,58 +56,131 @@ export default function ArabicText({
   withoutHarakats,
   transliteration,
   translation,
-  harakatsMode = 'always',
-  showTransliteration = false,
-  showTranslation = false,
-  size = 'large',
+  harakatsMode,
+  showTransliteration,
+  showTranslation,
+  size,
   style,
 }: ArabicTextProps) {
-  const [revealed, setRevealed] = useState(false);
-  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const s = SIZES[size];
+  const globalSettings = useSettingsStore();
 
-  // Texte sans harakats : utiliser withoutHarakats si fourni, sinon stripper
+  // ─── Priorité : prop explicite > réglage global ───────────
+  const effectiveHarakatsMode = harakatsMode ?? globalSettings.harakats_mode;
+  const effectiveSize = size ?? globalSettings.font_size;
+
+  // Pour translittération : prop booléenne si passée, sinon lire le mode du store
+  const translitMode = showTransliteration !== undefined
+    ? (showTransliteration ? 'always' : 'never')
+    : globalSettings.transliteration_mode;
+
+  // Pour traduction : idem
+  const translationMode = showTranslation !== undefined
+    ? (showTranslation ? 'always' : 'never')
+    : globalSettings.translation_mode;
+
+  // ─── État tap_reveal ──────────────────────────────────────
+  const [harakatsRevealed, setHarakatsRevealed] = useState(false);
+  const [translitRevealed, setTranslitRevealed] = useState(false);
+  const [translationRevealed, setTranslationRevealed] = useState(false);
+  const harakatsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const translitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const translationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const s = SIZES[effectiveSize];
+
+  // ─── Texte arabe (avec/sans harakats) ─────────────────────
   const bareText = withoutHarakats ?? stripHarakats(children);
 
   let displayText: string;
-  switch (harakatsMode) {
+  switch (effectiveHarakatsMode) {
     case 'always':
+    case 'adaptive': // Au MVP, adaptive = always
       displayText = children;
       break;
     case 'never':
       displayText = bareText;
       break;
     case 'tap_reveal':
-      displayText = revealed ? children : bareText;
+      displayText = harakatsRevealed ? children : bareText;
       break;
     default:
       displayText = children;
   }
 
-  function handleTap() {
-    if (harakatsMode !== 'tap_reveal') return;
-    if (revealTimer.current) clearTimeout(revealTimer.current);
-    setRevealed(true);
-    revealTimer.current = setTimeout(() => setRevealed(false), 2000);
+  function handleHarakatsTap() {
+    if (effectiveHarakatsMode !== 'tap_reveal') return;
+    if (harakatsTimer.current) clearTimeout(harakatsTimer.current);
+    setHarakatsRevealed(true);
+    harakatsTimer.current = setTimeout(() => setHarakatsRevealed(false), 2000);
   }
 
+  function handleTranslitTap() {
+    if (translitMode !== 'tap_reveal') return;
+    if (translitTimer.current) clearTimeout(translitTimer.current);
+    setTranslitRevealed(true);
+    translitTimer.current = setTimeout(() => setTranslitRevealed(false), 2000);
+  }
+
+  function handleTranslationTap() {
+    if (translationMode !== 'tap_reveal') return;
+    if (translationTimer.current) clearTimeout(translationTimer.current);
+    setTranslationRevealed(true);
+    translationTimer.current = setTimeout(() => setTranslationRevealed(false), 2000);
+  }
+
+  // ─── Rendu texte arabe ─────────────────────────────────────
   const arabicText = (
-    <Text
-      style={[
-        styles.arabic,
-        { fontSize: s.arabic, lineHeight: s.lineHeight },
-      ]}
-    >
+    <Text style={[styles.arabic, { fontSize: s.arabic, lineHeight: s.lineHeight }]}>
       {displayText}
     </Text>
   );
 
+  // ─── Rendu translittération ────────────────────────────────
+  let translitElement: React.ReactNode = null;
+  if (transliteration && translitMode !== 'never') {
+    if (translitMode === 'tap_reveal') {
+      translitElement = (
+        <Pressable onPress={handleTranslitTap}>
+          <Text style={[styles.transliteration, { fontSize: s.sub }]}>
+            {translitRevealed ? transliteration : '• • • •'}
+          </Text>
+        </Pressable>
+      );
+    } else {
+      translitElement = (
+        <Text style={[styles.transliteration, { fontSize: s.sub }]}>
+          {transliteration}
+        </Text>
+      );
+    }
+  }
+
+  // ─── Rendu traduction ──────────────────────────────────────
+  let translationElement: React.ReactNode = null;
+  if (translation && translationMode !== 'never') {
+    if (translationMode === 'tap_reveal') {
+      translationElement = (
+        <Pressable onPress={handleTranslationTap}>
+          <Text style={[styles.translation, { fontSize: s.sub }]}>
+            {translationRevealed ? translation : '• • •'}
+          </Text>
+        </Pressable>
+      );
+    } else {
+      translationElement = (
+        <Text style={[styles.translation, { fontSize: s.sub }]}>
+          {translation}
+        </Text>
+      );
+    }
+  }
+
   return (
     <View style={[styles.container, style]}>
-      {harakatsMode === 'tap_reveal' ? (
-        <Pressable onPress={handleTap} style={styles.pressable}>
+      {effectiveHarakatsMode === 'tap_reveal' ? (
+        <Pressable onPress={handleHarakatsTap} style={styles.pressable}>
           {arabicText}
-          {!revealed && (
+          {!harakatsRevealed && (
             <Text style={[styles.tapHint, { fontSize: s.sub - 2 }]}>
               tap pour les harakats
             </Text>
@@ -104,17 +190,8 @@ export default function ArabicText({
         arabicText
       )}
 
-      {showTransliteration && transliteration ? (
-        <Text style={[styles.transliteration, { fontSize: s.sub }]}>
-          {transliteration}
-        </Text>
-      ) : null}
-
-      {showTranslation && translation ? (
-        <Text style={[styles.translation, { fontSize: s.sub }]}>
-          {translation}
-        </Text>
-      ) : null}
+      {translitElement}
+      {translationElement}
     </View>
   );
 }

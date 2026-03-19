@@ -1,160 +1,270 @@
-import { View, Text, ScrollView, StyleSheet, Pressable, Switch } from 'react-native';
+// app/(tabs)/profile.tsx
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/constants/theme';
-import { useSettingsStore } from '../../src/stores';
-import type { HarakatsMode, DisplayMode, ExerciseDirection, AudioSpeed } from '../../src/types';
+import { useSettingsStore } from '../../src/stores/useSettingsStore';
+import { SettingRow } from '../../src/components/settings/SettingRow';
+import ArabicText from '../../src/components/arabic/ArabicText';
+import { supabase } from '../../src/db/remote';
 
-// ─── Setting Row Components ───────────────────────────────
+// ─── Options des sélecteurs ───────────────────────────────
 
-interface CycleSettingProps {
-  label: string;
-  description: string;
-  value: string;
-  onPress: () => void;
-}
+const HARAKATS_OPTIONS = [
+  { value: 'always',    label: 'Toujours affichés' },
+  { value: 'tap_reveal',label: 'Tap pour révéler' },
+  { value: 'never',     label: 'Masqués' },
+  { value: 'adaptive',  label: 'Adaptatif' },
+];
 
-function CycleSetting({ label, description, value, onPress }: CycleSettingProps) {
-  return (
-    <Pressable style={styles.settingRow} onPress={onPress}>
-      <View style={styles.settingInfo}>
-        <Text style={styles.settingLabel}>{label}</Text>
-        <Text style={styles.settingDesc}>{description}</Text>
-      </View>
-      <View style={styles.settingBadge}>
-        <Text style={styles.settingBadgeText}>{value}</Text>
-      </View>
-    </Pressable>
-  );
-}
+const TRANSLIT_OPTIONS = [
+  { value: 'always',    label: 'Toujours visible' },
+  { value: 'tap_reveal',label: 'Tap pour révéler' },
+  { value: 'never',     label: 'Masquée' },
+];
 
-interface ToggleSettingProps {
-  label: string;
-  description: string;
-  value: boolean;
-  onToggle: (value: boolean) => void;
-}
+const TRANSLATION_OPTIONS = [
+  { value: 'always',    label: 'Toujours visible' },
+  { value: 'tap_reveal',label: 'Tap pour révéler' },
+  { value: 'never',     label: 'Masquée' },
+];
 
-function ToggleSetting({ label, description, value, onToggle }: ToggleSettingProps) {
-  return (
-    <View style={styles.settingRow}>
-      <View style={styles.settingInfo}>
-        <Text style={styles.settingLabel}>{label}</Text>
-        <Text style={styles.settingDesc}>{description}</Text>
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: Colors.border, true: Colors.primary }}
-        thumbColor={Colors.bgCard}
-      />
-    </View>
-  );
-}
+const FONT_SIZE_OPTIONS = [
+  { value: 'small',  label: 'Petite' },
+  { value: 'medium', label: 'Moyenne' },
+  { value: 'large',  label: 'Grande' },
+  { value: 'xlarge', label: 'Très grande' },
+];
 
-// ─── Cycle helpers ────────────────────────────────────────
+const DIRECTION_OPTIONS = [
+  { value: 'ar_to_fr', label: 'Arabe → Français' },
+  { value: 'fr_to_ar', label: 'Français → Arabe' },
+  { value: 'both',     label: 'Les deux en alternance' },
+];
 
-const HARAKATS_CYCLE: HarakatsMode[] = ['always', 'adaptive', 'tap_reveal', 'never'];
-const HARAKATS_LABELS: Record<HarakatsMode, string> = {
-  always: 'Toujours', adaptive: 'Adaptatif', tap_reveal: 'Au tap', never: 'Masqués',
-};
+const SPEED_OPTIONS = [
+  { value: 'slow',   label: 'Lent' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'native', label: 'Natif' },
+];
 
-const DISPLAY_CYCLE: DisplayMode[] = ['always', 'tap_reveal', 'never'];
-const DISPLAY_LABELS: Record<DisplayMode, string> = {
-  always: 'Toujours', tap_reveal: 'Au tap', never: 'Masqué',
-};
-
-const DIRECTION_CYCLE: ExerciseDirection[] = ['ar_to_fr', 'fr_to_ar', 'both'];
-const DIRECTION_LABELS: Record<ExerciseDirection, string> = {
-  ar_to_fr: 'AR → FR', fr_to_ar: 'FR → AR', both: 'Les deux',
-};
-
-const SPEED_CYCLE: AudioSpeed[] = ['slow', 'normal', 'native'];
-const SPEED_LABELS: Record<AudioSpeed, string> = {
-  slow: 'Lente', normal: 'Normale', native: 'Native',
-};
-
-function cycleValue<T>(current: T, options: T[]): T {
-  const idx = options.indexOf(current);
-  return options[(idx + 1) % options.length] as T;
-}
+const GOAL_OPTIONS = [
+  { value: '5',  label: '5 min' },
+  { value: '10', label: '10 min' },
+  { value: '15', label: '15 min' },
+  { value: '25', label: '25 min' },
+];
 
 // ─── Screen ───────────────────────────────────────────────
 
 export default function ProfileScreen() {
-  const settings = useSettingsStore((s) => s.settings);
   const store = useSettingsStore();
+  const router = useRouter();
+
+  // Charger les données utilisateur
+  const { data: userData, refetch } = useQuery({
+    queryKey: ['user_profile'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from('users')
+        .select('display_name, streak_current, streak_longest, total_xp, daily_goal_minutes')
+        .eq('id', user.id)
+        .single();
+      return data;
+    },
+  });
+
+  async function updateDailyGoal(minutes: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase
+      .from('users')
+      .update({ daily_goal_minutes: parseInt(minutes, 10) })
+      .eq('id', user.id);
+    refetch();
+  }
+
+  function handleReset() {
+    Alert.alert(
+      'Réinitialiser les réglages',
+      'Tous les réglages reviendront aux valeurs par défaut.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Réinitialiser',
+          style: 'destructive',
+          onPress: () => store.resetToDefaults(),
+        },
+      ],
+    );
+  }
+
+  function handleLogout() {
+    Alert.alert(
+      'Se déconnecter',
+      'Voulez-vous vraiment vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Se déconnecter',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.auth.signOut();
+            router.replace('/(onboarding)/step1' as never);
+          },
+        },
+      ],
+    );
+  }
+
+  const dailyGoalStr = String(userData?.daily_goal_minutes ?? 10);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Réglages</Text>
-          <Pressable>
-            <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
+
+        {/* Titre */}
+        <Text style={styles.screenTitle}>Profil</Text>
+
+        {/* ── Stats utilisateur ── */}
+        <View style={styles.statsCard}>
+          <Text style={styles.displayName}>
+            {userData?.display_name ?? 'Apprenant'}
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statEmoji}>🔥</Text>
+              <Text style={styles.statValue}>{userData?.streak_current ?? 0}</Text>
+              <Text style={styles.statLabel}>jours</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statEmoji}>⭐</Text>
+              <Text style={styles.statValue}>{userData?.total_xp ?? 0}</Text>
+              <Text style={styles.statLabel}>XP</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statEmoji}>🏆</Text>
+              <Text style={styles.statValue}>{userData?.streak_longest ?? 0}</Text>
+              <Text style={styles.statLabel}>record</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Affichage ── */}
+        <Text style={styles.sectionTitle}>AFFICHAGE</Text>
+
+        {/* Preview live — lit le store automatiquement, aucune prop explicite */}
+        <View style={styles.previewBox}>
+          <ArabicText
+            withoutHarakats="كتاب"
+            transliteration="kitābun"
+            translation="un livre"
+          >
+            كِتَابٌ
+          </ArabicText>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <SettingRow
+            label="Harakats (تشكيل)"
+            type="select"
+            options={HARAKATS_OPTIONS}
+            selectedValue={store.harakats_mode}
+            onSelect={(v) => store.updateSetting('harakats_mode', v as never)}
+          />
+          <View style={styles.separator} />
+          <SettingRow
+            label="Translittération"
+            type="select"
+            options={TRANSLIT_OPTIONS}
+            selectedValue={store.transliteration_mode}
+            onSelect={(v) => store.updateSetting('transliteration_mode', v as never)}
+          />
+          <View style={styles.separator} />
+          <SettingRow
+            label="Traduction"
+            type="select"
+            options={TRANSLATION_OPTIONS}
+            selectedValue={store.translation_mode}
+            onSelect={(v) => store.updateSetting('translation_mode', v as never)}
+          />
+          <View style={styles.separator} />
+          <SettingRow
+            label="Taille du texte"
+            type="select"
+            options={FONT_SIZE_OPTIONS}
+            selectedValue={store.font_size}
+            onSelect={(v) => store.updateSetting('font_size', v as never)}
+          />
+        </View>
+
+        {/* ── Exercices ── */}
+        <Text style={styles.sectionTitle}>EXERCICES</Text>
+        <View style={styles.sectionCard}>
+          <SettingRow
+            label="Sens"
+            type="select"
+            options={DIRECTION_OPTIONS}
+            selectedValue={store.exercise_direction}
+            onSelect={(v) => store.updateSetting('exercise_direction', v as never)}
+          />
+          <View style={styles.separator} />
+          <SettingRow
+            label="Vibrations"
+            type="toggle"
+            isOn={store.haptic_feedback}
+            onToggle={(v) => store.updateSetting('haptic_feedback', v)}
+          />
+        </View>
+
+        {/* ── Audio ── */}
+        <Text style={styles.sectionTitle}>AUDIO</Text>
+        <View style={styles.sectionCard}>
+          <SettingRow
+            label="Lecture auto"
+            type="toggle"
+            isOn={store.audio_autoplay}
+            onToggle={(v) => store.updateSetting('audio_autoplay', v)}
+          />
+          <View style={styles.separator} />
+          <SettingRow
+            label="Vitesse"
+            type="select"
+            options={SPEED_OPTIONS}
+            selectedValue={store.audio_speed}
+            onSelect={(v) => store.updateSetting('audio_speed', v as never)}
+          />
+        </View>
+
+        {/* ── Objectif ── */}
+        <Text style={styles.sectionTitle}>OBJECTIF</Text>
+        <View style={styles.sectionCard}>
+          <SettingRow
+            label="Temps quotidien"
+            type="select"
+            options={GOAL_OPTIONS}
+            selectedValue={dailyGoalStr}
+            onSelect={updateDailyGoal}
+          />
+        </View>
+
+        {/* ── Compte ── */}
+        <Text style={styles.sectionTitle}>COMPTE</Text>
+        <View style={styles.sectionCard}>
+          <Pressable style={styles.accountRow} onPress={handleReset}>
+            <Text style={styles.accountRowText}>Réinitialiser les réglages</Text>
+          </Pressable>
+          <View style={styles.separator} />
+          <Pressable style={styles.accountRow} onPress={handleLogout}>
+            <Text style={[styles.accountRowText, styles.danger]}>Se déconnecter</Text>
           </Pressable>
         </View>
 
-        {/* Display section */}
-        <Text style={styles.sectionTitle}>AFFICHAGE</Text>
-        <View style={styles.sectionCard}>
-          <CycleSetting
-            label="Harakats (تشكيل)"
-            description="Afficher les voyelles courtes"
-            value={HARAKATS_LABELS[settings.harakats_mode]}
-            onPress={() => store.setHarakatsMode(cycleValue(settings.harakats_mode, HARAKATS_CYCLE))}
-          />
-          <View style={styles.separator} />
-          <CycleSetting
-            label="Translittération"
-            description="kitāb, madrasa..."
-            value={DISPLAY_LABELS[settings.transliteration_mode]}
-            onPress={() => store.setTransliterationMode(cycleValue(settings.transliteration_mode, DISPLAY_CYCLE))}
-          />
-          <View style={styles.separator} />
-          <CycleSetting
-            label="Traduction"
-            description="Afficher la traduction française"
-            value={DISPLAY_LABELS[settings.translation_mode]}
-            onPress={() => store.setTranslationMode(cycleValue(settings.translation_mode, DISPLAY_CYCLE))}
-          />
-          <View style={styles.separator} />
-          <CycleSetting
-            label="Taille de police arabe"
-            description="Ajuster la lisibilité"
-            value={settings.font_size === 'small' ? 'Petite' : settings.font_size === 'medium' ? 'Moyenne' : settings.font_size === 'large' ? 'Grande' : 'Très grande'}
-            onPress={() => store.setFontSize(cycleValue(settings.font_size, ['small', 'medium', 'large', 'xlarge'] as const))}
-          />
-        </View>
-
-        {/* Exercises section */}
-        <Text style={styles.sectionTitle}>EXERCICES</Text>
-        <View style={styles.sectionCard}>
-          <CycleSetting
-            label="Direction d'exercice"
-            description="Arabe → Français ou inverse"
-            value={DIRECTION_LABELS[settings.exercise_direction]}
-            onPress={() => store.setExerciseDirection(cycleValue(settings.exercise_direction, DIRECTION_CYCLE))}
-          />
-        </View>
-
-        {/* Audio section */}
-        <Text style={styles.sectionTitle}>AUDIO</Text>
-        <View style={styles.sectionCard}>
-          <CycleSetting
-            label="Vitesse audio"
-            description="Vitesse de lecture des sons"
-            value={SPEED_LABELS[settings.audio_speed]}
-            onPress={() => store.setAudioSpeed(cycleValue(settings.audio_speed, SPEED_CYCLE))}
-          />
-          <View style={styles.separator} />
-          <ToggleSetting
-            label="Lecture automatique"
-            description="Jouer le son automatiquement"
-            value={settings.audio_autoplay}
-            onToggle={store.setAudioAutoplay}
-          />
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -167,19 +277,72 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding: Layout.screenPaddingH,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing['3xl'],
-  },
-  title: {
+  screenTitle: {
     fontSize: FontSizes.title,
     fontWeight: '700',
     color: Colors.textPrimary,
+    marginBottom: Spacing['2xl'],
   },
+
+  // Stats card
+  statsCard: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.xl,
+    padding: Spacing['2xl'],
+    marginBottom: Spacing['2xl'],
+    ...Shadows.card,
+  },
+  displayName: {
+    fontSize: FontSizes.heading,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  statItem: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  statEmoji: {
+    fontSize: 24,
+  },
+  statValue: {
+    fontSize: FontSizes.heading,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  statLabel: {
+    fontSize: FontSizes.small,
+    color: Colors.textMuted,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: Colors.border,
+  },
+
+  // Preview live
+  previewBox: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing['2xl'],
+    paddingHorizontal: Spacing.xl,
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    ...Shadows.card,
+  },
+
+  // Sections
   sectionTitle: {
     fontSize: FontSizes.small,
     fontWeight: '700',
@@ -195,41 +358,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...Shadows.card,
   },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.cardPaddingH,
-    paddingVertical: Spacing.lg,
-  },
-  settingInfo: {
-    flex: 1,
-    marginRight: Spacing.lg,
-  },
-  settingLabel: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  settingDesc: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  settingBadge: {
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-  },
-  settingBadgeText: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
   separator: {
     height: 1,
     backgroundColor: Colors.border,
     marginLeft: Layout.cardPaddingH,
+  },
+
+  // Compte
+  accountRow: {
+    paddingHorizontal: Layout.cardPaddingH,
+    paddingVertical: Spacing.lg,
+  },
+  accountRowText: {
+    fontSize: FontSizes.body,
+    color: Colors.textPrimary,
+  },
+  danger: {
+    color: Colors.error,
   },
 });
