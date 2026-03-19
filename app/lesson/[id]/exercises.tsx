@@ -9,19 +9,21 @@ import {
   ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../../src/db/remote';
+import { useLesson } from '../../../src/hooks/useLessons';
 import { useLetters, useLettersForLesson } from '../../../src/hooks/useLetters';
+import { useDiacritics, useDiacriticsForLesson } from '../../../src/hooks/useDiacritics';
 import { generateLetterExercises } from '../../../src/engines/exercise-generator';
+import { generateHarakatExercises, LESSON_DIACRITIC_RANGES } from '../../../src/engines/harakat-exercise-generator';
 import { ExerciseRenderer } from '../../../src/components/exercises/ExerciseRenderer';
 import type { ExerciseResult } from '../../../src/types/exercise';
 import { useUpdateSRSCard, useSRSCards } from '../../../src/hooks/useSRSCards';
-import { computeSRSUpdate, exerciseResultToQuality } from '../../../src/engines/srs';
+import { computeSRSUpdate, exerciseResultToQuality, createNewCard } from '../../../src/engines/srs';
 import { useCompleteLesson } from '../../../src/hooks/useProgress';
 import { useSettingsStore } from '../../../src/stores/useSettingsStore';
 import { updateStreak } from '../../../src/engines/streak';
 import { addXP, calculateLessonXP } from '../../../src/engines/xp';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../../src/constants/theme';
+import { supabase } from '../../../src/db/remote';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
@@ -44,26 +46,30 @@ export default function ExercisesScreen() {
   const startTime = useMemo(() => Date.now(), []);
   const updateSRSCard = useUpdateSRSCard();
   const { data: srsCards } = useSRSCards();
-  // Chaque lettre apparaît 2× dans les exercices (ar→fr + fr→ar).
-  // On ne met à jour la carte SRS qu'une seule fois par lettre par session
-  // pour éviter d'incrémenter repetitions deux fois et fausser les intervalles.
   const updatedItemIds = useRef(new Set<string>());
   const completeLesson = useCompleteLesson();
   const exercise_direction = useSettingsStore((s) => s.exercise_direction);
 
-  // Charger la leçon (avant le useEffect qui en dépend)
-  const { data: lesson } = useQuery({
-    queryKey: ['lesson', id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('lessons').select('*').eq('id', id).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+  // Charger la leçon avec son module
+  const { data: lesson } = useLesson(id ?? '');
+  const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
+  const contentType = moduleSortOrder === 2 ? 'diacritics' : 'letters';
 
-  // Déclencher streak + XP dès l'entrée en phase résultats (pour affichage)
+  // ── Module 1 : lettres ──────────────────────────────────────
+  const range = contentType === 'letters' && lesson
+    ? (LESSON_LETTER_RANGES[lesson.sort_order] ?? null)
+    : null;
+  const { data: lessonLetters } = useLettersForLesson(range?.[0] ?? 0, range?.[1] ?? 0);
+  const { data: allLetters } = useLetters();
+
+  // ── Module 2 : diacritiques ─────────────────────────────────
+  const diacriticSortOrders = contentType === 'diacritics' && lesson
+    ? (LESSON_DIACRITIC_RANGES[lesson.sort_order] ?? [])
+    : [];
+  const { data: lessonDiacritics } = useDiacriticsForLesson(diacriticSortOrders);
+  const { data: allDiacritics } = useDiacritics();
+
+  // Déclencher streak + XP dès l'entrée en phase résultats
   useEffect(() => {
     if (phase !== 'results') return;
     const correct = results.filter((r) => r.correct).length;
@@ -75,32 +81,46 @@ export default function ExercisesScreen() {
     updateStreak().then((data) => {
       if (data) setUpdatedStreakCurrent(data.streak_current);
     });
+
+    // Créer les cartes SRS pour les diacritiques si Module 2
+    if (contentType === 'diacritics' && lessonDiacritics && lessonDiacritics.length > 0) {
+      createSRSCardsForDiacritics(lessonDiacritics.map((d) => d.id));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  const range = lesson ? LESSON_LETTER_RANGES[lesson.sort_order as number] : null;
-  const { data: lessonLetters } = useLettersForLesson(range?.[0] ?? 0, range?.[1] ?? 0);
-  const { data: allLetters } = useLetters();
-
+  // ── Génération des exercices ────────────────────────────────
   const exercises = useMemo(() => {
-    if (!lessonLetters || !allLetters) return [];
-    return generateLetterExercises(lessonLetters, allLetters, exercise_direction);
-  }, [lessonLetters, allLetters, exercise_direction]);
+    if (contentType === 'letters') {
+      if (!lessonLetters || !allLetters) return [];
+      return generateLetterExercises(lessonLetters, allLetters, exercise_direction);
+    } else {
+      if (!lessonDiacritics || !allDiacritics || !lesson) return [];
+      return generateHarakatExercises(
+        lesson.sort_order,
+        lessonDiacritics,
+        allDiacritics,
+        allLetters ?? [],
+      );
+    }
+  }, [lessonLetters, allLetters, lessonDiacritics, allDiacritics, lesson, contentType, exercise_direction]);
 
   function handleComplete(result: ExerciseResult) {
     const newResults = [...results, result];
     setResults(newResults);
 
-    // Mettre à jour la carte SRS pour la lettre de cet exercice
-    const currentExercise = exercises[currentIndex];
-    const letterId = currentExercise?.metadata?.letter_id as string | undefined;
-    if (letterId && srsCards && !updatedItemIds.current.has(letterId)) {
-      const card = srsCards.find((c) => c.item_id === letterId);
-      if (card) {
-        updatedItemIds.current.add(letterId);
-        const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
-        const update = computeSRSUpdate(card, quality);
-        updateSRSCard.mutate({ itemType: 'letter', itemId: letterId, update });
+    // Mettre à jour la carte SRS (letters uniquement — diacritics gérés en phase results)
+    if (contentType === 'letters') {
+      const currentExercise = exercises[currentIndex];
+      const letterId = currentExercise?.metadata?.letter_id as string | undefined;
+      if (letterId && srsCards && !updatedItemIds.current.has(letterId)) {
+        const card = srsCards.find((c) => c.item_id === letterId);
+        if (card) {
+          updatedItemIds.current.add(letterId);
+          const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
+          const update = computeSRSUpdate(card, quality);
+          updateSRSCard.mutate({ itemType: 'letter', itemId: letterId, update });
+        }
       }
     }
 
@@ -138,7 +158,6 @@ export default function ExercisesScreen() {
           <Text style={styles.resultsTitle}>Leçon terminée !</Text>
           <Text style={styles.encouragement}>{getEncouragement(pct)}</Text>
 
-          {/* Score */}
           <View style={styles.scoreBox}>
             <Text style={styles.scoreNumber}>{correct}/{total}</Text>
             <Text style={styles.scoreLabel}>bonnes réponses</Text>
@@ -148,7 +167,6 @@ export default function ExercisesScreen() {
             <Text style={styles.scorePct}>{pct}%</Text>
           </View>
 
-          {/* XP gagnés + streak */}
           <View style={styles.xpBox}>
             <Text style={styles.xpText}>
               {isPerfect ? `+${earnedXP} XP 🎯` : `+${earnedXP} XP`}
@@ -161,7 +179,6 @@ export default function ExercisesScreen() {
             )}
           </View>
 
-          {/* Temps */}
           <Text style={styles.timeText}>
             Temps total : {totalTime < 60 ? `${totalTime}s` : `${Math.floor(totalTime / 60)}min ${totalTime % 60}s`}
           </Text>
@@ -193,7 +210,6 @@ export default function ExercisesScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
           <Text style={styles.backArrow}>←</Text>
@@ -202,7 +218,6 @@ export default function ExercisesScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      {/* Barre de progression */}
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${((currentIndex) / exercises.length) * 100}%` }]} />
       </View>
@@ -212,12 +227,28 @@ export default function ExercisesScreen() {
   );
 }
 
+/** Crée les cartes SRS pour les diacritiques si elles n'existent pas encore */
+async function createSRSCardsForDiacritics(diacriticIds: string[]): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const cards = diacriticIds.map((diacriticId) =>
+    createNewCard(user.id, 'diacritic', diacriticId),
+  );
+
+  await supabase
+    .from('srs_cards')
+    .upsert(cards, {
+      onConflict: 'user_id,item_type,item_id',
+      ignoreDuplicates: true,
+    });
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { fontSize: FontSizes.body, color: Colors.textSecondary },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -231,7 +262,6 @@ const styles = StyleSheet.create({
   backArrow: { fontSize: 22, color: Colors.textSecondary },
   headerTitle: { fontSize: FontSizes.caption, fontWeight: '600', color: Colors.textPrimary },
 
-  // Progress bar
   progressTrack: {
     height: 4,
     backgroundColor: Colors.border,
@@ -246,7 +276,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
 
-  // Résultats
   resultsScroll: {
     paddingHorizontal: Layout.screenPaddingH,
     paddingTop: Spacing['4xl'],

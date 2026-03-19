@@ -10,23 +10,28 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../src/db/remote';
+import { useLesson } from '../../src/hooks/useLessons';
 import { useLettersForLesson } from '../../src/hooks/useLetters';
+import { useDiacriticsForLesson } from '../../src/hooks/useDiacritics';
 import { useCreateSRSCardsForLesson } from '../../src/hooks/useSRSCards';
 import LetterCard from '../../src/components/arabic/LetterCard';
+import DiacriticCard from '../../src/components/arabic/DiacriticCard';
+import SyllableDisplay from '../../src/components/arabic/SyllableDisplay';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
+import { LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
 
-// Mapping sort_order de leçon → [start, end] des lettres
+// Mapping sort_order de leçon → [start, end] des lettres (Module 1)
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
-  1: [1, 4],
-  2: [5, 7],
-  3: [8, 11],
-  4: [12, 15],
-  5: [16, 19],
-  6: [20, 23],
-  7: [24, 28],
+  1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
+  5: [16, 19], 6: [20, 23], 7: [24, 28],
 };
+
+type LessonContentType = 'letters' | 'diacritics';
+
+function getLessonContentType(moduleSortOrder: number): LessonContentType {
+  if (moduleSortOrder === 2) return 'diacritics';
+  return 'letters';
+}
 
 export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,31 +39,32 @@ export default function LessonScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const createSRSCards = useCreateSRSCardsForLesson();
 
-  // Charger la leçon
-  const { data: lesson, isLoading: lessonLoading } = useQuery({
-    queryKey: ['lesson', id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('lessons')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+  // Charger la leçon avec son module
+  const { data: lesson, isLoading: lessonLoading } = useLesson(id ?? '');
 
-  // Déterminer la plage de lettres selon le sort_order de la leçon
-  const range = lesson ? LESSON_LETTER_RANGES[lesson.sort_order as number] : null;
+  const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
+  const contentType = getLessonContentType(moduleSortOrder);
+
+  // ── Module 1 : lettres ──────────────────────────────────────
+  const letterRange = contentType === 'letters' && lesson
+    ? (LESSON_LETTER_RANGES[lesson.sort_order] ?? null)
+    : null;
   const { data: letters, isLoading: lettersLoading } = useLettersForLesson(
-    range?.[0] ?? 0,
-    range?.[1] ?? 0,
+    letterRange?.[0] ?? 0,
+    letterRange?.[1] ?? 0,
   );
 
-  const isLoading = lessonLoading || lettersLoading;
-  const letter = letters?.[currentIndex];
-  const total = letters?.length ?? 0;
+  // ── Module 2 : diacritiques ─────────────────────────────────
+  const diacriticSortOrders = contentType === 'diacritics' && lesson
+    ? (LESSON_DIACRITIC_RANGES[lesson.sort_order] ?? [])
+    : [];
+  const { data: diacritics, isLoading: diacriticsLoading } = useDiacriticsForLesson(diacriticSortOrders);
+
+  const isLoading = lessonLoading || lettersLoading || diacriticsLoading;
+
+  // ── Items à afficher selon le type ─────────────────────────
+  const items = contentType === 'letters' ? (letters ?? []) : (diacritics ?? []);
+  const total = items.length;
   const isLast = currentIndex === total - 1;
 
   function handleNext() {
@@ -66,10 +72,7 @@ export default function LessonScreen() {
       setCurrentIndex(currentIndex + 1);
     } else {
       const goToExercises = () => router.push(`/lesson/${id}/exercises` as never);
-      // Créer les cartes SRS AVANT de naviguer vers les exercices,
-      // sinon useSRSCards dans exercises.tsx ne trouve pas encore les cartes
-      // et updateSRSCard n'est jamais appelé (race condition).
-      if (letters && letters.length > 0) {
+      if (contentType === 'letters' && letters && letters.length > 0) {
         createSRSCards.mutate(
           { letterIds: letters.map((l) => l.id) },
           { onSuccess: goToExercises, onError: goToExercises },
@@ -88,10 +91,10 @@ export default function LessonScreen() {
     );
   }
 
-  if (!letter) {
+  if (total === 0) {
     return (
       <SafeAreaView style={styles.safe}>
-        <Text style={styles.errorText}>Lettre introuvable.</Text>
+        <Text style={styles.errorText}>Contenu introuvable.</Text>
       </SafeAreaView>
     );
   }
@@ -109,20 +112,59 @@ export default function LessonScreen() {
 
       {/* Dots de progression */}
       <View style={styles.dotsRow}>
-        {letters?.map((_, i) => (
+        {items.map((_, i) => (
           <View key={i} style={[styles.dot, i <= currentIndex && styles.dotFilled]} />
         ))}
       </View>
       <Text style={styles.counter}>{currentIndex + 1} / {total}</Text>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <LetterCard letter={letter} mode="full" />
-
-        {letter.pedagogy_notes ? (
-          <View style={styles.pedagogyBox}>
-            <Text style={styles.pedagogyText}>{letter.pedagogy_notes}</Text>
-          </View>
-        ) : null}
+        {contentType === 'letters' ? (
+          // ── Présentation lettre ────────────────────────────
+          <>
+            {letters?.[currentIndex] && (
+              <LetterCard letter={letters[currentIndex]} mode="full" />
+            )}
+            {letters?.[currentIndex]?.pedagogy_notes ? (
+              <View style={styles.pedagogyBox}>
+                <Text style={styles.pedagogyText}>{letters[currentIndex].pedagogy_notes}</Text>
+              </View>
+            ) : null}
+          </>
+        ) : (
+          // ── Présentation diacritique ───────────────────────
+          <>
+            {diacritics?.[currentIndex] && (
+              <DiacriticCard
+                diacritic={diacritics[currentIndex]}
+                mode="full"
+                fontSize="xlarge"
+              />
+            )}
+            {diacritics?.[currentIndex]?.pedagogy_notes ? (
+              <View style={styles.pedagogyBox}>
+                <Text style={styles.pedagogyText}>{diacritics[currentIndex].pedagogy_notes}</Text>
+              </View>
+            ) : null}
+            {diacritics?.[currentIndex] && (
+              <SyllableDisplay
+                mode="single_diacritic"
+                diacritics={[diacritics[currentIndex]]}
+                letterForms={diacritics[currentIndex].example_letters}
+              />
+            )}
+            {/* Comparaison avec les diacritiques précédents (leçons 2+) */}
+            {contentType === 'diacritics' &&
+             lesson &&
+             lesson.sort_order >= 2 &&
+             diacritics &&
+             diacritics.length > 0 && (
+              <CompareDiacriticsSection
+                lessonSortOrder={lesson.sort_order}
+              />
+            )}
+          </>
+        )}
       </ScrollView>
 
       {/* Footer */}
@@ -137,6 +179,39 @@ export default function LessonScreen() {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
+  );
+}
+
+/**
+ * Section de comparaison des diacritiques précédents (leçons 2 et 3)
+ * Affiche un SyllableDisplay en mode compare_diacritics
+ */
+function CompareDiacriticsSection({
+  lessonSortOrder,
+}: {
+  lessonSortOrder: number;
+}) {
+  // Récupérer les sort_orders des diacritiques précédents + actuels
+  const compareSortOrders: number[] = [];
+  if (lessonSortOrder === 2) {
+    compareSortOrders.push(1, 3); // Fatha + Kasra
+  } else if (lessonSortOrder === 3) {
+    compareSortOrders.push(1, 3, 2); // Fatha + Kasra + Damma
+  }
+
+  const { data: compareDiacritics } = useDiacriticsForLesson(compareSortOrders);
+
+  if (!compareDiacritics || compareDiacritics.length < 2) return null;
+
+  return (
+    <View style={styles.compareSection}>
+      <Text style={styles.compareSectionTitle}>Comparaison :</Text>
+      <SyllableDisplay
+        mode="compare_diacritics"
+        diacritics={compareDiacritics}
+        letterForms={['ب', 'ت', 'س', 'ن']}
+      />
+    </View>
   );
 }
 
@@ -185,6 +260,15 @@ const styles = StyleSheet.create({
     borderLeftColor: Colors.primary,
   },
   pedagogyText: { fontSize: FontSizes.body, color: Colors.textPrimary, lineHeight: 24 },
+
+  compareSection: {
+    gap: Spacing.sm,
+  },
+  compareSectionTitle: {
+    fontSize: FontSizes.caption,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
 
   footer: {
     flexDirection: 'row',

@@ -11,8 +11,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useSRSCards, useUpdateSRSCard } from '../src/hooks/useSRSCards';
 import { useLetters } from '../src/hooks/useLetters';
+import { useDiacritics } from '../src/hooks/useDiacritics';
 import { getCardsDueForReview, computeSRSUpdate, exerciseResultToQuality } from '../src/engines/srs';
-import { generateReviewExercise } from '../src/engines/review-exercise-generator';
+import { generateReviewExercise, generateDiacriticReviewExercise } from '../src/engines/review-exercise-generator';
 import { applyConfusionPairCap } from '../src/engines/srs';
 import { CONFUSION_PAIRS } from '../src/constants/confusion-pairs';
 import { ExerciseRenderer } from '../src/components/exercises/ExerciseRenderer';
@@ -31,10 +32,10 @@ export default function ReviewSession() {
   const router = useRouter();
   const { data: allCards = [] } = useSRSCards();
   const { data: allLetters = [] } = useLetters();
+  const { data: allDiacritics = [] } = useDiacritics();
   const updateSRSCard = useUpdateSRSCard();
   const startTime = useMemo(() => Date.now(), []);
 
-  // Appliquer le plafonnement confusion pairs puis filtrer les dues
   const initialQueue = useMemo(() => {
     const capped = applyConfusionPairCap(allCards, CONFUSION_PAIRS);
     return getCardsDueForReview(capped);
@@ -52,14 +53,12 @@ export default function ReviewSession() {
     const card = queue[currentIndex];
     const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
 
-    // Mettre à jour la carte SRS
     const update = computeSRSUpdate(card, quality);
     updateSRSCard.mutate({ itemType: card.item_type, itemId: card.item_id, update });
 
     setResults(prev => [...prev, { card, correct: result.correct }]);
 
     if (quality < 3) {
-      // Carte échouée : retirer de la position courante, remettre en fin de file
       setQueue(prev => {
         const next = [...prev];
         next.splice(currentIndex, 1);
@@ -67,9 +66,7 @@ export default function ReviewSession() {
         if (next.length === 0) setPhase('results');
         return next;
       });
-      // currentIndex reste le même → pointe vers la prochaine carte
     } else {
-      // Carte réussie : avancer
       if (currentIndex + 1 >= queue.length) {
         setPhase('results');
       } else {
@@ -118,8 +115,8 @@ export default function ReviewSession() {
           <TouchableOpacity
             style={styles.ctaBtn}
             onPress={() => {
-              addXP(earnedXP); // fire-and-forget
-              updateStreak();   // fire-and-forget
+              addXP(earnedXP);
+              updateStreak();
               router.replace('/(tabs)/review' as never);
             }}
             activeOpacity={0.85}
@@ -134,7 +131,7 @@ export default function ReviewSession() {
   // ── Session ────────────────────────────────────────────
   const currentCard = queue[currentIndex];
 
-  if (!currentCard || allLetters.length === 0) {
+  if (!currentCard || (allLetters.length === 0 && allDiacritics.length === 0)) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.loader}>
@@ -144,10 +141,37 @@ export default function ReviewSession() {
     );
   }
 
-  const targetLetter = allLetters.find(l => l.id === currentCard.item_id);
+  // ── Générer l'exercice selon le type de carte ──────────
+  let exercise = null;
 
-  if (!targetLetter) {
-    // Passer à la carte suivante si la lettre n'est pas trouvée
+  if (currentCard.item_type === 'letter') {
+    const targetLetter = allLetters.find(l => l.id === currentCard.item_id);
+    if (!targetLetter) {
+      // Lettre introuvable : passer à la suivante
+      if (currentIndex + 1 < queue.length) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        setPhase('results');
+      }
+      return null;
+    }
+    exercise = generateReviewExercise(currentCard, targetLetter, allLetters);
+  } else if (currentCard.item_type === 'diacritic') {
+    const targetDiacritic = allDiacritics.find(d => d.id === currentCard.item_id);
+    if (!targetDiacritic) {
+      // Diacritique introuvable : passer à la suivante
+      if (currentIndex + 1 < queue.length) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        setPhase('results');
+      }
+      return null;
+    }
+    exercise = generateDiacriticReviewExercise(currentCard, targetDiacritic, allDiacritics);
+  }
+
+  if (!exercise) {
+    // Type non supporté : passer à la suivante
     if (currentIndex + 1 < queue.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -156,7 +180,6 @@ export default function ReviewSession() {
     return null;
   }
 
-  const exercise = generateReviewExercise(currentCard, targetLetter, allLetters);
   const progress = completedCount / totalCards;
 
   return (
@@ -218,7 +241,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
 
-  // Résultats
   resultsScroll: {
     paddingHorizontal: Layout.screenPaddingH,
     paddingTop: Spacing['4xl'],

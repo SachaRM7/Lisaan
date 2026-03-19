@@ -22,6 +22,14 @@ export interface ExerciseOption {
   correct: boolean;
 }
 
+/** Paire pour l'exercice Match (association) */
+export interface MatchPair {
+  id: string;
+  left: LocalizedText;
+  right: LocalizedText;
+  left_vocalized?: string;
+}
+
 /** Configuration d'un exercice */
 export interface ExerciseConfig {
   id: string;
@@ -29,6 +37,7 @@ export interface ExerciseConfig {
   prompt: LocalizedText;
   instruction_fr?: string;
   options?: ExerciseOption[];
+  matchPairs?: MatchPair[];
   correct_answer?: string | string[];
   audio_url?: string;
   metadata?: Record<string, unknown>;

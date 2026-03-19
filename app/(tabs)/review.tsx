@@ -29,6 +29,7 @@ export default function ReviewScreen() {
     .sort((a, b) => new Date(a.next_review_at).getTime() - new Date(b.next_review_at).getTime())[0];
 
   const dueLetters = dueCards.filter((c) => c.item_type === 'letter').length;
+  const dueDiacritics = dueCards.filter((c) => c.item_type === 'diacritic').length;
   const dueWords = dueCards.filter((c) => c.item_type === 'word').length;
 
   // ── État 1 : aucune carte ───────────────────────────────
@@ -93,7 +94,9 @@ export default function ReviewScreen() {
           <Text style={styles.dueCount}>{dueCards.length} carte{dueCards.length > 1 ? 's' : ''} à réviser</Text>
           <Text style={styles.dueDetail}>
             {dueLetters > 0 ? `Lettres : ${dueLetters}` : ''}
-            {dueLetters > 0 && dueWords > 0 ? '  ·  ' : ''}
+            {dueLetters > 0 && dueDiacritics > 0 ? '  ·  ' : ''}
+            {dueDiacritics > 0 ? `Harakats : ${dueDiacritics}` : ''}
+            {(dueLetters > 0 || dueDiacritics > 0) && dueWords > 0 ? '  ·  ' : ''}
             {dueWords > 0 ? `Mots : ${dueWords}` : ''}
           </Text>
         </View>
