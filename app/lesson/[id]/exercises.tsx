@@ -1,5 +1,5 @@
 // app/lesson/[id]/exercises.tsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,10 @@ export default function ExercisesScreen() {
   const startTime = useMemo(() => Date.now(), []);
   const updateSRSCard = useUpdateSRSCard();
   const { data: srsCards } = useSRSCards();
+  // Chaque lettre apparaît 2× dans les exercices (ar→fr + fr→ar).
+  // On ne met à jour la carte SRS qu'une seule fois par lettre par session
+  // pour éviter d'incrémenter repetitions deux fois et fausser les intervalles.
+  const updatedItemIds = useRef(new Set<string>());
   const completeLesson = useCompleteLesson();
 
   // Charger la leçon
@@ -70,9 +74,10 @@ export default function ExercisesScreen() {
     // Mettre à jour la carte SRS pour la lettre de cet exercice
     const currentExercise = exercises[currentIndex];
     const letterId = currentExercise?.metadata?.letter_id as string | undefined;
-    if (letterId && srsCards) {
+    if (letterId && srsCards && !updatedItemIds.current.has(letterId)) {
       const card = srsCards.find((c) => c.item_id === letterId);
       if (card) {
+        updatedItemIds.current.add(letterId);
         const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
         const update = computeSRSUpdate(card, quality);
         updateSRSCard.mutate({ itemType: 'letter', itemId: letterId, update });

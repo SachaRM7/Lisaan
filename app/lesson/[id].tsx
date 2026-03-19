@@ -65,11 +65,18 @@ export default function LessonScreen() {
     if (!isLast) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // Créer les cartes SRS pour toutes les lettres de la leçon
+      const goToExercises = () => router.push(`/lesson/${id}/exercises` as never);
+      // Créer les cartes SRS AVANT de naviguer vers les exercices,
+      // sinon useSRSCards dans exercises.tsx ne trouve pas encore les cartes
+      // et updateSRSCard n'est jamais appelé (race condition).
       if (letters && letters.length > 0) {
-        createSRSCards.mutate({ letterIds: letters.map((l) => l.id) });
+        createSRSCards.mutate(
+          { letterIds: letters.map((l) => l.id) },
+          { onSuccess: goToExercises, onError: goToExercises },
+        );
+      } else {
+        goToExercises();
       }
-      router.push(`/lesson/${id}/exercises` as never);
     }
   }
 
