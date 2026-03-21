@@ -1,7 +1,11 @@
 // src/hooks/useProgress.ts
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../db/remote';
+import { useAuthStore } from '../stores/useAuthStore';
+import {
+  getProgressForUser, upsertProgress, getLessonById, getLessonsByModule,
+} from '../db/local-queries';
+import { runSync } from '../engines/sync-manager';
 
 export interface LessonProgress {
   id: string;
@@ -17,20 +21,14 @@ export interface LessonProgress {
 const PROGRESS_QUERY_KEY = ['user_progress'];
 
 export function useProgress() {
+  const userId = useAuthStore((s) => s.userId);
   return useQuery({
     queryKey: PROGRESS_QUERY_KEY,
     queryFn: async (): Promise<LessonProgress[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from('user_progress')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-      return data as LessonProgress[];
+      if (!userId) return [];
+      return getProgressForUser(userId);
     },
+    enabled: !!userId,
   });
 }
 
@@ -43,59 +41,47 @@ export function useCompleteLesson() {
       score: number;
       timeSpentSeconds: number;
     }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const userId = useAuthStore.getState().userId;
+      if (!userId) throw new Error('Not authenticated');
 
-      // Marquer la leçon comme complétée
-      const { error: completeError } = await supabase
-        .from('user_progress')
-        .upsert({
-          user_id: user.id,
-          lesson_id: params.lessonId,
-          status: 'completed',
-          score: params.score,
-          completed_at: new Date().toISOString(),
-          attempts: 1,
-          time_spent_seconds: params.timeSpentSeconds,
-        }, { onConflict: 'user_id,lesson_id' });
+      // Marquer la leçon comme complétée (local)
+      await upsertProgress({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        lesson_id: params.lessonId,
+        status: 'completed',
+        score: params.score,
+        completed_at: new Date().toISOString(),
+        attempts: 1,
+        time_spent_seconds: params.timeSpentSeconds,
+      });
 
-      if (completeError) throw completeError;
-
-      // Trouver la leçon courante pour connaître son module et sort_order
-      const { data: currentLesson } = await supabase
-        .from('lessons')
-        .select('module_id, sort_order')
-        .eq('id', params.lessonId)
-        .single();
-
+      // Trouver la leçon suivante localement
+      const currentLesson = await getLessonById(params.lessonId);
       if (currentLesson) {
-        // Trouver la leçon suivante dans le même module
-        const { data: nextLesson } = await supabase
-          .from('lessons')
-          .select('id')
-          .eq('module_id', currentLesson.module_id)
-          .eq('sort_order', currentLesson.sort_order + 1)
-          .single();
+        const moduleLessons = await getLessonsByModule(currentLesson.module_id);
+        const nextLesson = moduleLessons.find(
+          l => l.sort_order === currentLesson.sort_order + 1
+        );
 
         if (nextLesson) {
-          await supabase
-            .from('user_progress')
-            .upsert({
-              user_id: user.id,
-              lesson_id: nextLesson.id,
-              status: 'available',
-              score: 0,
-              attempts: 0,
-              time_spent_seconds: 0,
-            }, {
-              onConflict: 'user_id,lesson_id',
-              ignoreDuplicates: true,
-            });
+          await upsertProgress({
+            id: crypto.randomUUID(),
+            user_id: userId,
+            lesson_id: nextLesson.id,
+            status: 'available',
+            score: 0,
+            completed_at: null,
+            attempts: 0,
+            time_spent_seconds: 0,
+          });
         }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PROGRESS_QUERY_KEY });
+      // Fire-and-forget sync vers Cloud
+      runSync().catch(console.warn);
     },
   });
 }
@@ -105,25 +91,23 @@ export function useInitFirstLesson() {
 
   return useMutation({
     mutationFn: async (lessonId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = useAuthStore.getState().userId;
+      if (!userId) return;
 
-      await supabase
-        .from('user_progress')
-        .upsert({
-          user_id: user.id,
-          lesson_id: lessonId,
-          status: 'available',
-          score: 0,
-          attempts: 0,
-          time_spent_seconds: 0,
-        }, {
-          onConflict: 'user_id,lesson_id',
-          ignoreDuplicates: true,
-        });
+      await upsertProgress({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        lesson_id: lessonId,
+        status: 'available',
+        score: 0,
+        completed_at: null,
+        attempts: 0,
+        time_spent_seconds: 0,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PROGRESS_QUERY_KEY });
+      runSync().catch(console.warn);
     },
   });
 }

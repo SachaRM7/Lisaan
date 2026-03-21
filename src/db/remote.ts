@@ -5,6 +5,10 @@ import * as SecureStore from 'expo-secure-store';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
+if (!SUPABASE_URL || !SUPABASE_URL.startsWith('https://')) {
+  console.error('[remote] EXPO_PUBLIC_SUPABASE_URL manquant ou invalide:', JSON.stringify(SUPABASE_URL));
+}
+
 /**
  * Secure token storage.
  * - Native : expo-secure-store (chiffré sur l'appareil)
@@ -25,7 +29,10 @@ const secureStorage = {
   },
 };
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+// Fallback URL pour éviter le crash au démarrage si les env vars ne sont pas chargées
+const safeUrl = SUPABASE_URL.startsWith('https://') ? SUPABASE_URL : 'https://placeholder.supabase.co';
+
+export const supabase = createClient(safeUrl, SUPABASE_ANON_KEY || 'placeholder', {
   auth: {
     storage: secureStorage,
     autoRefreshToken: true,

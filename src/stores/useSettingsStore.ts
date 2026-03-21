@@ -1,7 +1,9 @@
 // src/stores/useSettingsStore.ts
 
 import { create } from 'zustand';
-import { supabase } from '../db/remote';
+import { useAuthStore } from './useAuthStore';
+import { getSettings, upsertSettings } from '../db/local-queries';
+import { runSync } from '../engines/sync-manager';
 import type { UserSettings } from '../types/settings';
 import { DEFAULT_SETTINGS } from '../types/settings';
 
@@ -14,28 +16,19 @@ interface SettingsState extends UserSettings {
   resetToDefaults: () => void;
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...DEFAULT_SETTINGS,
   isLoaded: false,
 
   loadSettings: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const userId = useAuthStore.getState().userId;
+      if (!userId) {
         set({ isLoaded: true });
         return;
       }
 
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 = no rows — normal au premier lancement
-        console.error('[settings] Load error:', error.message);
-      }
+      const data = await getSettings(userId);
 
       if (data) {
         set({
@@ -43,17 +36,17 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           transliteration_mode: data.transliteration_mode ?? DEFAULT_SETTINGS.transliteration_mode,
           translation_mode: data.translation_mode ?? DEFAULT_SETTINGS.translation_mode,
           exercise_direction: data.exercise_direction ?? DEFAULT_SETTINGS.exercise_direction,
-          audio_autoplay: data.audio_autoplay ?? DEFAULT_SETTINGS.audio_autoplay,
+          audio_autoplay: !!data.audio_autoplay,
           audio_speed: data.audio_speed ?? DEFAULT_SETTINGS.audio_speed,
           font_size: data.font_size ?? DEFAULT_SETTINGS.font_size,
-          haptic_feedback: data.haptic_feedback ?? DEFAULT_SETTINGS.haptic_feedback,
+          haptic_feedback: !!data.haptic_feedback,
           isLoaded: true,
         });
       } else {
         set({ isLoaded: true });
       }
     } catch (err) {
-      console.error('[settings] Network error:', err);
+      console.error('[settings] Load error:', err);
       set({ isLoaded: true });
     }
   },
@@ -62,18 +55,15 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     // Mise à jour locale immédiate
     set({ [key]: value } as Partial<SettingsState>);
 
-    // Sync vers Supabase en arrière-plan
+    // Écriture SQLite + sync vers Cloud en arrière-plan
     (async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        const userId = useAuthStore.getState().userId;
+        if (!userId) return;
 
-        await supabase
-          .from('user_settings')
-          .upsert(
-            { user_id: user.id, [key]: value },
-            { onConflict: 'user_id' },
-          );
+        const allSettings = get();
+        await upsertSettings(userId, allSettings);
+        runSync().catch(console.warn);
       } catch (err) {
         console.error('[settings] Sync error:', err);
       }
@@ -85,15 +75,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
     (async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        const userId = useAuthStore.getState().userId;
+        if (!userId) return;
 
-        await supabase
-          .from('user_settings')
-          .upsert(
-            { user_id: user.id, ...DEFAULT_SETTINGS },
-            { onConflict: 'user_id' },
-          );
+        await upsertSettings(userId, DEFAULT_SETTINGS);
+        runSync().catch(console.warn);
       } catch (err) {
         console.error('[settings] Reset sync error:', err);
       }

@@ -1,28 +1,34 @@
 # ÉTAPE 5 — Module 2 : Les harakats démystifiés
 
 > **Contexte projet** : Lisaan est une app React Native (Expo SDK 52+) d'apprentissage de l'arabe.
-> Étapes terminées : 0 (Supabase + polices), 1 (onboarding), 2 (composants arabes + leçons Module 1 + MCQ), 3 (SRS + onglet Réviser + progression), 4 (profil/réglages + streaks/XP + propagation settings).
+> Étapes terminées : 0 (Supabase + polices), 1 (onboarding), 2 (composants arabes + leçons Module 1 + MCQ), 3 (SRS + onglet Réviser + progression), 4 (profil/réglages + streaks/XP + propagation settings), **4.5 (migration infrastructure : Supabase Cloud + offline-first SQLite)**.
 > Cette étape construit le Module 2 complet : les 8 diacritiques arabes (harakats), 6 leçons progressives, un nouveau type d'exercice (Match/Association), un générateur d'exercices dédié, et le déverrouillage conditionnel du Module 2.
 
 > **Règle** : Exécute chaque mission dans l'ordre. Ne passe à la suivante qu'après validation du checkpoint.
 
-> **Rappel architecture** : Les exercices sont générés dynamiquement côté client (pas stockés en base). Le `diacritics` table existe déjà avec 8 lignes seedées (É0). Le Module 2 existe dans la table `modules` mais est locked. L'Exercise Engine (É2) utilise un registry plugin extensible. Le SRS supporte déjà `item_type: 'diacritic'`.
+> **Rappel architecture (post-É4.5 — CRITIQUE)** :
+> - **Offline-first** : Tous les hooks lisent depuis **SQLite local** (`src/db/local-queries.ts`). JAMAIS d'import de `src/db/remote` dans les hooks ou stores.
+> - **Seuls** `content-sync.ts` et `sync-manager.ts` parlent à Supabase Cloud.
+> - Après chaque écriture locale (progression, SRS), appeler `runSync()` en fire-and-forget.
+> - **Pas de CLI Supabase** : les migrations SQL s'exécutent dans le Dashboard Supabase Cloud (SQL Editor).
+> - Les exercices sont générés dynamiquement côté client (pas stockés en base).
+> - La table `diacritics` existe déjà avec 8 lignes (seedées en É0, sync dans SQLite par É4.5).
+> - Le Module 2 existe dans la table `modules` mais est locked.
+> - L'Exercise Engine (É2) utilise un registry plugin extensible. Le SRS supporte `item_type: 'diacritic'`.
 
 ---
 
-## MISSION 1 — Migration Supabase : enrichir les diacritiques + seeder les leçons du Module 2
+## MISSION 1 — Enrichir les diacritiques + seeder les leçons du Module 2
 
 **Contexte :**
-La table `diacritics` existe déjà avec 8 lignes, mais elle manque de données pédagogiques (`pedagogy_notes`, `visual_description`, `example_letters`). On a aussi besoin des 6 leçons du Module 2.
+La table `diacritics` existe déjà avec 8 lignes dans Supabase Cloud, mais elle manque de données pédagogiques (`pedagogy_notes`, `visual_description`, `example_letters`). On a aussi besoin des 6 leçons du Module 2.
 
 **Action :**
-Crée une nouvelle migration Supabase :
 
-```bash
-npx supabase migration new module2_harakats
-```
+### 1.1 — Exécuter le SQL dans Supabase Cloud
 
-Contenu de la migration :
+Ouvre le **Dashboard Supabase Cloud** → **SQL Editor** → Nouvelle requête.
+Colle et exécute le SQL suivant :
 
 ```sql
 -- ============================================================
@@ -158,40 +164,76 @@ WHERE m.sort_order = 2;  -- Module 2
 ```
 
 **Important — adaptation nécessaire :**
-Les noms des diacritiques dans ta base (`name_fr`) peuvent varier en casse ou en orthographe (ex: "Fatha" vs "fatha", "Sukun" vs "Soukoun"). Avant d'exécuter la migration :
-1. Vérifie les noms exacts : `SELECT id, name_fr, name_ar FROM diacritics ORDER BY sort_order;`
+Les noms des diacritiques dans ta base (`name_fr`) peuvent varier en casse ou en orthographe (ex: "Fatha" vs "fatha", "Sukun" vs "Soukoun"). Avant d'exécuter le SQL :
+1. Dans le SQL Editor, exécute d'abord : `SELECT id, name_fr, name_ar FROM diacritics ORDER BY sort_order;`
 2. Ajuste les clauses `WHERE` si nécessaire
+3. Exécute le SQL complet
 
-**Applique la migration :**
-```bash
-npx supabase db push
-```
+### 1.2 — Re-synchroniser le contenu local
 
-Ou si tu es en local :
-```bash
-npx supabase db reset
-```
+Après avoir exécuté le SQL dans le Dashboard Cloud, le contenu local (SQLite) est désormais obsolète. Il faut forcer un re-sync.
+
+**Option A (rapide)** : Supprime l'app du simulateur/device et relance — le premier lancement re-téléchargera tout le contenu.
+
+**Option B (propre)** : Ajoute une fonction temporaire ou un bouton dans l'écran Profil/Settings qui appelle `syncContentFromCloud()` depuis `src/engines/content-sync.ts`. Cela re-téléchargera les tables `diacritics` et `lessons` enrichies.
+
+> **Note** : `content-sync.ts` (É4.5) fait déjà un SELECT * + upsert complet pour chaque table contenu. Les nouvelles colonnes (`pedagogy_notes`, `visual_description`, `example_letters`, `transliteration`, `ipa`) et les nouvelles leçons seront automatiquement sync si le schéma SQLite local les supporte. Vérifie que `schema-local.ts` contient bien ces colonnes dans la table `diacritics` (elles ont été ajoutées en É4.5).
 
 **Checkpoint :**
-- [ ] La migration s'applique sans erreur
-- [ ] `SELECT pedagogy_notes, example_letters FROM diacritics WHERE sort_order = 1;` retourne les données de la fatha
+- [ ] Le SQL s'exécute sans erreur dans le Dashboard Supabase Cloud
+- [ ] Dans le SQL Editor : `SELECT pedagogy_notes, example_letters FROM diacritics WHERE sort_order = 1;` retourne les données de la fatha
 - [ ] Les 8 diacritiques ont tous des `pedagogy_notes` non-null
 - [ ] `SELECT COUNT(*) FROM lessons WHERE module_id = (SELECT id FROM modules WHERE sort_order = 2);` retourne 6
 - [ ] Les 6 leçons ont les bons `sort_order` (1 à 6)
 - [ ] La table `diacritic_confusion_pairs` contient 4 lignes
+- [ ] Après re-sync (ou réinstall), `getAllDiacritics()` depuis SQLite local retourne les 8 diacritiques avec `pedagogy_notes` remplis
 
 ---
 
-## MISSION 2 — Hook useDiacritics
+## MISSION 2 — Hook useDiacritics (lecture SQLite)
 
 **Action :**
-Crée `src/hooks/useDiacritics.ts` — exactement le même pattern que `useLetters.ts` (É2, Mission 5).
+Crée `src/hooks/useDiacritics.ts` — même pattern que `useLetters.ts` post-É4.5 : **lecture depuis SQLite local**, jamais depuis Supabase.
+
+### 2.1 — Ajouter les fonctions CRUD dans local-queries.ts
+
+Si elles n'existent pas déjà (elles ont été créées en É4.5), vérifie que `src/db/local-queries.ts` contient `getAllDiacritics()` et `getDiacriticsBySortOrders()`. Si ce n'est pas le cas, ajoute-les :
+
+```typescript
+// Dans src/db/local-queries.ts — ajouter si absent :
+
+export async function getAllDiacritics() {
+  const db = getLocalDB();
+  const rows = await db.getAllAsync<any>('SELECT * FROM diacritics ORDER BY sort_order ASC');
+  return rows.map(d => ({
+    ...d,
+    example_letters: d.example_letters ? JSON.parse(d.example_letters) : [],
+  }));
+}
+
+export async function getDiacriticsBySortOrders(sortOrders: number[]) {
+  const db = getLocalDB();
+  const placeholders = sortOrders.map(() => '?').join(',');
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM diacritics WHERE sort_order IN (${placeholders}) ORDER BY sort_order ASC`,
+    sortOrders
+  );
+  return rows.map(d => ({
+    ...d,
+    example_letters: d.example_letters ? JSON.parse(d.example_letters) : [],
+  }));
+}
+```
+
+### 2.2 — Créer le hook
+
+Crée `src/hooks/useDiacritics.ts` :
 
 ```typescript
 // src/hooks/useDiacritics.ts
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../db/remote';
+import { getAllDiacritics, getDiacriticsBySortOrders } from '../db/local-queries';
 
 export interface Diacritic {
   id: string;
@@ -209,41 +251,20 @@ export interface Diacritic {
   ipa: string | null;
 }
 
-async function fetchAllDiacritics(): Promise<Diacritic[]> {
-  const { data, error } = await supabase
-    .from('diacritics')
-    .select('*')
-    .order('sort_order', { ascending: true });
-
-  if (error) throw error;
-  return data as Diacritic[];
-}
-
-async function fetchDiacriticsForLesson(sortOrders: number[]): Promise<Diacritic[]> {
-  const { data, error } = await supabase
-    .from('diacritics')
-    .select('*')
-    .in('sort_order', sortOrders)
-    .order('sort_order', { ascending: true });
-
-  if (error) throw error;
-  return data as Diacritic[];
-}
-
-/** Tous les diacritiques */
+/** Tous les diacritiques (depuis SQLite local) */
 export function useDiacritics() {
   return useQuery({
     queryKey: ['diacritics'],
-    queryFn: fetchAllDiacritics,
+    queryFn: getAllDiacritics,
     staleTime: Infinity,
   });
 }
 
-/** Diacritiques pour une leçon spécifique du Module 2 */
+/** Diacritiques pour une leçon spécifique du Module 2 (depuis SQLite local) */
 export function useDiacriticsForLesson(sortOrders: number[]) {
   return useQuery({
     queryKey: ['diacritics', 'lesson', sortOrders],
-    queryFn: () => fetchDiacriticsForLesson(sortOrders),
+    queryFn: () => getDiacriticsBySortOrders(sortOrders),
     enabled: sortOrders.length > 0,
     staleTime: Infinity,
   });
@@ -252,7 +273,8 @@ export function useDiacriticsForLesson(sortOrders: number[]) {
 
 **Checkpoint :**
 - [ ] `src/hooks/useDiacritics.ts` compile sans erreur
-- [ ] `useDiacritics()` retourne 8 diacritiques avec les champs enrichis (pedagogy_notes, example_letters, etc.)
+- [ ] **Aucun import de `src/db/remote` ou `supabase`** dans ce fichier
+- [ ] `useDiacritics()` retourne 8 diacritiques avec les champs enrichis (pedagogy_notes, example_letters, etc.) depuis SQLite local
 - [ ] `useDiacriticsForLesson([1])` retourne uniquement la fatha
 
 ---
@@ -848,25 +870,35 @@ if (contentType === 'diacritics') {
 
 ### Hook pour obtenir le module d'une leçon
 
-Crée un petit hook ou modifie `useLessons` pour retourner aussi le module :
+Le hook `useLesson(lessonId)` a été créé en É4.5 et lit depuis SQLite via `getLessonWithModule()`. Vérifie qu'il existe dans `src/hooks/useLessons.ts` :
 
 ```typescript
-// Ajouter à useLessons.ts ou créer useLesson.ts (singulier)
+// Déjà dans useLessons.ts (post-É4.5) — vérifier sa présence :
+import { getLessonWithModule } from '../db/local-queries';
+
 export function useLesson(lessonId: string) {
   return useQuery({
     queryKey: ['lesson', lessonId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('lessons')
-        .select('*, modules!inner(sort_order)')
-        .eq('id', lessonId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => getLessonWithModule(lessonId),
     enabled: !!lessonId,
     staleTime: Infinity,
   });
+}
+```
+
+Si `getLessonWithModule` n'est pas dans `local-queries.ts`, ajoute-le :
+
+```typescript
+// Dans src/db/local-queries.ts — ajouter si absent :
+export async function getLessonWithModule(lessonId: string) {
+  const db = getLocalDB();
+  return db.getFirstAsync<any>(
+    `SELECT l.*, m.sort_order as module_sort_order
+     FROM lessons l
+     JOIN modules m ON l.module_id = m.id
+     WHERE l.id = ?`,
+    [lessonId]
+  );
 }
 ```
 
@@ -952,52 +984,30 @@ Quand l'utilisateur termine la dernière leçon du Module 1 et revient à l'écr
 ## MISSION 9 — SRS : créer les cartes diacritiques après chaque leçon
 
 **Action :**
-Le système SRS (É3) supporte déjà `item_type: 'diacritic'`. Il faut maintenant créer les cartes SRS pour les diacritiques quand l'utilisateur termine une leçon du Module 2.
+Le système SRS (É3, refactoré en É4.5) supporte déjà `item_type: 'diacritic'`. Les hooks SRS écrivent dans SQLite local et sync en fire-and-forget. Il faut maintenant créer les cartes SRS pour les diacritiques quand l'utilisateur termine une leçon du Module 2.
 
 ### Modification de la logique post-leçon
 
-Dans l'écran de leçon (`app/lesson/[id].tsx`), après la complétion d'une leçon du Module 2 :
+Dans l'écran de leçon (`app/lesson/[id].tsx`), après la complétion d'une leçon du Module 2, utilise le hook `useCreateSRSCardsForLesson` (refactoré en É4.5 pour écrire en SQLite) :
 
 ```typescript
-// Après la phase exercices, quand la leçon est terminée :
+// Après la phase exercices, quand la leçon du Module 2 est terminée :
+const createSRSCards = useCreateSRSCardsForLesson();
+
 if (contentType === 'diacritics') {
   // Créer une carte SRS pour chaque diacritique de la leçon
-  for (const diacritic of lessonDiacritics) {
-    await createSRSCardIfNotExists(userId, 'diacritic', diacritic.id);
-  }
+  createSRSCards.mutate({
+    itemIds: lessonDiacritics.map(d => d.id),
+    itemType: 'diacritic',
+  });
 }
 ```
 
-### Mise à jour du `createSRSCardIfNotExists`
-
-Si cette fonction n'existe pas encore, la créer dans le store SRS ou dans un helper :
-
-```typescript
-async function createSRSCardIfNotExists(
-  userId: string,
-  itemType: 'letter' | 'diacritic' | 'word' | 'sentence',
-  itemId: string,
-): Promise<void> {
-  // Vérifier si la carte existe déjà
-  const { data: existing } = await supabase
-    .from('srs_cards')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('item_type', itemType)
-    .eq('item_id', itemId)
-    .maybeSingle();
-
-  if (existing) return; // Carte déjà créée
-
-  // Créer la nouvelle carte
-  const newCard = createNewCard(userId, itemType, itemId);
-  await supabase.from('srs_cards').insert(newCard);
-}
-```
+> **Rappel É4.5** : `useCreateSRSCardsForLesson` écrit dans SQLite local (`upsertSRSCard` de `local-queries.ts`) avec `synced_at = NULL`, puis appelle `runSync()` en fire-and-forget. Pas besoin d'importer Supabase ici.
 
 ### Révision des diacritiques dans l'onglet Réviser
 
-L'onglet Réviser (É3) charge déjà les cartes SRS par `item_type`. Vérifie que :
+L'onglet Réviser (É3) charge les cartes SRS depuis SQLite local (refactoré en É4.5). Vérifie que :
 
 1. Les cartes `diacritic` apparaissent dans la liste de révision quand elles sont dues
 2. Le composant de révision sait afficher un diacritique (pas seulement une lettre)
@@ -1011,18 +1021,19 @@ if (card.item_type === 'letter') {
 }
 if (card.item_type === 'diacritic') {
   // Nouveau : afficher DiacriticCard mode compact
-  // Charger le diacritique via son item_id
+  // Charger le diacritique via son item_id depuis SQLite (useDiacritics ou query directe)
   // Afficher un MCQ "Quel est ce diacritique ?" avec le même pattern
 }
 ```
 
 **Checkpoint :**
-- [ ] Compléter une leçon du Module 2 crée des cartes SRS de type `diacritic`
-- [ ] `SELECT * FROM srs_cards WHERE item_type = 'diacritic'` retourne des lignes après complétion d'une leçon
+- [ ] Compléter une leçon du Module 2 crée des cartes SRS de type `diacritic` **dans SQLite local**
+- [ ] Après sync (automatique ou au retour de connexion), les cartes apparaissent dans Supabase Cloud
 - [ ] Les cartes diacritiques apparaissent dans l'onglet Réviser quand elles sont dues
 - [ ] La révision d'un diacritique affiche `DiacriticCard` en mode compact
 - [ ] Le système SRS met à jour correctement les intervalles pour les diacritiques
 - [ ] Pas de régression : les cartes `letter` fonctionnent toujours
+- [ ] **Aucun import de `src/db/remote` dans l'écran de leçon ni dans l'écran de révision**
 
 ---
 
@@ -1072,6 +1083,12 @@ npx expo start
    - Revenir au Module 1, ouvrir une leçon → le flow lettres fonctionne toujours
    - Les exercices MCQ du Module 1 ne sont pas affectés
 
+8. **Offline-first — vérification critique** :
+   - Passer en mode avion APRÈS avoir fait le content sync
+   - Ouvrir une leçon du Module 2 → le contenu s'affiche (depuis SQLite)
+   - Compléter la leçon → la progression est enregistrée localement
+   - Repasser en ligne → vérifier dans le Dashboard Supabase Cloud que la progression et les cartes SRS ont été sync
+
 ### Points de vigilance :
 
 - Les diacritiques arabes s'affichent correctement (pas de chevauchement, bon positionnement au-dessus/en-dessous)
@@ -1080,19 +1097,23 @@ npx expo start
 - La navigation entre modules est fluide
 - Le déverrouillage séquentiel des leçons du Module 2 fonctionne
 - Les settings (harakats mode, transliteration, font size) sont propagés dans les nouveaux composants
-- Aucun crash quand les données Supabase ne sont pas encore chargées
+- Aucun crash quand les données SQLite ne sont pas encore chargées
+- **CRITIQUE : `grep -rn "from.*db/remote\|from.*supabase" src/hooks/ src/stores/ src/components/` ne retourne AUCUN résultat** (seuls `content-sync.ts` et `sync-manager.ts` importent Supabase)
 
 **Checkpoint final de l'étape :**
-- [ ] La migration Supabase s'applique sans erreur (8 diacritiques enrichis + 6 leçons)
+- [ ] Le SQL Cloud s'exécute sans erreur (8 diacritiques enrichis + 6 leçons)
+- [ ] Le contenu est sync dans SQLite local (diacritiques + leçons Module 2)
 - [ ] Le Module 2 se déverrouille correctement quand le Module 1 est terminé
 - [ ] Les 6 leçons du Module 2 sont jouables de bout en bout (présentation + exercices + résultats)
 - [ ] Le composant `DiacriticCard` affiche les diacritiques correctement en mode full et compact
 - [ ] Le composant `SyllableDisplay` affiche les grilles de syllabes
 - [ ] Le `MatchExercise` fonctionne (association par tap, feedback visuel)
 - [ ] Le générateur d'exercices produit des MCQ et des Match pertinents
-- [ ] Les cartes SRS `diacritic` sont créées et révisables
+- [ ] Les cartes SRS `diacritic` sont créées dans SQLite et synchronisées vers Cloud
 - [ ] Aucune régression sur le Module 1 (lettres, MCQ, progression)
 - [ ] Les settings utilisateur sont propagés dans tous les nouveaux composants
+- [ ] **Aucun hook ni store n'importe `src/db/remote`**
+- [ ] L'app fonctionne en mode avion (contenu déjà sync)
 - [ ] Aucun crash, aucun warning critique
 
 ---
@@ -1101,16 +1122,16 @@ npx expo start
 
 | Mission | Livrable | Statut |
 |---------|----------|--------|
-| 1 | Migration Supabase : enrichissement diacritiques + 6 leçons Module 2 | ⬜ |
-| 2 | Hook `useDiacritics` (React Query + Supabase) | ⬜ |
+| 1 | SQL Cloud : enrichissement diacritiques + 6 leçons Module 2 + re-sync SQLite | ⬜ |
+| 2 | Hook `useDiacritics` (React Query + **SQLite local**) | ⬜ |
 | 3 | Composant `DiacriticCard` (full + compact) | ⬜ |
 | 4 | Composant `SyllableDisplay` (single + compare) | ⬜ |
 | 5 | Composant `MatchExercise` + enregistrement registry | ⬜ |
 | 6 | Générateur d'exercices harakats (`harakat-exercise-generator.ts`) | ⬜ |
 | 7 | Refactoring écran de leçon (support Module 2 : détection content type + flow diacritiques) | ⬜ |
 | 8 | Déverrouillage conditionnel du Module 2 + feedback | ⬜ |
-| 9 | SRS : cartes diacritiques + révision dans l'onglet Réviser | ⬜ |
-| 10 | Vérification end-to-end | ⬜ |
+| 9 | SRS : cartes diacritiques **SQLite** + sync Cloud + révision dans l'onglet Réviser | ⬜ |
+| 10 | Vérification end-to-end (online + **offline**) | ⬜ |
 
 > **Prochaine étape après validation :** Étape 6 — Module 3 : Lire ses premiers mots (mots simples, racines, lecture progressive)
 
@@ -1123,8 +1144,9 @@ npx expo start
 - `lisaan-seed-letters.json` (toujours utile comme référence)
 
 **Fichiers à supprimer de /docs :**
-- `ETAPE-4-profil-reglages.md`
+- `ETAPE-4-profil-reglages.md` (si encore présent)
+- `ETAPE-4.5-migration-offline-first.md` (si encore présent — terminée)
 
 **Fichiers qui restent dans le projet Opus (PAS dans /docs) :**
 - `lisaan-brief-projet-mvp.docx`
-- `lisaan-architecture-data-model.docx`
+- `lisaan-architecture-data-model.docx` (V2 — mis à jour post-É4.5)

@@ -1,186 +1,155 @@
-/**
- * Lisaan Sync Manager
- * Handles bidirectional sync between local SQLite and Supabase.
- * Strategy: local-first writes, background sync when online.
- */
+// src/engines/sync-manager.ts
 
-import { getDatabase } from '../db/local';
+import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../db/remote';
+import {
+  getUnsyncedProgress, markProgressSynced,
+  getUnsyncedSRSCards, markSRSCardsSynced,
+  getUnsyncedSettings, markSettingsSynced,
+} from '../db/local-queries';
+import { syncContentFromCloud, needsContentSync } from './content-sync';
 
-export interface SyncStatus {
-  isOnline: boolean;
-  lastSyncAt: string | null;
-  pendingChanges: number;
-  isSyncing: boolean;
-}
-
-let syncStatus: SyncStatus = {
-  isOnline: false,
-  lastSyncAt: null,
-  pendingChanges: 0,
-  isSyncing: false,
-};
-
-/**
- * Get current sync status.
- */
-export function getSyncStatus(): SyncStatus {
-  return { ...syncStatus };
+export interface SyncResult {
+  pushed: { progress: number; srsCards: number; settings: number };
+  pulled: { content: boolean };
+  errors: string[];
 }
 
 /**
- * Queue a local change for sync.
- * Called after any local write to user data (progress, SRS, settings).
+ * Synchronisation bidirectionnelle :
+ * 1. PUSH : données utilisateur (SQLite → Cloud)
+ * 2. PULL : contenu pédagogique (Cloud → SQLite) si nécessaire
+ *
+ * Appelé :
+ * - Manuellement via un bouton refresh
+ * - Automatiquement quand la connectivité revient
+ * - En background après chaque leçon complétée
  */
-export async function queueSync(
-  tableName: string,
-  recordId: string,
-  operation: 'upsert' | 'delete',
-  payload: Record<string, unknown>
-): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync(
-    `INSERT INTO sync_queue (table_name, record_id, operation, payload) VALUES (?, ?, ?, ?)`,
-    [tableName, recordId, operation, JSON.stringify(payload)]
-  );
-  syncStatus.pendingChanges += 1;
-}
+export async function runSync(): Promise<SyncResult> {
+  const result: SyncResult = {
+    pushed: { progress: 0, srsCards: 0, settings: 0 },
+    pulled: { content: false },
+    errors: [],
+  };
 
-/**
- * Process the sync queue — push local changes to Supabase.
- * Should be called when connectivity is restored.
- */
-export async function processSyncQueue(): Promise<number> {
-  if (syncStatus.isSyncing) return 0;
-  syncStatus.isSyncing = true;
-
-  const db = await getDatabase();
-  let processed = 0;
-
-  try {
-    const items = await db.getAllAsync<{
-      id: number;
-      table_name: string;
-      record_id: string;
-      operation: string;
-      payload: string;
-    }>(`SELECT * FROM sync_queue ORDER BY created_at ASC LIMIT 50`);
-
-    for (const item of items) {
-      try {
-        const payload = JSON.parse(item.payload) as Record<string, unknown>;
-
-        if (item.operation === 'upsert') {
-          const { error } = await supabase
-            .from(item.table_name)
-            .upsert(payload);
-          if (error) throw error;
-        } else if (item.operation === 'delete') {
-          const { error } = await supabase
-            .from(item.table_name)
-            .delete()
-            .eq('id', item.record_id);
-          if (error) throw error;
-        }
-
-        // Remove from queue on success
-        await db.runAsync(`DELETE FROM sync_queue WHERE id = ?`, [item.id]);
-        processed += 1;
-      } catch {
-        // Leave in queue for retry
-        break;
-      }
-    }
-
-    syncStatus.pendingChanges = Math.max(0, syncStatus.pendingChanges - processed);
-    syncStatus.lastSyncAt = new Date().toISOString();
-  } finally {
-    syncStatus.isSyncing = false;
+  // Vérifier la connectivité
+  const netState = await NetInfo.fetch();
+  if (!netState.isConnected) {
+    result.errors.push('No network connection — sync skipped');
+    return result;
   }
 
-  return processed;
+  // --- PUSH : progression ---
+  try {
+    const unsyncedProgress = await getUnsyncedProgress();
+    if (unsyncedProgress.length > 0) {
+      const { error } = await supabase
+        .from('user_progress')
+        .upsert(
+          unsyncedProgress.map(p => ({
+            id: p.id,
+            user_id: p.user_id,
+            lesson_id: p.lesson_id,
+            status: p.status,
+            score: p.score,
+            completed_at: p.completed_at,
+            attempts: p.attempts,
+            time_spent_seconds: p.time_spent_seconds,
+          })),
+          { onConflict: 'user_id,lesson_id' }
+        );
+      if (error) throw error;
+      await markProgressSynced(unsyncedProgress.map(p => p.id));
+      result.pushed.progress = unsyncedProgress.length;
+    }
+  } catch (e: any) {
+    result.errors.push(`push progress: ${e.message}`);
+  }
+
+  // --- PUSH : cartes SRS ---
+  try {
+    const unsyncedCards = await getUnsyncedSRSCards();
+    if (unsyncedCards.length > 0) {
+      const { error } = await supabase
+        .from('srs_cards')
+        .upsert(
+          unsyncedCards.map(c => ({
+            id: c.id,
+            user_id: c.user_id,
+            item_type: c.item_type,
+            item_id: c.item_id,
+            ease_factor: c.ease_factor,
+            interval_days: c.interval_days,
+            repetitions: c.repetitions,
+            next_review_at: c.next_review_at,
+            last_review_at: c.last_review_at,
+            last_quality: c.last_quality,
+          })),
+          { onConflict: 'user_id,item_type,item_id' }
+        );
+      if (error) throw error;
+      await markSRSCardsSynced(unsyncedCards.map(c => c.id));
+      result.pushed.srsCards = unsyncedCards.length;
+    }
+  } catch (e: any) {
+    result.errors.push(`push srs: ${e.message}`);
+  }
+
+  // --- PUSH : settings ---
+  try {
+    const unsyncedSettings = await getUnsyncedSettings();
+    for (const s of unsyncedSettings) {
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: s.user_id,
+          harakats_mode: s.harakats_mode,
+          transliteration_mode: s.transliteration_mode,
+          translation_mode: s.translation_mode,
+          exercise_direction: s.exercise_direction,
+          audio_autoplay: !!s.audio_autoplay,
+          audio_speed: s.audio_speed,
+          font_size: s.font_size,
+          haptic_feedback: !!s.haptic_feedback,
+        }, { onConflict: 'user_id' });
+      if (error) throw error;
+      await markSettingsSynced(s.user_id);
+      result.pushed.settings++;
+    }
+  } catch (e: any) {
+    result.errors.push(`push settings: ${e.message}`);
+  }
+
+  // --- PULL : contenu (si nécessaire) ---
+  try {
+    if (await needsContentSync()) {
+      await syncContentFromCloud();
+      result.pulled.content = true;
+    }
+  } catch (e: any) {
+    result.errors.push(`pull content: ${e.message}`);
+  }
+
+  return result;
 }
 
 /**
- * Download a content pack from the server and inject into local SQLite.
+ * Écoute les changements de connectivité et lance une sync quand le réseau revient.
+ * Appelé au démarrage de l'app.
  */
-export async function downloadContentPack(packId: string): Promise<boolean> {
-  try {
-    const { data, error } = await supabase
-      .functions.invoke('get-content-pack', {
-        body: { pack_id: packId },
+export function startSyncListener(): () => void {
+  let wasDisconnected = false;
+
+  const unsubscribe = NetInfo.addEventListener(state => {
+    if (state.isConnected && wasDisconnected) {
+      // Le réseau vient de revenir → sync
+      console.log('[SyncManager] Network restored — syncing...');
+      runSync().then(result => {
+        console.log('[SyncManager] Sync result:', result);
       });
-
-    if (error || !data) return false;
-
-    // Inject into local DB
-    const db = await getDatabase();
-    const pack = data as ContentPackPayload;
-
-    // Insert lessons
-    for (const lesson of pack.lessons ?? []) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO lessons (id, module_id, title_fr, title_ar, description_fr, sort_order, xp_reward, estimated_minutes, prerequisite_ids)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [lesson.id, lesson.module_id, lesson.title_fr, lesson.title_ar, lesson.description_fr, lesson.sort_order, lesson.xp_reward, lesson.estimated_minutes, JSON.stringify(lesson.prerequisite_ids)]
-      );
     }
+    wasDisconnected = !state.isConnected;
+  });
 
-    // Insert exercises
-    for (const exercise of pack.exercises ?? []) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO exercises (id, lesson_id, type, config, sort_order, difficulty, tags)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [exercise.id, exercise.lesson_id, exercise.type, JSON.stringify(exercise.config), exercise.sort_order, exercise.difficulty, JSON.stringify(exercise.tags)]
-      );
-    }
-
-    // Track pack version
-    await db.runAsync(
-      `INSERT OR REPLACE INTO content_packs (pack_id, version) VALUES (?, ?)`,
-      [packId, pack.version]
-    );
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Set online status. Triggers sync when coming online.
- */
-export async function setOnlineStatus(online: boolean): Promise<void> {
-  const wasOffline = !syncStatus.isOnline;
-  syncStatus.isOnline = online;
-
-  if (online && wasOffline && syncStatus.pendingChanges > 0) {
-    await processSyncQueue();
-  }
-}
-
-// ─── Internal Types ───────────────────────────────────────
-
-interface ContentPackPayload {
-  version: string;
-  lessons: Array<{
-    id: string;
-    module_id: string;
-    title_fr: string;
-    title_ar: string | null;
-    description_fr: string | null;
-    sort_order: number;
-    xp_reward: number;
-    estimated_minutes: number;
-    prerequisite_ids: string[];
-  }>;
-  exercises: Array<{
-    id: string;
-    lesson_id: string;
-    type: string;
-    config: Record<string, unknown>;
-    sort_order: number;
-    difficulty: number;
-    tags: string[];
-  }>;
+  return unsubscribe;
 }

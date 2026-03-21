@@ -1,7 +1,7 @@
 // src/hooks/useModules.ts
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../db/remote';
+import { getAllModules } from '../db/local-queries';
 
 export interface Module {
   id: string;
@@ -9,20 +9,13 @@ export interface Module {
   title_ar: string;
   description_fr: string | null;
   sort_order: number;
-  variant: string;
+  icon: string | null;
 }
 
 export function useModules() {
   return useQuery({
     queryKey: ['modules'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('modules')
-        .select('*')
-        .order('sort_order', { ascending: true });
-      if (error) throw error;
-      return data as Module[];
-    },
+    queryFn: getAllModules,
     staleTime: Infinity,
   });
 }

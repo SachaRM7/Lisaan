@@ -1,9 +1,13 @@
 // src/hooks/useSRSCards.ts
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../db/remote';
+import { useAuthStore } from '../stores/useAuthStore';
+import {
+  getSRSCardsForUser, getDueCards as getDueCardsLocal, upsertSRSCard,
+} from '../db/local-queries';
 import type { SRSCard, SRSUpdate } from '../engines/srs';
 import { createNewCard } from '../engines/srs';
+import { runSync } from '../engines/sync-manager';
 
 const SRS_QUERY_KEY = ['srs_cards'];
 
@@ -11,21 +15,14 @@ const SRS_QUERY_KEY = ['srs_cards'];
  * Charge toutes les cartes SRS de l'utilisateur courant.
  */
 export function useSRSCards() {
+  const userId = useAuthStore((s) => s.userId);
   return useQuery({
     queryKey: SRS_QUERY_KEY,
     queryFn: async (): Promise<SRSCard[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from('srs_cards')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('next_review_at', { ascending: true });
-
-      if (error) throw error;
-      return data as SRSCard[];
+      if (!userId) return [];
+      return getSRSCardsForUser(userId);
     },
+    enabled: !!userId,
   });
 }
 
@@ -33,22 +30,14 @@ export function useSRSCards() {
  * Charge uniquement les cartes dues pour révision.
  */
 export function useDueCards() {
+  const userId = useAuthStore((s) => s.userId);
   return useQuery({
     queryKey: [...SRS_QUERY_KEY, 'due'],
     queryFn: async (): Promise<SRSCard[]> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from('srs_cards')
-        .select('*')
-        .eq('user_id', user.id)
-        .lte('next_review_at', new Date().toISOString())
-        .order('next_review_at', { ascending: true });
-
-      if (error) throw error;
-      return data as SRSCard[];
+      if (!userId) return [];
+      return getDueCardsLocal(userId);
     },
+    enabled: !!userId,
     // Refetch toutes les 60 secondes (des cartes peuvent devenir dues)
     refetchInterval: 60_000,
   });
@@ -66,24 +55,21 @@ export function useUpdateSRSCard() {
       itemId: string;
       update: SRSUpdate;
     }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const userId = useAuthStore.getState().userId;
+      if (!userId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('srs_cards')
-        .upsert({
-          user_id: user.id,
-          item_type: params.itemType,
-          item_id: params.itemId,
-          ...params.update,
-        }, {
-          onConflict: 'user_id,item_type,item_id',
-        });
-
-      if (error) throw error;
+      await upsertSRSCard({
+        id: `${userId}-${params.itemType}-${params.itemId}`,
+        user_id: userId,
+        item_type: params.itemType,
+        item_id: params.itemId,
+        ...params.update,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SRS_QUERY_KEY });
+      // Fire-and-forget sync vers Cloud
+      runSync().catch(console.warn);
     },
   });
 }
@@ -96,31 +82,22 @@ export function useCreateSRSCardsForLesson() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: {
-      letterIds: string[];
-    }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+    mutationFn: async (params: { letterIds: string[] }) => {
+      const userId = useAuthStore.getState().userId;
+      if (!userId) throw new Error('Not authenticated');
 
-      const cards = params.letterIds.map(letterId =>
-        createNewCard(user.id, 'letter', letterId)
-      );
-
-      const { error } = await supabase
-        .from('srs_cards')
-        .upsert(cards, {
-          onConflict: 'user_id,item_type,item_id',
-          ignoreDuplicates: true,
+      for (const letterId of params.letterIds) {
+        const card = createNewCard(userId, 'letter', letterId);
+        await upsertSRSCard({
+          id: `${userId}-letter-${letterId}`,
+          ...card,
         });
-
-      if (error) {
-        console.error('[SRS] createSRSCards error:', error);
-        throw error;
       }
-      console.log('[SRS] createSRSCards ok — cartes créées:', cards.length);
+      console.log('[SRS] createSRSCards ok — cartes créées:', params.letterIds.length);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SRS_QUERY_KEY });
+      runSync().catch(console.warn);
     },
   });
 }

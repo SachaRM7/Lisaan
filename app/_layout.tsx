@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -7,9 +7,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { Colors } from '../src/constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOnboardingStore } from '../src/stores/useOnboardingStore';
 import { useSettingsStore } from '../src/stores/useSettingsStore';
-import { supabase } from '../src/db/remote';
+import { useAuthStore } from '../src/stores/useAuthStore';
+import { openLocalDB } from '../src/db/local';
+import { initLocalSchema } from '../src/db/schema-local';
+import { needsContentSync, syncContentFromCloud } from '../src/engines/content-sync';
+import { startSyncListener } from '../src/engines/sync-manager';
+import { ContentDownloadScreen } from '../src/components/ui/ContentDownloadScreen';
+
+const DEVICE_ID_KEY = 'lisaan_device_id';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -28,6 +36,11 @@ export default function RootLayout() {
   const { isCompleted, isLoading, checkOnboardingStatus } = useOnboardingStore();
   const loadSettings = useSettingsStore((s) => s.loadSettings);
 
+  const setUserId = useAuthStore((s) => s.setUserId);
+
+  const [dbReady, setDbReady] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
   const [fontsLoaded, _fontError] = useFonts({
     'Amiri': require('../assets/fonts/Amiri-Regular.ttf'),
     'Amiri-Bold': require('../assets/fonts/Amiri-Bold.ttf'),
@@ -35,50 +48,87 @@ export default function RootLayout() {
     'NotoNaskhArabic': require('../assets/fonts/NotoNaskhArabic-Variable.ttf'),
   });
 
-  // S'assurer qu'une session existe (sign-in anonyme si besoin)
-  // et qu'une ligne existe dans public.users pour cet utilisateur.
+  // 1. Initialiser SQLite au démarrage
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      let userId = session?.user?.id;
+    let unsubscribeSync: (() => void) | undefined;
 
-      if (!session) {
-        const { data } = await supabase.auth.signInAnonymously().catch(() => ({ data: null }));
-        userId = data?.user?.id;
+    async function initDB() {
+      try {
+        // Ouvrir la base SQLite
+        await openLocalDB();
+        // Créer les tables si besoin
+        await initLocalSchema();
+        // Sync contenu si premier lancement
+        if (await needsContentSync()) {
+          setSyncing(true);
+          await syncContentFromCloud();
+          setSyncing(false);
+        }
+        setDbReady(true);
+        // Lancer le listener de sync réseau
+        unsubscribeSync = startSyncListener();
+      } catch (err) {
+        console.error('[DB] Init error:', err);
+        // Mode dégradé : continuer même en cas d'erreur
+        setSyncing(false);
+        setDbReady(true);
       }
+    }
 
-      if (userId) {
-        await supabase
-          .from('users')
-          .upsert({ id: userId }, { onConflict: 'id', ignoreDuplicates: true });
-      }
-    });
+    initDB();
+
+    return () => {
+      unsubscribeSync?.();
+    };
   }, []);
 
-  // Vérifier le statut d'onboarding et charger les réglages au montage
+  // 2. Initialiser le device_id local (pas besoin de Supabase Auth)
   useEffect(() => {
+    if (!dbReady) return;
+
+    async function initDeviceId() {
+      let deviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
+      if (!deviceId) {
+        deviceId = crypto.randomUUID();
+        await AsyncStorage.setItem(DEVICE_ID_KEY, deviceId);
+        }
+      setUserId(deviceId);
+    }
+
+    initDeviceId().catch(err => console.error('[Auth] device_id error:', err));
+  }, [dbReady]);
+
+  // 3. Vérifier le statut d'onboarding et charger les réglages
+  useEffect(() => {
+    if (!dbReady) return;
     checkOnboardingStatus();
     loadSettings();
-  }, []);
+  }, [dbReady]);
 
-  // Cacher le splash screen une fois polices + statut chargés
+  // 4. Cacher le splash screen une fois polices + DB + statut chargés
   useEffect(() => {
-    if (fontsLoaded && !isLoading) {
+    if (fontsLoaded && dbReady && !isLoading) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, isLoading]);
+  }, [fontsLoaded, dbReady, isLoading]);
 
-  // Rediriger selon le statut d'onboarding
+  // 5. Rediriger selon le statut d'onboarding
   useEffect(() => {
-    if (!fontsLoaded || isLoading) return;
+    if (!fontsLoaded || !dbReady || isLoading) return;
     if (!isCompleted) {
       router.replace('/(onboarding)/step1');
     } else {
       router.replace('/(tabs)/learn');
     }
-  }, [fontsLoaded, isLoading, isCompleted]);
+  }, [fontsLoaded, dbReady, isLoading, isCompleted]);
+
+  // Écran de téléchargement du contenu (premier lancement)
+  if (syncing) {
+    return <ContentDownloadScreen />;
+  }
 
   // Garder le splash visible pendant le chargement
-  if (!fontsLoaded || isLoading) {
+  if (!fontsLoaded || !dbReady || isLoading) {
     return null;
   }
 

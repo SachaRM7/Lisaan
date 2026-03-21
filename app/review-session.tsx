@@ -44,10 +44,10 @@ export default function ReviewSession() {
   const [queue, setQueue] = useState<SRSCard[]>(initialQueue);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<{ card: SRSCard; correct: boolean }[]>([]);
+  const [succeededCount, setSucceededCount] = useState(0);
   const [phase, setPhase] = useState<'session' | 'results'>('session');
 
   const totalCards = initialQueue.length;
-  const completedCount = results.length;
 
   function handleComplete(result: ExerciseResult) {
     const card = queue[currentIndex];
@@ -67,7 +67,9 @@ export default function ReviewSession() {
         return next;
       });
     } else {
-      if (currentIndex + 1 >= queue.length) {
+      const newSucceeded = succeededCount + 1;
+      setSucceededCount(newSucceeded);
+      if (newSucceeded >= totalCards) {
         setPhase('results');
       } else {
         setCurrentIndex(prev => prev + 1);
@@ -180,7 +182,7 @@ export default function ReviewSession() {
     return null;
   }
 
-  const progress = completedCount / totalCards;
+  const progress = succeededCount / totalCards;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -190,7 +192,7 @@ export default function ReviewSession() {
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          Révision {currentIndex + 1} / {queue.length}
+          Révision {succeededCount + 1} / {totalCards}
         </Text>
         <View style={styles.backBtn} />
       </View>

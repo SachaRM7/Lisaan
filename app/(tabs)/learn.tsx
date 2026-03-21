@@ -16,6 +16,7 @@ import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/c
 import { useModules } from '../../src/hooks/useModules';
 import { useLessons } from '../../src/hooks/useLessons';
 import { useProgress, useInitFirstLesson } from '../../src/hooks/useProgress';
+import { useAuthStore } from '../../src/stores/useAuthStore';
 import { supabase } from '../../src/db/remote';
 import type { Module } from '../../src/hooks/useModules';
 import type { Lesson } from '../../src/hooks/useLessons';
@@ -219,22 +220,21 @@ function useUnlockModule2() {
 
   return useMutation({
     mutationFn: async (firstLessonId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase
-        .from('user_progress')
-        .upsert({
-          user_id: user.id,
-          lesson_id: firstLessonId,
-          status: 'available',
-          score: 0,
-          attempts: 0,
-          time_spent_seconds: 0,
-        }, {
-          onConflict: 'user_id,lesson_id',
-          ignoreDuplicates: true,
-        });
+      const userId = useAuthStore.getState().userId;
+      if (!userId) return;
+      const { upsertProgress } = await import('../../src/db/local-queries');
+      const { runSync } = await import('../../src/engines/sync-manager');
+      await upsertProgress({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        lesson_id: firstLessonId,
+        status: 'available',
+        score: 0,
+        completed_at: null,
+        attempts: 0,
+        time_spent_seconds: 0,
+      });
+      runSync().catch(console.warn);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PROGRESS_QUERY_KEY });
@@ -251,30 +251,32 @@ export default function LearnScreen() {
   const { data: module2Lessons } = useLessons(modules?.[1]?.id ?? '');
   const initFirstLesson = useInitFirstLesson();
   const unlockModule2 = useUnlockModule2();
+  const userId = useAuthStore((s) => s.userId);
   const [showUnlockBanner, setShowUnlockBanner] = useState(false);
   const [module2NewlyUnlocked, setModule2NewlyUnlocked] = useState(false);
   const prevModule2Unlocked = useRef(false);
 
   const { data: userStats } = useQuery({
-    queryKey: ['user_stats_learn'],
+    queryKey: ['user_stats_learn', userId],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      if (!userId) return null;
       const { data } = await supabase
         .from('users')
         .select('streak_current, total_xp')
-        .eq('id', user.id)
+        .eq('id', userId)
         .single();
       return data;
     },
+    enabled: !!userId,
   });
 
   // Initialiser la leçon 1 si aucune progression n'existe
   useEffect(() => {
-    if (progress.length === 0 && module1Lessons && module1Lessons.length > 0) {
+    const currentUserId = useAuthStore.getState().userId;
+    if (currentUserId && progress.length === 0 && module1Lessons && module1Lessons.length > 0) {
       initFirstLesson.mutate(module1Lessons[0].id);
     }
-  }, [progress.length, module1Lessons]);
+  }, [userId, progress.length, module1Lessons]);
 
   // Vérifier si le Module 1 est 100% terminé
   const module1Progress = progress.filter(p =>

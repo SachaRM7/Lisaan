@@ -1,7 +1,7 @@
 // src/hooks/useDiacritics.ts
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../db/remote';
+import { getAllDiacritics, getDiacriticsBySortOrders } from '../db/local-queries';
 
 export interface Diacritic {
   id: string;
@@ -19,32 +19,11 @@ export interface Diacritic {
   ipa: string | null;
 }
 
-async function fetchAllDiacritics(): Promise<Diacritic[]> {
-  const { data, error } = await supabase
-    .from('diacritics')
-    .select('*')
-    .order('sort_order', { ascending: true });
-
-  if (error) throw error;
-  return data as Diacritic[];
-}
-
-async function fetchDiacriticsForLesson(sortOrders: number[]): Promise<Diacritic[]> {
-  const { data, error } = await supabase
-    .from('diacritics')
-    .select('*')
-    .in('sort_order', sortOrders)
-    .order('sort_order', { ascending: true });
-
-  if (error) throw error;
-  return data as Diacritic[];
-}
-
 /** Tous les diacritiques */
 export function useDiacritics() {
   return useQuery({
     queryKey: ['diacritics'],
-    queryFn: fetchAllDiacritics,
+    queryFn: getAllDiacritics,
     staleTime: Infinity,
   });
 }
@@ -53,7 +32,7 @@ export function useDiacritics() {
 export function useDiacriticsForLesson(sortOrders: number[]) {
   return useQuery({
     queryKey: ['diacritics', 'lesson', sortOrders],
-    queryFn: () => fetchDiacriticsForLesson(sortOrders),
+    queryFn: () => getDiacriticsBySortOrders(sortOrders),
     enabled: sortOrders.length > 0,
     staleTime: Infinity,
   });
