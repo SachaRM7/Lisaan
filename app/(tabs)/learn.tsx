@@ -22,10 +22,30 @@ import type { Module } from '../../src/hooks/useModules';
 import type { Lesson } from '../../src/hooks/useLessons';
 import type { LessonProgress } from '../../src/hooks/useProgress';
 
-const MODULE_1_LESSON_COUNT = 7;
 const PROGRESS_QUERY_KEY = ['user_progress'];
 
-// ── Composant leçon ────────────────────────────────────────
+// ── Logique de déverrouillage générique ────────────────────
+
+/**
+ * Module N est déverrouillé quand Module N-1 est 100% complété.
+ * Module 1 est toujours déverrouillé.
+ */
+function isModuleUnlocked(
+  moduleSortOrder: number,
+  progressByModule: Record<string, LessonProgress[]>,
+  modules: Module[],
+  lessonCountByModule: Record<string, number>,
+): boolean {
+  if (moduleSortOrder === 1) return true;
+  const previousModule = modules.find(m => m.sort_order === moduleSortOrder - 1);
+  if (!previousModule) return false;
+  const previousProgress = progressByModule[previousModule.id] ?? [];
+  const previousCompleted = previousProgress.filter(p => p.status === 'completed').length;
+  const previousTotal = lessonCountByModule[previousModule.id] ?? 0;
+  return previousTotal > 0 && previousCompleted >= previousTotal;
+}
+
+// ── Composant leçon ─────────────────────────────────────────
 
 function lessonStatusIcon(status: LessonProgress['status'] | undefined): string {
   if (status === 'completed') return '✅';
@@ -56,9 +76,7 @@ function LessonRow({
           <Text style={[styles.lessonTitleAr, isLocked && styles.lessonTextLocked]}>{lesson.title_ar}</Text>
           <Text style={[styles.lessonTitleFr, isLocked && styles.lessonTextLocked]}>
             {lesson.title_fr}
-            {status === 'completed' && progress?.score != null
-              ? `  ${progress.score}%`
-              : ''}
+            {status === 'completed' && progress?.score != null ? `  ${progress.score}%` : ''}
           </Text>
         </View>
       </View>
@@ -67,7 +85,7 @@ function LessonRow({
   );
 }
 
-// ── Module 1 ───────────────────────────────────────────────
+// ── Module 1 (toujours déverrouillé) ───────────────────────
 
 function Module1Card({ module, progressList }: { module: Module; progressList: LessonProgress[] }) {
   const router = useRouter();
@@ -113,14 +131,16 @@ function Module1Card({ module, progressList }: { module: Module; progressList: L
   );
 }
 
-// ── Module 2 déverrouillé ──────────────────────────────────
+// ── Module déverrouillé générique ──────────────────────────
 
-function Module2Card({
+function UnlockedModuleCard({
   module,
+  number,
   progressList,
   isNewlyUnlocked,
 }: {
   module: Module;
+  number: number;
   progressList: LessonProgress[];
   isNewlyUnlocked: boolean;
 }) {
@@ -129,7 +149,6 @@ function Module2Card({
   const { data: lessons, isLoading } = useLessons(module.id);
   const completedCount = progressList.filter(p => p.status === 'completed').length;
 
-  // Animation de glow quand nouvellement déverrouillé
   const glowAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (isNewlyUnlocked) {
@@ -150,7 +169,7 @@ function Module2Card({
       <View style={[...cardStyle, { opacity: 1 }]}>
         <Pressable style={styles.moduleHeader} onPress={() => setExpanded(!expanded)}>
           <View style={styles.moduleHeaderLeft}>
-            <Text style={styles.moduleLabel}>MODULE 2</Text>
+            <Text style={styles.moduleLabel}>MODULE {number}</Text>
             <Text style={styles.moduleTitleAr}>{module.title_ar}</Text>
             <Text style={styles.moduleTitleFr}>{module.title_fr}</Text>
           </View>
@@ -185,7 +204,7 @@ function Module2Card({
   );
 }
 
-// ── Module locked générique ────────────────────────────────
+// ── Module verrouillé générique ────────────────────────────
 
 function LockedModuleCard({
   module,
@@ -213,9 +232,9 @@ function LockedModuleCard({
   );
 }
 
-// ── Déverrouillage Module 2 ────────────────────────────────
+// ── Mutation : déverrouiller la première leçon d'un module ─
 
-function useUnlockModule2() {
+function useUnlockModule() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -249,12 +268,13 @@ export default function LearnScreen() {
   const { data: progress = [] } = useProgress();
   const { data: module1Lessons } = useLessons(modules?.[0]?.id ?? '');
   const { data: module2Lessons } = useLessons(modules?.[1]?.id ?? '');
+  const { data: module3Lessons } = useLessons(modules?.[2]?.id ?? '');
   const initFirstLesson = useInitFirstLesson();
-  const unlockModule2 = useUnlockModule2();
+  const unlockModule = useUnlockModule();
   const userId = useAuthStore((s) => s.userId);
-  const [showUnlockBanner, setShowUnlockBanner] = useState(false);
-  const [module2NewlyUnlocked, setModule2NewlyUnlocked] = useState(false);
-  const prevModule2Unlocked = useRef(false);
+  const [unlockBannerMessage, setUnlockBannerMessage] = useState<string | null>(null);
+  const [newlyUnlockedIndex, setNewlyUnlockedIndex] = useState<number | null>(null);
+  const prevUnlocked = useRef<Record<number, boolean>>({});
 
   const { data: userStats } = useQuery({
     queryKey: ['user_stats_learn', userId],
@@ -278,39 +298,76 @@ export default function LearnScreen() {
     }
   }, [userId, progress.length, module1Lessons]);
 
-  // Vérifier si le Module 1 est 100% terminé
-  const module1Progress = progress.filter(p =>
-    module1Lessons?.some(l => l.id === p.lesson_id),
-  );
-  const module1CompletedCount = module1Progress.filter(p => p.status === 'completed').length;
-  const module2Unlocked = module1CompletedCount >= MODULE_1_LESSON_COUNT;
+  // ── Calcul des structures pour isModuleUnlocked ────────────
 
-  // Détecter le moment exact du déverrouillage pour l'animation/banner
+  const allModules = modules ?? [];
+
+  const lessonsByModule: Record<string, { id: string }[]> = {
+    [modules?.[0]?.id ?? '']: module1Lessons ?? [],
+    [modules?.[1]?.id ?? '']: module2Lessons ?? [],
+    [modules?.[2]?.id ?? '']: module3Lessons ?? [],
+  };
+
+  const lessonCountByModule: Record<string, number> = {};
+  for (const [modId, lessons] of Object.entries(lessonsByModule)) {
+    lessonCountByModule[modId] = lessons.length;
+  }
+
+  const progressByModule: Record<string, LessonProgress[]> = {};
+  for (const mod of allModules) {
+    progressByModule[mod.id] = progress.filter(p =>
+      lessonsByModule[mod.id]?.some((l: { id: string }) => l.id === p.lesson_id)
+    );
+  }
+
+  // ── Booléens réactifs de déverrouillage ───────────────────
+  // Déclarés ici, après progressByModule/lessonCountByModule, pour être réactifs
+  // aux changements de progress (status completed) même sans ajout de nouvelles lignes.
+
+  const module2Unlocked = isModuleUnlocked(2, progressByModule, allModules, lessonCountByModule);
+  const module3Unlocked = isModuleUnlocked(3, progressByModule, allModules, lessonCountByModule);
+
+  // ── Détection déverrouillage Module 2 ─────────────────────
+
   useEffect(() => {
-    if (module2Unlocked && !prevModule2Unlocked.current) {
-      // Module 2 vient de se déverrouiller
-      setModule2NewlyUnlocked(true);
-      setShowUnlockBanner(true);
-      prevModule2Unlocked.current = true;
-
-      // Initialiser la première leçon du Module 2
-      if (module2Lessons && module2Lessons.length > 0) {
-        unlockModule2.mutate(module2Lessons[0].id);
+    if (module2Unlocked && !prevUnlocked.current[2]) {
+      prevUnlocked.current[2] = true;
+      const mod2 = allModules.find(m => m.sort_order === 2);
+      const alreadyHadProgress = mod2
+        ? progress.some(p => lessonsByModule[mod2.id]?.some((l: { id: string }) => l.id === p.lesson_id))
+        : false;
+      if (!alreadyHadProgress) {
+        setNewlyUnlockedIndex(1);
+        setUnlockBannerMessage('🎉 Module 2 débloqué ! Découvre les harakats.');
+        if (module2Lessons && module2Lessons.length > 0) {
+          unlockModule.mutate(module2Lessons[0].id);
+        }
+        setTimeout(() => setUnlockBannerMessage(null), 4000);
+        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
       }
-
-      setTimeout(() => setShowUnlockBanner(false), 4000);
-      setTimeout(() => setModule2NewlyUnlocked(false), 6000);
-    } else if (module2Unlocked) {
-      prevModule2Unlocked.current = true;
     }
-  }, [module2Unlocked, module2Lessons]);
+  }, [module2Unlocked]);
 
-  // Vérifier si Module 2 a déjà une progression (déverrouillé lors d'une session précédente)
-  const module2HasProgress = module2Lessons
-    ? progress.some(p => module2Lessons.some(l => l.id === p.lesson_id))
-    : false;
+  // ── Détection déverrouillage Module 3 ─────────────────────
 
-  const module2IsPlayable = module2Unlocked && (module2HasProgress || module2Lessons?.length === 0);
+  useEffect(() => {
+    if (module3Unlocked && !prevUnlocked.current[3]) {
+      prevUnlocked.current[3] = true;
+      const mod3 = allModules.find(m => m.sort_order === 3);
+      const alreadyHadProgress = mod3
+        ? progress.some(p => lessonsByModule[mod3.id]?.some((l: { id: string }) => l.id === p.lesson_id))
+        : false;
+      if (!alreadyHadProgress) {
+        setNewlyUnlockedIndex(2);
+        setUnlockBannerMessage('🎉 Module 3 débloqué ! Lis tes premiers mots arabes.');
+        if (module3Lessons && module3Lessons.length > 0) {
+          unlockModule.mutate(module3Lessons[0].id);
+        }
+        setTimeout(() => setUnlockBannerMessage(null), 4000);
+        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
+      }
+    }
+  }, [module3Unlocked]);
 
   if (isLoading) {
     return (
@@ -323,11 +380,9 @@ export default function LearnScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Banner de déverrouillage */}
-      {showUnlockBanner && (
+      {unlockBannerMessage && (
         <View style={styles.unlockBanner}>
-          <Text style={styles.unlockBannerText}>
-            🎉 Module 2 débloqué ! Découvre les harakats.
-          </Text>
+          <Text style={styles.unlockBannerText}>{unlockBannerMessage}</Text>
         </View>
       )}
 
@@ -348,38 +403,57 @@ export default function LearnScreen() {
 
         {/* Modules */}
         <View style={styles.modulesList}>
-          {modules?.map((module, index) => {
+          {allModules.map((module, index) => {
+            const number = index + 1;
+            const progressList = progressByModule[module.id] ?? [];
+
+            // Module 1 : toujours déverrouillé
             if (index === 0) {
               return (
                 <Module1Card
                   key={module.id}
                   module={module}
-                  progressList={progress}
+                  progressList={progressList}
                 />
               );
             }
-            if (index === 1) {
-              if (module2IsPlayable) {
-                return (
-                  <Module2Card
-                    key={module.id}
-                    module={module}
-                    progressList={progress}
-                    isNewlyUnlocked={module2NewlyUnlocked}
-                  />
-                );
-              }
+
+            // Modules 2+ : logique générique
+            const unlocked = isModuleUnlocked(
+              module.sort_order,
+              progressByModule,
+              allModules,
+              lessonCountByModule,
+            );
+            const hasProgress = progress.some(p =>
+              lessonsByModule[module.id]?.some((l: { id: string }) => l.id === p.lesson_id)
+            );
+            const isPlayable = unlocked && (hasProgress || lessonsByModule[module.id]?.length === 0);
+
+            if (isPlayable) {
               return (
-                <LockedModuleCard
+                <UnlockedModuleCard
                   key={module.id}
                   module={module}
-                  number={2}
-                  lockMessage="Termine le Module 1 pour débloquer"
+                  number={number}
+                  progressList={progressList}
+                  isNewlyUnlocked={newlyUnlockedIndex === index}
                 />
               );
             }
+
+            const prevModule = allModules.find(m => m.sort_order === module.sort_order - 1);
+            const lockMessage = prevModule
+              ? `Termine le Module ${number - 1} pour débloquer`
+              : undefined;
+
             return (
-              <LockedModuleCard key={module.id} module={module} number={index + 1} />
+              <LockedModuleCard
+                key={module.id}
+                module={module}
+                number={number}
+                lockMessage={lockMessage}
+              />
             );
           })}
         </View>

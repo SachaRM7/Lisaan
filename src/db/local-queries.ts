@@ -320,6 +320,104 @@ export async function markSettingsSynced(userId: string): Promise<void> {
   );
 }
 
+// --- Roots ---
+
+export async function getAllRoots() {
+  const db = getLocalDB();
+  const rows = await db.getAllAsync<any>('SELECT * FROM roots ORDER BY frequency_rank ASC');
+  return rows.map(r => ({
+    ...r,
+    consonants: typeof r.consonants === 'string' ? JSON.parse(r.consonants) : r.consonants ?? [],
+  }));
+}
+
+export async function getRootById(rootId: string) {
+  const db = getLocalDB();
+  const row = await db.getFirstAsync<any>('SELECT * FROM roots WHERE id = ?', [rootId]);
+  if (!row) return null;
+  return {
+    ...row,
+    consonants: typeof row.consonants === 'string' ? JSON.parse(row.consonants) : row.consonants ?? [],
+  };
+}
+
+export async function upsertRoots(roots: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const r of roots) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO roots (id, consonants, transliteration, core_meaning_fr, core_meaning_ar, frequency_rank, pedagogy_notes, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [r.id, JSON.stringify(r.consonants ?? []), r.transliteration, r.core_meaning_fr, r.core_meaning_ar, r.frequency_rank, r.pedagogy_notes, now]
+    );
+  }
+}
+
+// --- Words ---
+
+export async function getAllWords() {
+  const db = getLocalDB();
+  return db.getAllAsync<any>('SELECT * FROM words ORDER BY sort_order ASC');
+}
+
+export async function getSimpleWords() {
+  const db = getLocalDB();
+  return db.getAllAsync<any>('SELECT * FROM words WHERE is_simple_word = 1 ORDER BY sort_order ASC');
+}
+
+export async function getWordsByRootId(rootId: string) {
+  const db = getLocalDB();
+  return db.getAllAsync<any>('SELECT * FROM words WHERE root_id = ? ORDER BY sort_order ASC', [rootId]);
+}
+
+export async function getWordsByRootIds(rootIds: string[]) {
+  const db = getLocalDB();
+  const placeholders = rootIds.map(() => '?').join(',');
+  return db.getAllAsync<any>(
+    `SELECT * FROM words WHERE root_id IN (${placeholders}) ORDER BY sort_order ASC`,
+    rootIds
+  );
+}
+
+export async function upsertWords(words: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const w of words) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO words (
+        id, root_id, arabic, arabic_vocalized, transliteration, ipa,
+        translation_fr, pattern, pos, frequency_rank, audio_url,
+        gender, is_simple_word, pedagogy_notes, sort_order, synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [w.id, w.root_id, w.arabic, w.arabic_vocalized, w.transliteration, w.ipa,
+       w.translation_fr, w.pattern, w.pos, w.frequency_rank, w.audio_url,
+       w.gender, w.is_simple_word ? 1 : 0, w.pedagogy_notes, w.sort_order ?? 0, now]
+    );
+  }
+}
+
+// --- Word Variants ---
+
+export async function getVariantsForWord(wordId: string, variant: string = 'msa') {
+  const db = getLocalDB();
+  return db.getFirstAsync<any>(
+    'SELECT * FROM word_variants WHERE word_id = ? AND variant = ?',
+    [wordId, variant]
+  );
+}
+
+export async function upsertWordVariants(variants: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const v of variants) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO word_variants (id, word_id, variant, arabic, arabic_vocalized, transliteration, audio_url, notes_fr, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [v.id, v.word_id, v.variant, v.arabic, v.arabic_vocalized, v.transliteration, v.audio_url, v.notes_fr, now]
+    );
+  }
+}
+
 // --- Sync Metadata ---
 
 export async function getSyncMetadata(tableName: string) {

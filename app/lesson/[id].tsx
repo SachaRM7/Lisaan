@@ -1,5 +1,5 @@
 // app/lesson/[id].tsx
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,24 +14,36 @@ import { useLesson } from '../../src/hooks/useLessons';
 import { useLettersForLesson } from '../../src/hooks/useLetters';
 import { useDiacriticsForLesson } from '../../src/hooks/useDiacritics';
 import { useCreateSRSCardsForLesson } from '../../src/hooks/useSRSCards';
+import { useRoots } from '../../src/hooks/useRoots';
+import { useSimpleWords, useWordsByRoots } from '../../src/hooks/useWords';
 import LetterCard from '../../src/components/arabic/LetterCard';
 import DiacriticCard from '../../src/components/arabic/DiacriticCard';
 import SyllableDisplay from '../../src/components/arabic/SyllableDisplay';
+import WordCard from '../../src/components/arabic/WordCard';
+import RootFamilyDisplay from '../../src/components/arabic/RootFamilyDisplay';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
 import { LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
+import { LESSON_WORD_CONFIG, LESSON_ROOT_TRANSLITS } from '../../src/engines/word-exercise-generator';
+import type { Root } from '../../src/hooks/useRoots';
+import type { Word } from '../../src/hooks/useWords';
 
-// Mapping sort_order de leçon → [start, end] des lettres (Module 1)
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
   5: [16, 19], 6: [20, 23], 7: [24, 28],
 };
 
-type LessonContentType = 'letters' | 'diacritics';
+type LessonContentType = 'letters' | 'diacritics' | 'words';
 
 function getLessonContentType(moduleSortOrder: number): LessonContentType {
   if (moduleSortOrder === 2) return 'diacritics';
+  if (moduleSortOrder === 3) return 'words';
   return 'letters';
 }
+
+type WordPresentationItem =
+  | { kind: 'word'; word: Word; root?: Root | null }
+  | { kind: 'root_family'; root: Root; words: Word[] }
+  | { kind: 'solar_intro' };
 
 export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,9 +51,7 @@ export default function LessonScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const createSRSCards = useCreateSRSCardsForLesson();
 
-  // Charger la leçon avec son module
   const { data: lesson, isLoading: lessonLoading } = useLesson(id ?? '');
-
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
   const contentType = getLessonContentType(moduleSortOrder);
 
@@ -60,12 +70,73 @@ export default function LessonScreen() {
     : [];
   const { data: diacritics, isLoading: diacriticsLoading } = useDiacriticsForLesson(diacriticSortOrders);
 
-  const isLoading = lessonLoading || lettersLoading || diacriticsLoading;
+  // ── Module 3 : mots et racines ──────────────────────────────
+  const { data: allRoots, isLoading: rootsLoading } = useRoots();
+  const { data: simpleWords, isLoading: simpleWordsLoading } = useSimpleWords();
 
-  // ── Items à afficher selon le type ─────────────────────────
-  const items = contentType === 'letters' ? (letters ?? []) : (diacritics ?? []);
+  const lessonRoots = useMemo(
+    () => {
+      if (contentType !== 'words' || !lesson) return [];
+      const translits = LESSON_ROOT_TRANSLITS[lesson.sort_order] ?? [];
+      return (allRoots ?? []).filter(r => translits.includes(r.transliteration));
+    },
+    [allRoots, contentType, lesson?.sort_order],
+  );
+
+  const lessonRootIds = useMemo(() => lessonRoots.map(r => r.id), [lessonRoots]);
+  const { data: rootWords, isLoading: rootWordsLoading } = useWordsByRoots(lessonRootIds);
+
+  const wordPresentationItems = useMemo<WordPresentationItem[]>(() => {
+    if (contentType !== 'words' || !lesson) return [];
+    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
+    if (!wordConfig || wordConfig.type === 'revision') return [];
+
+    if (wordConfig.type === 'simple') {
+      return (simpleWords ?? []).map(w => ({ kind: 'word' as const, word: w, root: null }));
+    }
+
+    if (wordConfig.type === 'solar_lunar') {
+      return [
+        { kind: 'solar_intro' as const },
+        ...(simpleWords ?? []).map(w => ({ kind: 'word' as const, word: w, root: null })),
+      ];
+    }
+
+    if (wordConfig.type === 'root') {
+      const items: WordPresentationItem[] = [];
+      for (const root of lessonRoots) {
+        const words = (rootWords ?? []).filter(w => w.root_id === root.id);
+        items.push({ kind: 'root_family' as const, root, words });
+        for (const word of words) {
+          items.push({ kind: 'word' as const, word, root });
+        }
+      }
+      return items;
+    }
+
+    return [];
+  }, [contentType, lesson?.sort_order, simpleWords, rootWords, lessonRoots]);
+
+  const isLoading = lessonLoading || lettersLoading || diacriticsLoading
+    || (contentType === 'words' && (rootsLoading || simpleWordsLoading || rootWordsLoading));
+
+  const items: unknown[] = contentType === 'letters'
+    ? (letters ?? [])
+    : contentType === 'diacritics'
+      ? (diacritics ?? [])
+      : wordPresentationItems;
+
   const total = items.length;
   const isLast = currentIndex === total - 1;
+
+  // Leçon 6 (révision) : pas de présentation → aller directement aux exercices
+  useEffect(() => {
+    if (contentType !== 'words' || isLoading || !lesson) return;
+    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
+    if (wordConfig?.type === 'revision') {
+      router.replace(`/lesson/${id}/exercises` as never);
+    }
+  }, [contentType, isLoading, lesson?.sort_order]);
 
   function handleNext() {
     if (!isLast) {
@@ -92,11 +163,26 @@ export default function LessonScreen() {
   }
 
   if (total === 0) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <Text style={styles.errorText}>Contenu introuvable.</Text>
-      </SafeAreaView>
-    );
+    const wordConfig = contentType === 'words' && lesson ? LESSON_WORD_CONFIG[lesson.sort_order] : null;
+    const isRevision = wordConfig?.type === 'revision';
+    if (!isRevision) {
+      return (
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+              <Text style={styles.backArrow}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.lessonTitle} numberOfLines={1}>{lesson?.title_fr}</Text>
+            <View style={styles.backBtn} />
+          </View>
+          <Text style={styles.errorText}>
+            {contentType === 'words'
+              ? 'Contenu non disponible. Vérifiez votre connexion et relancez l\'app.'
+              : 'Contenu introuvable.'}
+          </Text>
+        </SafeAreaView>
+      );
+    }
   }
 
   return (
@@ -111,16 +197,19 @@ export default function LessonScreen() {
       </View>
 
       {/* Dots de progression */}
-      <View style={styles.dotsRow}>
-        {items.map((_, i) => (
-          <View key={i} style={[styles.dot, i <= currentIndex && styles.dotFilled]} />
-        ))}
-      </View>
-      <Text style={styles.counter}>{currentIndex + 1} / {total}</Text>
+      {total > 0 && (
+        <>
+          <View style={styles.dotsRow}>
+            {items.map((_, i) => (
+              <View key={i} style={[styles.dot, i <= currentIndex && styles.dotFilled]} />
+            ))}
+          </View>
+          <Text style={styles.counter}>{currentIndex + 1} / {total}</Text>
+        </>
+      )}
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {contentType === 'letters' ? (
-          // ── Présentation lettre ────────────────────────────
           <>
             {letters?.[currentIndex] && (
               <LetterCard letter={letters[currentIndex]} mode="full" />
@@ -131,8 +220,7 @@ export default function LessonScreen() {
               </View>
             ) : null}
           </>
-        ) : (
-          // ── Présentation diacritique ───────────────────────
+        ) : contentType === 'diacritics' ? (
           <>
             {diacritics?.[currentIndex] && (
               <DiacriticCard
@@ -153,17 +241,13 @@ export default function LessonScreen() {
                 letterForms={diacritics[currentIndex].example_letters}
               />
             )}
-            {/* Comparaison avec les diacritiques précédents (leçons 2+) */}
-            {contentType === 'diacritics' &&
-             lesson &&
-             lesson.sort_order >= 2 &&
-             diacritics &&
-             diacritics.length > 0 && (
-              <CompareDiacriticsSection
-                lessonSortOrder={lesson.sort_order}
-              />
+            {lesson && lesson.sort_order >= 2 && diacritics && diacritics.length > 0 && (
+              <CompareDiacriticsSection lessonSortOrder={lesson.sort_order} />
             )}
           </>
+        ) : (
+          // ── Module 3 : mots ──────────────────────────────────
+          <WordPresentationContent item={wordPresentationItems[currentIndex] ?? null} />
         )}
       </ScrollView>
 
@@ -182,25 +266,68 @@ export default function LessonScreen() {
   );
 }
 
-/**
- * Section de comparaison des diacritiques précédents (leçons 2 et 3)
- * Affiche un SyllableDisplay en mode compare_diacritics
- */
-function CompareDiacriticsSection({
-  lessonSortOrder,
-}: {
-  lessonSortOrder: number;
-}) {
-  // Récupérer les sort_orders des diacritiques précédents + actuels
-  const compareSortOrders: number[] = [];
-  if (lessonSortOrder === 2) {
-    compareSortOrders.push(1, 3); // Fatha + Kasra
-  } else if (lessonSortOrder === 3) {
-    compareSortOrders.push(1, 3, 2); // Fatha + Kasra + Damma
+// ── Rendu d'un item de présentation mots ─────────────────────
+
+function WordPresentationContent({ item }: { item: WordPresentationItem | null }) {
+  if (!item) return null;
+
+  if (item.kind === 'solar_intro') {
+    return (
+      <View style={styles.solarIntroBox}>
+        <Text style={styles.solarIntroTitle}>L'article en arabe : الـ</Text>
+        <Text style={styles.solarIntroText}>
+          En arabe, l'article "le / la" s'écrit الـ (al-). Mais sa prononciation change selon la lettre qui suit.
+        </Text>
+        <View style={styles.solarRow}>
+          <View style={styles.solarCard}>
+            <Text style={styles.solarAr}>الْقَمَر</Text>
+            <Text style={styles.solarLabel}>Lettre lunaire</Text>
+            <Text style={styles.solarDesc}>Le ل se prononce{'\n'}al-qamar</Text>
+          </View>
+          <View style={[styles.solarCard, styles.solarCardSun]}>
+            <Text style={styles.solarAr}>الشَّمْس</Text>
+            <Text style={styles.solarLabel}>Lettre solaire</Text>
+            <Text style={styles.solarDesc}>Le ل s'assimile{'\n'}ash-shams</Text>
+          </View>
+        </View>
+        <View style={styles.pedagogyBox}>
+          <Text style={styles.pedagogyText}>
+            💡 Les lettres solaires "absorbent" le ل de l'article. Les lettres lunaires le laissent sonner clairement.
+          </Text>
+        </View>
+      </View>
+    );
   }
 
-  const { data: compareDiacritics } = useDiacriticsForLesson(compareSortOrders);
+  if (item.kind === 'root_family') {
+    return (
+      <RootFamilyDisplay
+        root={item.root}
+        words={item.words}
+      />
+    );
+  }
 
+  // kind === 'word'
+  return (
+    <WordCard
+      word={item.word}
+      root={item.root}
+      mode="full"
+    />
+  );
+}
+
+// ── CompareDiacriticsSection (inchangé) ──────────────────────
+
+function CompareDiacriticsSection({ lessonSortOrder }: { lessonSortOrder: number }) {
+  const compareSortOrders: number[] = [];
+  if (lessonSortOrder === 2) {
+    compareSortOrders.push(1, 3);
+  } else if (lessonSortOrder === 3) {
+    compareSortOrders.push(1, 3, 2);
+  }
+  const { data: compareDiacritics } = useDiacriticsForLesson(compareSortOrders);
   if (!compareDiacritics || compareDiacritics.length < 2) return null;
 
   return (
@@ -243,8 +370,10 @@ const styles = StyleSheet.create({
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    flexWrap: 'wrap',
     gap: Spacing.sm,
     paddingVertical: Spacing.lg,
+    paddingHorizontal: Layout.screenPaddingH,
   },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
   dotFilled: { backgroundColor: Colors.primary },
@@ -261,13 +390,62 @@ const styles = StyleSheet.create({
   },
   pedagogyText: { fontSize: FontSizes.body, color: Colors.textPrimary, lineHeight: 24 },
 
-  compareSection: {
-    gap: Spacing.sm,
-  },
+  compareSection: { gap: Spacing.sm },
   compareSectionTitle: {
     fontSize: FontSizes.caption,
     fontWeight: '600',
     color: Colors.textSecondary,
+  },
+
+  // Solar/Lunar intro
+  solarIntroBox: { gap: Spacing.xl },
+  solarIntroTitle: {
+    fontSize: FontSizes.heading,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  solarIntroText: {
+    fontSize: FontSizes.body,
+    color: Colors.textSecondary,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+  solarRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  solarCard: {
+    flex: 1,
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  solarCardSun: {
+    borderColor: '#D4A843',
+    backgroundColor: '#FFF8E1',
+  },
+  solarAr: {
+    fontSize: 28,
+    fontFamily: 'Amiri',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  solarLabel: {
+    fontSize: FontSizes.caption,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  solarDesc: {
+    fontSize: FontSizes.small,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 
   footer: {

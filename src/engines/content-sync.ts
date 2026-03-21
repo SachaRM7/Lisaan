@@ -3,6 +3,7 @@
 import { supabase } from '../db/remote';
 import {
   upsertLetters, upsertDiacritics, upsertModules, upsertLessons,
+  upsertRoots, upsertWords, upsertWordVariants,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
 
@@ -91,6 +92,53 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
     result.errors.push(`lessons: ${e.message}`);
   }
 
+  // --- Roots ---
+  try {
+    const { data, error } = await supabase
+      .from('roots')
+      .select('*')
+      .order('frequency_rank', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertRoots(data);
+      await updateSyncMetadata('roots', data.length);
+      result.tables.roots = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`roots: ${e.message}`);
+  }
+
+  // --- Words ---
+  try {
+    const { data, error } = await supabase
+      .from('words')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertWords(data);
+      await updateSyncMetadata('words', data.length);
+      result.tables.words = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`words: ${e.message}`);
+  }
+
+  // --- Word Variants ---
+  try {
+    const { data, error } = await supabase
+      .from('word_variants')
+      .select('*');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertWordVariants(data);
+      await updateSyncMetadata('word_variants', data.length);
+      result.tables.word_variants = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`word_variants: ${e.message}`);
+  }
+
   return result;
 }
 
@@ -99,7 +147,7 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
  * Retourne true si au moins une table n'a jamais été sync.
  */
 export async function needsContentSync(): Promise<boolean> {
-  const tables = ['letters', 'diacritics', 'modules', 'lessons'];
+  const tables = ['letters', 'diacritics', 'modules', 'lessons', 'roots', 'words', 'word_variants'];
   for (const table of tables) {
     const meta = await getSyncMetadata(table);
     if (!meta) return true; // Jamais sync

@@ -12,9 +12,11 @@ import { useRouter } from 'expo-router';
 import { useSRSCards, useUpdateSRSCard } from '../src/hooks/useSRSCards';
 import { useLetters } from '../src/hooks/useLetters';
 import { useDiacritics } from '../src/hooks/useDiacritics';
+import { useWords } from '../src/hooks/useWords';
 import { getCardsDueForReview, computeSRSUpdate, exerciseResultToQuality } from '../src/engines/srs';
 import { generateReviewExercise, generateDiacriticReviewExercise } from '../src/engines/review-exercise-generator';
 import { applyConfusionPairCap } from '../src/engines/srs';
+import type { ExerciseConfig } from '../src/types/exercise';
 import { CONFUSION_PAIRS } from '../src/constants/confusion-pairs';
 import { ExerciseRenderer } from '../src/components/exercises/ExerciseRenderer';
 import type { ExerciseResult } from '../src/types/exercise';
@@ -33,6 +35,7 @@ export default function ReviewSession() {
   const { data: allCards = [] } = useSRSCards();
   const { data: allLetters = [] } = useLetters();
   const { data: allDiacritics = [] } = useDiacritics();
+  const { data: allWords = [] } = useWords();
   const updateSRSCard = useUpdateSRSCard();
   const startTime = useMemo(() => Date.now(), []);
 
@@ -47,7 +50,8 @@ export default function ReviewSession() {
   const [succeededCount, setSucceededCount] = useState(0);
   const [phase, setPhase] = useState<'session' | 'results'>('session');
 
-  const totalCards = initialQueue.length;
+  // Gelé au démarrage de la session — ne doit pas changer quand le cache se met à jour
+  const [totalCards] = useState(initialQueue.length);
 
   function handleComplete(result: ExerciseResult) {
     const card = queue[currentIndex];
@@ -133,7 +137,8 @@ export default function ReviewSession() {
   // ── Session ────────────────────────────────────────────
   const currentCard = queue[currentIndex];
 
-  if (!currentCard || (allLetters.length === 0 && allDiacritics.length === 0)) {
+  const dataReady = allLetters.length > 0 || allDiacritics.length > 0 || allWords.length > 0;
+  if (!currentCard || !dataReady) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.loader}>
@@ -144,40 +149,47 @@ export default function ReviewSession() {
   }
 
   // ── Générer l'exercice selon le type de carte ──────────
-  let exercise = null;
+  let exercise: ExerciseConfig | null = null;
 
   if (currentCard.item_type === 'letter') {
     const targetLetter = allLetters.find(l => l.id === currentCard.item_id);
-    if (!targetLetter) {
-      // Lettre introuvable : passer à la suivante
-      if (currentIndex + 1 < queue.length) {
-        setCurrentIndex(currentIndex + 1);
-      } else {
-        setPhase('results');
-      }
-      return null;
+    if (targetLetter) {
+      exercise = generateReviewExercise(currentCard, targetLetter, allLetters);
     }
-    exercise = generateReviewExercise(currentCard, targetLetter, allLetters);
   } else if (currentCard.item_type === 'diacritic') {
     const targetDiacritic = allDiacritics.find(d => d.id === currentCard.item_id);
-    if (!targetDiacritic) {
-      // Diacritique introuvable : passer à la suivante
-      if (currentIndex + 1 < queue.length) {
-        setCurrentIndex(currentIndex + 1);
-      } else {
-        setPhase('results');
-      }
-      return null;
+    if (targetDiacritic) {
+      exercise = generateDiacriticReviewExercise(currentCard, targetDiacritic, allDiacritics);
     }
-    exercise = generateDiacriticReviewExercise(currentCard, targetDiacritic, allDiacritics);
+  } else if (currentCard.item_type === 'word') {
+    const targetWord = allWords.find(w => w.id === currentCard.item_id);
+    if (targetWord) {
+      const distractors = allWords
+        .filter(w => w.id !== targetWord.id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3);
+      exercise = {
+        id: `review-word-${currentCard.id}`,
+        type: 'mcq',
+        instruction_fr: 'Que signifie ce mot ?',
+        prompt: { ar: targetWord.arabic_vocalized },
+        options: [
+          { id: targetWord.id, text: { fr: targetWord.translation_fr }, correct: true },
+          ...distractors.map(d => ({ id: d.id, text: { fr: d.translation_fr }, correct: false })),
+        ].sort(() => Math.random() - 0.5),
+        metadata: { word_id: targetWord.id },
+      };
+    }
   }
 
   if (!exercise) {
-    // Type non supporté : passer à la suivante
-    if (currentIndex + 1 < queue.length) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
+    // Item introuvable ou type inconnu — compter comme réussi pour ne pas bloquer
+    const newSucceeded = succeededCount + 1;
+    setSucceededCount(newSucceeded);
+    if (newSucceeded >= totalCards) {
       setPhase('results');
+    } else {
+      setCurrentIndex(prev => prev + 1);
     }
     return null;
   }

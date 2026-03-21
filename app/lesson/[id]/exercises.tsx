@@ -12,18 +12,21 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useLesson } from '../../../src/hooks/useLessons';
 import { useLetters, useLettersForLesson } from '../../../src/hooks/useLetters';
 import { useDiacritics, useDiacriticsForLesson } from '../../../src/hooks/useDiacritics';
+import { useWords, useSimpleWords } from '../../../src/hooks/useWords';
+import { useRoots } from '../../../src/hooks/useRoots';
 import { generateLetterExercises } from '../../../src/engines/exercise-generator';
 import { generateHarakatExercises, LESSON_DIACRITIC_RANGES } from '../../../src/engines/harakat-exercise-generator';
+import { generateWordExercises, LESSON_WORD_CONFIG, LESSON_ROOT_TRANSLITS } from '../../../src/engines/word-exercise-generator';
 import { ExerciseRenderer } from '../../../src/components/exercises/ExerciseRenderer';
 import type { ExerciseResult } from '../../../src/types/exercise';
 import { useUpdateSRSCard, useSRSCards } from '../../../src/hooks/useSRSCards';
+import { useQueryClient } from '@tanstack/react-query';
 import { computeSRSUpdate, exerciseResultToQuality, createNewCard } from '../../../src/engines/srs';
 import { useCompleteLesson } from '../../../src/hooks/useProgress';
 import { useSettingsStore } from '../../../src/stores/useSettingsStore';
 import { updateStreak } from '../../../src/engines/streak';
 import { addXP, calculateLessonXP } from '../../../src/engines/xp';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../../src/constants/theme';
-import { supabase } from '../../../src/db/remote';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
@@ -44,16 +47,16 @@ export default function ExercisesScreen() {
   const [phase, setPhase] = useState<'exercises' | 'results'>('exercises');
   const [updatedStreakCurrent, setUpdatedStreakCurrent] = useState<number | null>(null);
   const startTime = useMemo(() => Date.now(), []);
+  const queryClient = useQueryClient();
   const updateSRSCard = useUpdateSRSCard();
   const { data: srsCards } = useSRSCards();
   const updatedItemIds = useRef(new Set<string>());
   const completeLesson = useCompleteLesson();
   const exercise_direction = useSettingsStore((s) => s.exercise_direction);
 
-  // Charger la leçon avec son module
   const { data: lesson } = useLesson(id ?? '');
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
-  const contentType = moduleSortOrder === 2 ? 'diacritics' : 'letters';
+  const contentType = moduleSortOrder === 2 ? 'diacritics' : moduleSortOrder === 3 ? 'words' : 'letters';
 
   // ── Module 1 : lettres ──────────────────────────────────────
   const range = contentType === 'letters' && lesson
@@ -69,7 +72,33 @@ export default function ExercisesScreen() {
   const { data: lessonDiacritics } = useDiacriticsForLesson(diacriticSortOrders);
   const { data: allDiacritics } = useDiacritics();
 
-  // Déclencher streak + XP dès l'entrée en phase résultats
+  // ── Module 3 : mots et racines ──────────────────────────────
+  const { data: allWords } = useWords();
+  const { data: simpleWords } = useSimpleWords();
+  const { data: allRoots } = useRoots();
+
+  const lessonRoots = useMemo(() => {
+    if (contentType !== 'words' || !lesson) return [];
+    const translits = LESSON_ROOT_TRANSLITS[lesson.sort_order] ?? [];
+    return (allRoots ?? []).filter(r => translits.includes(r.transliteration));
+  }, [allRoots, contentType, lesson?.sort_order]);
+
+  const lessonWords = useMemo(() => {
+    if (contentType !== 'words' || !lesson) return [];
+    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
+    if (!wordConfig) return [];
+
+    if (wordConfig.type === 'simple' || wordConfig.type === 'solar_lunar') {
+      return simpleWords ?? [];
+    }
+    if (wordConfig.type === 'root') {
+      const rootIds = lessonRoots.map(r => r.id);
+      return (allWords ?? []).filter(w => w.root_id && rootIds.includes(w.root_id));
+    }
+    return allWords ?? []; // revision
+  }, [contentType, lesson?.sort_order, simpleWords, allWords, lessonRoots]);
+
+  // Déclencher streak + XP + SRS dès l'entrée en phase résultats
   useEffect(() => {
     if (phase !== 'results') return;
     const correct = results.filter((r) => r.correct).length;
@@ -82,9 +111,16 @@ export default function ExercisesScreen() {
       if (data) setUpdatedStreakCurrent(data.streak_current);
     });
 
-    // Créer les cartes SRS pour les diacritiques si Module 2
     if (contentType === 'diacritics' && lessonDiacritics && lessonDiacritics.length > 0) {
-      createSRSCardsForDiacritics(lessonDiacritics.map((d) => d.id));
+      createSRSCardsForItems(lessonDiacritics.map((d) => d.id), 'diacritic').then(() => {
+        queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+      });
+    }
+
+    if (contentType === 'words' && lessonWords.length > 0) {
+      createSRSCardsForItems(lessonWords.map((w) => w.id), 'word').then(() => {
+        queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+      });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
@@ -94,7 +130,8 @@ export default function ExercisesScreen() {
     if (contentType === 'letters') {
       if (!lessonLetters || !allLetters) return [];
       return generateLetterExercises(lessonLetters, allLetters, exercise_direction);
-    } else {
+    }
+    if (contentType === 'diacritics') {
       if (!lessonDiacritics || !allDiacritics || !lesson) return [];
       return generateHarakatExercises(
         lesson.sort_order,
@@ -103,13 +140,16 @@ export default function ExercisesScreen() {
         allLetters ?? [],
       );
     }
-  }, [lessonLetters, allLetters, lessonDiacritics, allDiacritics, lesson, contentType, exercise_direction]);
+    // words
+    if (!lesson || !allRoots) return [];
+    return generateWordExercises(lesson.sort_order, lessonWords, allWords ?? [], allRoots);
+  }, [lessonLetters, allLetters, lessonDiacritics, allDiacritics, lesson, contentType, exercise_direction, lessonWords, allWords, allRoots]);
 
   function handleComplete(result: ExerciseResult) {
     const newResults = [...results, result];
     setResults(newResults);
 
-    // Mettre à jour la carte SRS (letters uniquement — diacritics gérés en phase results)
+    // Mettre à jour la carte SRS pour les lettres
     if (contentType === 'letters') {
       const currentExercise = exercises[currentIndex];
       const letterId = currentExercise?.metadata?.letter_id as string | undefined;
@@ -120,6 +160,21 @@ export default function ExercisesScreen() {
           const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
           const update = computeSRSUpdate(card, quality);
           updateSRSCard.mutate({ itemType: 'letter', itemId: letterId, update });
+        }
+      }
+    }
+
+    // Mettre à jour la carte SRS pour les mots
+    if (contentType === 'words') {
+      const currentExercise = exercises[currentIndex];
+      const wordId = currentExercise?.metadata?.word_id as string | undefined;
+      if (wordId && srsCards && !updatedItemIds.current.has(wordId)) {
+        const card = srsCards.find((c) => c.item_id === wordId && c.item_type === 'word');
+        if (card) {
+          updatedItemIds.current.add(wordId);
+          const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
+          const update = computeSRSUpdate(card, quality);
+          updateSRSCard.mutate({ itemType: 'word', itemId: wordId, update });
         }
       }
     }
@@ -227,21 +282,20 @@ export default function ExercisesScreen() {
   );
 }
 
-/** Crée les cartes SRS pour les diacritiques si elles n'existent pas encore */
-async function createSRSCardsForDiacritics(diacriticIds: string[]): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+/** Crée les cartes SRS pour un lot d'items (diacritics ou words) dans SQLite local */
+async function createSRSCardsForItems(itemIds: string[], itemType: 'diacritic' | 'word'): Promise<void> {
+  const { useAuthStore } = await import('../../../src/stores/useAuthStore');
+  const userId = useAuthStore.getState().userId;
+  if (!userId) return;
 
-  const cards = diacriticIds.map((diacriticId) =>
-    createNewCard(user.id, 'diacritic', diacriticId),
-  );
-
-  await supabase
-    .from('srs_cards')
-    .upsert(cards, {
-      onConflict: 'user_id,item_type,item_id',
-      ignoreDuplicates: true,
+  const { upsertSRSCard } = await import('../../../src/db/local-queries');
+  for (const itemId of itemIds) {
+    const card = createNewCard(userId, itemType, itemId);
+    await upsertSRSCard({
+      id: `${userId}-${itemType}-${itemId}`,
+      ...card,
     });
+  }
 }
 
 const styles = StyleSheet.create({

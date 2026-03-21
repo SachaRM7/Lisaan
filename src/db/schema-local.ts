@@ -78,6 +78,54 @@ export async function initLocalSchema(): Promise<void> {
     );
 
     -- ============================================================
+    -- TABLES CONTENU — Vocabulaire et racines (É6)
+    -- ============================================================
+
+    CREATE TABLE IF NOT EXISTS roots (
+      id TEXT PRIMARY KEY,
+      consonants TEXT NOT NULL,        -- JSON array ["ك","ت","ب"]
+      transliteration TEXT NOT NULL,   -- "k-t-b"
+      core_meaning_fr TEXT NOT NULL,   -- "écrire"
+      core_meaning_ar TEXT,
+      frequency_rank INTEGER NOT NULL DEFAULT 100,
+      pedagogy_notes TEXT,
+      synced_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS words (
+      id TEXT PRIMARY KEY,
+      root_id TEXT,                     -- FK → roots (nullable pour mots-outils)
+      arabic TEXT NOT NULL,             -- Mot sans harakats (كتاب)
+      arabic_vocalized TEXT NOT NULL,   -- Mot avec harakats (كِتَاب)
+      transliteration TEXT NOT NULL,
+      ipa TEXT,
+      translation_fr TEXT NOT NULL,     -- Traduction française
+      pattern TEXT,                     -- Pattern morphologique (fiʿāl)
+      pos TEXT,                         -- noun | verb | adj | adv | particle | pronoun
+      frequency_rank INTEGER NOT NULL DEFAULT 100,
+      audio_url TEXT,
+      gender TEXT,                      -- masculine | feminine | n/a
+      is_simple_word INTEGER NOT NULL DEFAULT 0,  -- 1 = mot simple (leçon 1), 0 = mot de racine
+      pedagogy_notes TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      synced_at TEXT,
+      FOREIGN KEY (root_id) REFERENCES roots(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS word_variants (
+      id TEXT PRIMARY KEY,
+      word_id TEXT NOT NULL,
+      variant TEXT NOT NULL DEFAULT 'msa',  -- msa | darija | egyptian | levantine | khaliji | quranic
+      arabic TEXT NOT NULL,
+      arabic_vocalized TEXT,
+      transliteration TEXT,
+      audio_url TEXT,
+      notes_fr TEXT,
+      synced_at TEXT,
+      FOREIGN KEY (word_id) REFERENCES words(id)
+    );
+
+    -- ============================================================
     -- TABLES UTILISATEUR (read-write local, sync vers Cloud)
     -- ============================================================
 
@@ -147,6 +195,11 @@ export async function initLocalSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_srs_user_type ON srs_cards(user_id, item_type, item_id);
     CREATE INDEX IF NOT EXISTS idx_progress_synced ON user_progress(synced_at);
     CREATE INDEX IF NOT EXISTS idx_srs_synced ON srs_cards(synced_at);
+    CREATE INDEX IF NOT EXISTS idx_words_root ON words(root_id);
+    CREATE INDEX IF NOT EXISTS idx_words_sort ON words(sort_order);
+    CREATE INDEX IF NOT EXISTS idx_words_simple ON words(is_simple_word);
+    CREATE INDEX IF NOT EXISTS idx_word_variants_word ON word_variants(word_id, variant);
+    CREATE INDEX IF NOT EXISTS idx_roots_freq ON roots(frequency_rank);
 
   `);
 }
