@@ -269,6 +269,7 @@ export default function LearnScreen() {
   const { data: module1Lessons } = useLessons(modules?.[0]?.id ?? '');
   const { data: module2Lessons } = useLessons(modules?.[1]?.id ?? '');
   const { data: module3Lessons } = useLessons(modules?.[2]?.id ?? '');
+  const { data: module4Lessons } = useLessons(modules?.[3]?.id ?? '');
   const initFirstLesson = useInitFirstLesson();
   const unlockModule = useUnlockModule();
   const userId = useAuthStore((s) => s.userId);
@@ -306,6 +307,7 @@ export default function LearnScreen() {
     [modules?.[0]?.id ?? '']: module1Lessons ?? [],
     [modules?.[1]?.id ?? '']: module2Lessons ?? [],
     [modules?.[2]?.id ?? '']: module3Lessons ?? [],
+    [modules?.[3]?.id ?? '']: module4Lessons ?? [],
   };
 
   const lessonCountByModule: Record<string, number> = {};
@@ -326,6 +328,7 @@ export default function LearnScreen() {
 
   const module2Unlocked = isModuleUnlocked(2, progressByModule, allModules, lessonCountByModule);
   const module3Unlocked = isModuleUnlocked(3, progressByModule, allModules, lessonCountByModule);
+  const module4Unlocked = isModuleUnlocked(4, progressByModule, allModules, lessonCountByModule);
 
   // ── Détection déverrouillage Module 2 ─────────────────────
 
@@ -368,6 +371,25 @@ export default function LearnScreen() {
       }
     }
   }, [module3Unlocked]);
+
+  // ── Détection déverrouillage Module 4 ─────────────────────
+
+  useEffect(() => {
+    if (module4Unlocked && !prevUnlocked.current[4]) {
+      prevUnlocked.current[4] = true;
+      const mod4 = allModules.find(m => m.sort_order === 4);
+      const alreadyHadProgress = mod4
+        ? progress.some(p => lessonsByModule[mod4.id]?.some((l: { id: string }) => l.id === p.lesson_id))
+        : false;
+      if (!alreadyHadProgress && module4Lessons && module4Lessons.length > 0) {
+        unlockModule.mutate(module4Lessons[0].id);
+      }
+      setNewlyUnlockedIndex(3);
+      setUnlockBannerMessage('🎉 Module 4 débloqué ! Construis du sens en arabe.');
+      setTimeout(() => setUnlockBannerMessage(null), 4000);
+      setTimeout(() => setNewlyUnlockedIndex(null), 6000);
+    }
+  }, [module4Unlocked]);
 
   if (isLoading) {
     return (

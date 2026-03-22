@@ -124,6 +124,20 @@ export async function getLessonById(lessonId: string) {
   return db.getFirstAsync<any>('SELECT * FROM lessons WHERE id = ?', [lessonId]);
 }
 
+export async function getFirstLessonOfNextModule(currentModuleId: string) {
+  const db = getLocalDB();
+  return db.getFirstAsync<any>(
+    `SELECT l.* FROM lessons l
+     JOIN modules m ON l.module_id = m.id
+     WHERE m.sort_order = (
+       SELECT sort_order + 1 FROM modules WHERE id = ?
+     )
+     ORDER BY l.sort_order ASC
+     LIMIT 1`,
+    [currentModuleId]
+  );
+}
+
 export async function getLessonWithModule(lessonId: string) {
   const db = getLocalDB();
   return db.getFirstAsync<any>(
@@ -414,6 +428,99 @@ export async function upsertWordVariants(variants: any[]): Promise<void> {
       `INSERT OR REPLACE INTO word_variants (id, word_id, variant, arabic, arabic_vocalized, transliteration, audio_url, notes_fr, synced_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [v.id, v.word_id, v.variant, v.arabic, v.arabic_vocalized, v.transliteration, v.audio_url, v.notes_fr, now]
+    );
+  }
+}
+
+// --- Sentences ---
+
+export async function getAllSentences() {
+  const db = getLocalDB();
+  const rows = await db.getAllAsync<any>('SELECT * FROM sentences ORDER BY sort_order ASC');
+  return rows.map(r => ({
+    ...r,
+    word_ids: typeof r.word_ids === 'string' ? JSON.parse(r.word_ids ?? '[]') : r.word_ids ?? [],
+  }));
+}
+
+export async function getSentencesByDifficulty(maxDifficulty: number) {
+  const db = getLocalDB();
+  const rows = await db.getAllAsync<any>(
+    'SELECT * FROM sentences WHERE difficulty <= ? ORDER BY sort_order ASC',
+    [maxDifficulty]
+  );
+  return rows.map(r => ({
+    ...r,
+    word_ids: typeof r.word_ids === 'string' ? JSON.parse(r.word_ids ?? '[]') : r.word_ids ?? [],
+  }));
+}
+
+export async function getSentenceById(id: string) {
+  const db = getLocalDB();
+  const row = await db.getFirstAsync<any>('SELECT * FROM sentences WHERE id = ?', [id]);
+  if (!row) return null;
+  return { ...row, word_ids: JSON.parse(row.word_ids ?? '[]') };
+}
+
+export async function upsertSentences(sentences: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const s of sentences) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO sentences
+       (id, arabic, arabic_vocalized, transliteration, translation_fr,
+        word_ids, audio_url, context, variant, difficulty, sort_order, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [s.id, s.arabic, s.arabic_vocalized, s.transliteration, s.translation_fr,
+       JSON.stringify(s.word_ids ?? []), s.audio_url, s.context, s.variant ?? 'msa',
+       s.difficulty ?? 1, s.sort_order ?? 0, now]
+    );
+  }
+}
+
+// --- Dialogues ---
+
+export async function getAllDialogues() {
+  const db = getLocalDB();
+  return db.getAllAsync<any>('SELECT * FROM dialogues ORDER BY sort_order ASC');
+}
+
+export async function getDialogueWithTurns(dialogueId: string) {
+  const db = getLocalDB();
+  const dialogue = await db.getFirstAsync<any>('SELECT * FROM dialogues WHERE id = ?', [dialogueId]);
+  if (!dialogue) return null;
+  const turns = await db.getAllAsync<any>(
+    'SELECT * FROM dialogue_turns WHERE dialogue_id = ? ORDER BY sort_order ASC',
+    [dialogueId]
+  );
+  return { ...dialogue, turns };
+}
+
+export async function upsertDialogues(dialogues: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const d of dialogues) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO dialogues
+       (id, title_fr, title_ar, context_fr, difficulty, variant, sort_order, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [d.id, d.title_fr, d.title_ar, d.context_fr, d.difficulty ?? 1,
+       d.variant ?? 'msa', d.sort_order ?? 0, now]
+    );
+  }
+}
+
+export async function upsertDialogueTurns(turns: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const t of turns) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO dialogue_turns
+       (id, dialogue_id, speaker, sort_order, arabic, arabic_vocalized,
+        transliteration, translation_fr, audio_url, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [t.id, t.dialogue_id, t.speaker, t.sort_order, t.arabic,
+       t.arabic_vocalized, t.transliteration, t.translation_fr, t.audio_url, now]
     );
   }
 }

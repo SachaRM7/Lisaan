@@ -126,6 +126,50 @@ export async function initLocalSchema(): Promise<void> {
     );
 
     -- ============================================================
+    -- TABLES CONTENU — Phrases, dialogues (É7)
+    -- ============================================================
+
+    CREATE TABLE IF NOT EXISTS sentences (
+      id TEXT PRIMARY KEY,
+      arabic TEXT NOT NULL,             -- Phrase sans harakats
+      arabic_vocalized TEXT NOT NULL,   -- Phrase avec harakats
+      translation_fr TEXT NOT NULL,     -- Traduction française
+      transliteration TEXT NOT NULL,
+      word_ids TEXT,                    -- JSON array d'IDs de mots
+      audio_url TEXT,
+      context TEXT,                     -- Contexte d'utilisation (fr)
+      variant TEXT NOT NULL DEFAULT 'msa',
+      difficulty INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      synced_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS dialogues (
+      id TEXT PRIMARY KEY,
+      title_fr TEXT NOT NULL,
+      title_ar TEXT,
+      context_fr TEXT,                  -- Description de la situation
+      difficulty INTEGER NOT NULL DEFAULT 1,
+      variant TEXT NOT NULL DEFAULT 'msa',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      synced_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS dialogue_turns (
+      id TEXT PRIMARY KEY,
+      dialogue_id TEXT NOT NULL,
+      speaker TEXT NOT NULL,            -- 'A' ou 'B'
+      sort_order INTEGER NOT NULL,
+      arabic TEXT NOT NULL,
+      arabic_vocalized TEXT NOT NULL,
+      transliteration TEXT NOT NULL,
+      translation_fr TEXT NOT NULL,
+      audio_url TEXT,
+      synced_at TEXT,
+      FOREIGN KEY (dialogue_id) REFERENCES dialogues(id)
+    );
+
+    -- ============================================================
     -- TABLES UTILISATEUR (read-write local, sync vers Cloud)
     -- ============================================================
 
@@ -200,6 +244,10 @@ export async function initLocalSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_words_simple ON words(is_simple_word);
     CREATE INDEX IF NOT EXISTS idx_word_variants_word ON word_variants(word_id, variant);
     CREATE INDEX IF NOT EXISTS idx_roots_freq ON roots(frequency_rank);
+    CREATE INDEX IF NOT EXISTS idx_sentences_sort ON sentences(sort_order);
+    CREATE INDEX IF NOT EXISTS idx_sentences_difficulty ON sentences(difficulty);
+    CREATE INDEX IF NOT EXISTS idx_dialogue_turns_dialogue ON dialogue_turns(dialogue_id, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_dialogues_sort ON dialogues(sort_order);
 
   `);
 }

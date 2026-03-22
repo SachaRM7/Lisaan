@@ -13,6 +13,7 @@ import { useSRSCards, useUpdateSRSCard } from '../src/hooks/useSRSCards';
 import { useLetters } from '../src/hooks/useLetters';
 import { useDiacritics } from '../src/hooks/useDiacritics';
 import { useWords } from '../src/hooks/useWords';
+import { useSentences } from '../src/hooks/useSentences';
 import { getCardsDueForReview, computeSRSUpdate, exerciseResultToQuality } from '../src/engines/srs';
 import { generateReviewExercise, generateDiacriticReviewExercise } from '../src/engines/review-exercise-generator';
 import { applyConfusionPairCap } from '../src/engines/srs';
@@ -36,6 +37,7 @@ export default function ReviewSession() {
   const { data: allLetters = [] } = useLetters();
   const { data: allDiacritics = [] } = useDiacritics();
   const { data: allWords = [] } = useWords();
+  const { data: allSentences = [] } = useSentences();
   const updateSRSCard = useUpdateSRSCard();
   const startTime = useMemo(() => Date.now(), []);
 
@@ -137,7 +139,7 @@ export default function ReviewSession() {
   // ── Session ────────────────────────────────────────────
   const currentCard = queue[currentIndex];
 
-  const dataReady = allLetters.length > 0 || allDiacritics.length > 0 || allWords.length > 0;
+  const dataReady = allLetters.length > 0 || allDiacritics.length > 0 || allWords.length > 0 || allSentences.length > 0;
   if (!currentCard || !dataReady) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -178,6 +180,25 @@ export default function ReviewSession() {
           ...distractors.map(d => ({ id: d.id, text: { fr: d.translation_fr }, correct: false })),
         ].sort(() => Math.random() - 0.5),
         metadata: { word_id: targetWord.id },
+      };
+    }
+  } else if (currentCard.item_type === 'sentence') {
+    const targetSentence = allSentences.find(s => s.id === currentCard.item_id);
+    if (targetSentence) {
+      const distractors = allSentences
+        .filter(s => s.id !== targetSentence.id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 2);
+      exercise = {
+        id: `review-sentence-${currentCard.id}`,
+        type: 'mcq',
+        instruction_fr: 'Que signifie cette phrase ?',
+        prompt: { ar: targetSentence.arabic_vocalized },
+        options: [
+          { id: targetSentence.id, text: { fr: targetSentence.translation_fr }, correct: true },
+          ...distractors.map(d => ({ id: d.id, text: { fr: d.translation_fr }, correct: false })),
+        ].sort(() => Math.random() - 0.5),
+        metadata: { sentence_id: targetSentence.id },
       };
     }
   }

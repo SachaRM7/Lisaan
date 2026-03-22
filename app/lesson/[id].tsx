@@ -1,5 +1,5 @@
 // app/lesson/[id].tsx
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,29 +16,43 @@ import { useDiacriticsForLesson } from '../../src/hooks/useDiacritics';
 import { useCreateSRSCardsForLesson } from '../../src/hooks/useSRSCards';
 import { useRoots } from '../../src/hooks/useRoots';
 import { useSimpleWords, useWordsByRoots } from '../../src/hooks/useWords';
+import { useSentences } from '../../src/hooks/useSentences';
+import { useDialogues, useDialogueWithTurns } from '../../src/hooks/useDialogues';
 import LetterCard from '../../src/components/arabic/LetterCard';
 import DiacriticCard from '../../src/components/arabic/DiacriticCard';
 import SyllableDisplay from '../../src/components/arabic/SyllableDisplay';
 import WordCard from '../../src/components/arabic/WordCard';
 import RootFamilyDisplay from '../../src/components/arabic/RootFamilyDisplay';
+import SentenceCard from '../../src/components/arabic/SentenceCard';
+import DialogueDisplay from '../../src/components/arabic/DialogueDisplay';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
 import { LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
 import { LESSON_WORD_CONFIG, LESSON_ROOT_TRANSLITS } from '../../src/engines/word-exercise-generator';
+import { LESSON_SENTENCE_CONFIG } from '../../src/engines/sentence-exercise-generator';
 import type { Root } from '../../src/hooks/useRoots';
 import type { Word } from '../../src/hooks/useWords';
+import type { Sentence } from '../../src/hooks/useSentences';
+import type { DialogueWithTurns } from '../../src/hooks/useDialogues';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
   5: [16, 19], 6: [20, 23], 7: [24, 28],
 };
 
-type LessonContentType = 'letters' | 'diacritics' | 'words';
+type LessonContentType = 'letters' | 'diacritics' | 'words' | 'sentences';
 
 function getLessonContentType(moduleSortOrder: number): LessonContentType {
   if (moduleSortOrder === 2) return 'diacritics';
   if (moduleSortOrder === 3) return 'words';
+  if (moduleSortOrder === 4) return 'sentences';
   return 'letters';
 }
+
+type SentencePresentationItem =
+  | { kind: 'suffix_table' }
+  | { kind: 'nominal_rule' }
+  | { kind: 'sentence'; sentence: Sentence }
+  | { kind: 'dialogue'; dialogue: DialogueWithTurns };
 
 type WordPresentationItem =
   | { kind: 'word'; word: Word; root?: Root | null }
@@ -49,6 +63,8 @@ export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [forceSyncing, setForceSyncing] = useState(false);
+  const syncAttempted = useRef(false);
   const createSRSCards = useCreateSRSCardsForLesson();
 
   const { data: lesson, isLoading: lessonLoading } = useLesson(id ?? '');
@@ -117,19 +133,65 @@ export default function LessonScreen() {
     return [];
   }, [contentType, lesson?.sort_order, simpleWords, rootWords, lessonRoots]);
 
+  // ── Module 4 : phrases et dialogues ────────────────────────
+  const { data: allSentences, isLoading: sentencesLoading, refetch: refetchSentences } = useSentences();
+  const { data: allDialogues, isLoading: dialoguesLoading } = useDialogues();
+
+  const sentenceConfig = contentType === 'sentences' && lesson
+    ? LESSON_SENTENCE_CONFIG[lesson.sort_order]
+    : null;
+
+  const dial0Id = sentenceConfig?.dialogueIds?.[0] ?? null;
+  const dial1Id = sentenceConfig?.dialogueIds?.[1] ?? null;
+  const dial2Id = sentenceConfig?.dialogueIds?.[2] ?? null;
+  const { data: dial0 } = useDialogueWithTurns(dial0Id);
+  const { data: dial1 } = useDialogueWithTurns(dial1Id);
+  const { data: dial2 } = useDialogueWithTurns(dial2Id);
+
+  const sentencePresentationItems = useMemo<SentencePresentationItem[]>(() => {
+    if (contentType !== 'sentences' || !lesson || !sentenceConfig) return [];
+    const type = sentenceConfig.type;
+
+    // Leçon 5 : pas de présentation
+    if (type === 'fill_blank') return [];
+
+    // Leçon 6 : dialogues
+    if (type === 'dialogue') {
+      const items: SentencePresentationItem[] = [];
+      [dial0, dial1, dial2].forEach(d => {
+        if (d) items.push({ kind: 'dialogue', dialogue: d as DialogueWithTurns });
+      });
+      return items;
+    }
+
+    // Leçons 1-4 : phrases
+    const ids = sentenceConfig.sentenceIds ?? [];
+    const sentences = (allSentences ?? []).filter(s => ids.includes(s.id));
+    const items: SentencePresentationItem[] = [];
+
+    if (type === 'possessive') items.push({ kind: 'suffix_table' });
+    if (type === 'nominal') items.push({ kind: 'nominal_rule' });
+
+    sentences.forEach(s => items.push({ kind: 'sentence', sentence: s }));
+    return items;
+  }, [contentType, lesson?.sort_order, sentenceConfig, allSentences, dial0, dial1, dial2]);
+
   const isLoading = lessonLoading || lettersLoading || diacriticsLoading
-    || (contentType === 'words' && (rootsLoading || simpleWordsLoading || rootWordsLoading));
+    || (contentType === 'words' && (rootsLoading || simpleWordsLoading || rootWordsLoading))
+    || (contentType === 'sentences' && (sentencesLoading || dialoguesLoading || forceSyncing));
 
   const items: unknown[] = contentType === 'letters'
     ? (letters ?? [])
     : contentType === 'diacritics'
       ? (diacritics ?? [])
-      : wordPresentationItems;
+      : contentType === 'sentences'
+        ? sentencePresentationItems
+        : wordPresentationItems;
 
   const total = items.length;
   const isLast = currentIndex === total - 1;
 
-  // Leçon 6 (révision) : pas de présentation → aller directement aux exercices
+  // Leçon 6 Module 3 (révision) : pas de présentation
   useEffect(() => {
     if (contentType !== 'words' || isLoading || !lesson) return;
     const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
@@ -137,6 +199,28 @@ export default function LessonScreen() {
       router.replace(`/lesson/${id}/exercises` as never);
     }
   }, [contentType, isLoading, lesson?.sort_order]);
+
+  // Leçon 5 Module 4 (fill_blank) : pas de présentation
+  useEffect(() => {
+    if (contentType !== 'sentences' || isLoading || !lesson) return;
+    if (sentenceConfig?.type === 'fill_blank') {
+      router.replace(`/lesson/${id}/exercises` as never);
+    }
+  }, [contentType, isLoading, sentenceConfig?.type]);
+
+  // Si sentences vides après chargement → force sync une seule fois + refetch
+  useEffect(() => {
+    if (contentType !== 'sentences' || sentencesLoading) return;
+    if ((!allSentences || allSentences.length === 0) && !syncAttempted.current) {
+      syncAttempted.current = true;
+      setForceSyncing(true);
+      import('../../src/engines/content-sync').then(({ syncContentFromCloud }) =>
+        syncContentFromCloud()
+          .then(() => refetchSentences())
+          .finally(() => setForceSyncing(false))
+      );
+    }
+  }, [contentType, sentencesLoading]);
 
   function handleNext() {
     if (!isLast) {
@@ -245,6 +329,9 @@ export default function LessonScreen() {
               <CompareDiacriticsSection lessonSortOrder={lesson.sort_order} />
             )}
           </>
+        ) : contentType === 'sentences' ? (
+          // ── Module 4 : phrases et dialogues ──────────────────
+          <SentencePresentationContent item={sentencePresentationItems[currentIndex] ?? null} />
         ) : (
           // ── Module 3 : mots ──────────────────────────────────
           <WordPresentationContent item={wordPresentationItems[currentIndex] ?? null} />
@@ -316,6 +403,62 @@ function WordPresentationContent({ item }: { item: WordPresentationItem | null }
       mode="full"
     />
   );
+}
+
+// ── Rendu d'un item de présentation sentences ─────────────────
+
+function SentencePresentationContent({ item }: { item: SentencePresentationItem | null }) {
+  if (!item) return null;
+
+  if (item.kind === 'sentence') {
+    return <SentenceCard sentence={item.sentence} mode="full" />;
+  }
+
+  if (item.kind === 'dialogue') {
+    return <DialogueDisplay dialogue={item.dialogue} />;
+  }
+
+  if (item.kind === 'suffix_table') {
+    return (
+      <View style={styles.pedagogyBox}>
+        <Text style={styles.pedagogyText}>
+          Les suffixes possessifs s'attachent au nom :
+        </Text>
+        {[
+          { suffix: '-ي',  label: '(moi)',   example: 'كِتَابِي',   meaning: 'mon livre' },
+          { suffix: '-كَ', label: '(toi m)', example: 'كِتَابُكَ',  meaning: 'ton livre' },
+          { suffix: '-هُ', label: '(lui)',   example: 'كِتَابُهُ',  meaning: 'son livre' },
+          { suffix: '-نَا',label: '(nous)',  example: 'كِتَابُنَا', meaning: 'notre livre' },
+        ].map(row => (
+          <View key={row.suffix} style={styles.suffixRow}>
+            <Text style={styles.suffixCode}>{row.suffix}</Text>
+            <Text style={styles.suffixLabel}>{row.label}</Text>
+            <Text style={styles.suffixExample}>{row.example}</Text>
+            <Text style={styles.suffixMeaning}>{row.meaning}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  if (item.kind === 'nominal_rule') {
+    return (
+      <View style={styles.pedagogyBox}>
+        <Text style={styles.pedagogyText}>
+          {'La phrase nominale :\n\nSujet défini (avec الـ) + adjectif indéfini\n= "X est [adj]"\n\n'}
+          <Text style={{ fontFamily: 'Amiri', fontSize: 20 }}>الْبَيْتُ كَبِيرٌ</Text>
+          {'\n→ La maison est grande.\n\n'}
+          {'L\'adjectif s\'accorde en genre :\n'}
+          <Text style={{ fontFamily: 'Amiri', fontSize: 18 }}>جَمِيل</Text>
+          {' (m) → '}
+          <Text style={{ fontFamily: 'Amiri', fontSize: 18 }}>جَمِيلَة</Text>
+          {' (f)'}
+        </Text>
+      </View>
+    );
+  }
+
+  return null;
 }
 
 // ── CompareDiacriticsSection (inchangé) ──────────────────────
@@ -446,6 +589,40 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+
+  suffixRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E2D9',
+  },
+  suffixCode: {
+    fontFamily: 'Amiri',
+    fontSize: 20,
+    color: Colors.primary,
+    width: 40,
+    textAlign: 'right',
+  },
+  suffixLabel: {
+    fontSize: FontSizes.small,
+    color: Colors.textSecondary,
+    width: 56,
+  },
+  suffixExample: {
+    fontFamily: 'Amiri',
+    fontSize: 18,
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: 'right',
+  },
+  suffixMeaning: {
+    fontSize: FontSizes.small,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+    width: 80,
   },
 
   footer: {

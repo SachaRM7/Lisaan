@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/useAuthStore';
 import {
   getProgressForUser, upsertProgress, getLessonById, getLessonsByModule,
+  getFirstLessonOfNextModule,
 } from '../db/local-queries';
 import { runSync } from '../engines/sync-manager';
 
@@ -75,6 +76,21 @@ export function useCompleteLesson() {
             attempts: 0,
             time_spent_seconds: 0,
           });
+        } else {
+          // Dernière leçon du module → déverrouiller la 1ère leçon du module suivant
+          const firstNextLesson = await getFirstLessonOfNextModule(currentLesson.module_id);
+          if (firstNextLesson) {
+            await upsertProgress({
+              id: crypto.randomUUID(),
+              user_id: userId,
+              lesson_id: firstNextLesson.id,
+              status: 'available',
+              score: 0,
+              completed_at: null,
+              attempts: 0,
+              time_spent_seconds: 0,
+            });
+          }
         }
       }
     },

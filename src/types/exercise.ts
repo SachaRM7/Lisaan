@@ -45,6 +45,16 @@ export interface ExerciseConfig {
     show_harakats?: boolean;
     show_transliteration?: boolean;
   };
+  // fill_blank specific
+  sentence?: {
+    ar: string;
+    fr: string;
+    transliteration: string;
+  };
+  blank_word?: {
+    ar: string;
+    position: number;
+  };
 }
 
 /** Résultat d'un exercice complété */

@@ -14,9 +14,12 @@ import { useLetters, useLettersForLesson } from '../../../src/hooks/useLetters';
 import { useDiacritics, useDiacriticsForLesson } from '../../../src/hooks/useDiacritics';
 import { useWords, useSimpleWords } from '../../../src/hooks/useWords';
 import { useRoots } from '../../../src/hooks/useRoots';
+import { useSentences } from '../../../src/hooks/useSentences';
+import { useDialogues, useDialogueWithTurns } from '../../../src/hooks/useDialogues';
 import { generateLetterExercises } from '../../../src/engines/exercise-generator';
 import { generateHarakatExercises, LESSON_DIACRITIC_RANGES } from '../../../src/engines/harakat-exercise-generator';
 import { generateWordExercises, LESSON_WORD_CONFIG, LESSON_ROOT_TRANSLITS } from '../../../src/engines/word-exercise-generator';
+import { generateSentenceExercises, LESSON_SENTENCE_CONFIG } from '../../../src/engines/sentence-exercise-generator';
 import { ExerciseRenderer } from '../../../src/components/exercises/ExerciseRenderer';
 import type { ExerciseResult } from '../../../src/types/exercise';
 import { useUpdateSRSCard, useSRSCards } from '../../../src/hooks/useSRSCards';
@@ -56,7 +59,10 @@ export default function ExercisesScreen() {
 
   const { data: lesson } = useLesson(id ?? '');
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
-  const contentType = moduleSortOrder === 2 ? 'diacritics' : moduleSortOrder === 3 ? 'words' : 'letters';
+  const contentType = moduleSortOrder === 2 ? 'diacritics'
+    : moduleSortOrder === 3 ? 'words'
+    : moduleSortOrder === 4 ? 'sentences'
+    : 'letters';
 
   // ── Module 1 : lettres ──────────────────────────────────────
   const range = contentType === 'letters' && lesson
@@ -76,6 +82,21 @@ export default function ExercisesScreen() {
   const { data: allWords } = useWords();
   const { data: simpleWords } = useSimpleWords();
   const { data: allRoots } = useRoots();
+
+  // ── Module 4 : phrases et dialogues ─────────────────────────
+  const { data: allSentences } = useSentences();
+  const { data: allDialogues } = useDialogues();
+
+  const sentenceConfig = contentType === 'sentences' && lesson
+    ? LESSON_SENTENCE_CONFIG[lesson.sort_order]
+    : null;
+
+  const dial0Id = sentenceConfig?.dialogueIds?.[0] ?? null;
+  const dial1Id = sentenceConfig?.dialogueIds?.[1] ?? null;
+  const dial2Id = sentenceConfig?.dialogueIds?.[2] ?? null;
+  const { data: dial0 } = useDialogueWithTurns(dial0Id);
+  const { data: dial1 } = useDialogueWithTurns(dial1Id);
+  const { data: dial2 } = useDialogueWithTurns(dial2Id);
 
   const lessonRoots = useMemo(() => {
     if (contentType !== 'words' || !lesson) return [];
@@ -122,6 +143,18 @@ export default function ExercisesScreen() {
         queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
       });
     }
+
+    if (contentType === 'sentences' && sentenceConfig) {
+      const ids = sentenceConfig.sentenceIds ?? [];
+      const sentenceIds = sentenceConfig.type === 'fill_blank'
+        ? (allSentences ?? []).filter(s => s.difficulty <= 2).map(s => s.id)
+        : ids;
+      if (sentenceIds.length > 0) {
+        createSRSCardsForItems(sentenceIds, 'sentence').then(() => {
+          queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+        });
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
@@ -140,10 +173,29 @@ export default function ExercisesScreen() {
         allLetters ?? [],
       );
     }
-    // words
-    if (!lesson || !allRoots) return [];
-    return generateWordExercises(lesson.sort_order, lessonWords, allWords ?? [], allRoots);
-  }, [lessonLetters, allLetters, lessonDiacritics, allDiacritics, lesson, contentType, exercise_direction, lessonWords, allWords, allRoots]);
+    if (contentType === 'words') {
+      if (!lesson || !allRoots) return [];
+      return generateWordExercises(lesson.sort_order, lessonWords, allWords ?? [], allRoots);
+    }
+
+    // sentences
+    if (!lesson || !sentenceConfig) return [];
+    const ids = sentenceConfig.sentenceIds ?? [];
+    const lessonSentences = sentenceConfig.type === 'fill_blank'
+      ? (allSentences ?? []).filter(s => s.difficulty <= 2)
+      : (allSentences ?? []).filter(s => ids.includes(s.id));
+    const dialoguesWithTurns = sentenceConfig.dialogueIds
+      ? [dial0, dial1, dial2].filter(Boolean) as any[]
+      : undefined;
+    return generateSentenceExercises(
+      lesson.sort_order,
+      lessonSentences,
+      allSentences ?? [],
+      allWords ?? [],
+      dialoguesWithTurns,
+    );
+  }, [lessonLetters, allLetters, lessonDiacritics, allDiacritics, lesson, contentType, exercise_direction,
+      lessonWords, allWords, allRoots, allSentences, sentenceConfig, dial0, dial1, dial2]);
 
   function handleComplete(result: ExerciseResult) {
     const newResults = [...results, result];
@@ -175,6 +227,21 @@ export default function ExercisesScreen() {
           const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
           const update = computeSRSUpdate(card, quality);
           updateSRSCard.mutate({ itemType: 'word', itemId: wordId, update });
+        }
+      }
+    }
+
+    // Mettre à jour la carte SRS pour les phrases
+    if (contentType === 'sentences') {
+      const currentExercise = exercises[currentIndex];
+      const sentenceId = currentExercise?.metadata?.sentence_id as string | undefined;
+      if (sentenceId && srsCards && !updatedItemIds.current.has(sentenceId)) {
+        const card = srsCards.find((c) => c.item_id === sentenceId && c.item_type === 'sentence');
+        if (card) {
+          updatedItemIds.current.add(sentenceId);
+          const quality = exerciseResultToQuality(result.correct, result.attempts, result.time_ms);
+          const update = computeSRSUpdate(card, quality);
+          updateSRSCard.mutate({ itemType: 'sentence', itemId: sentenceId, update });
         }
       }
     }
@@ -283,7 +350,7 @@ export default function ExercisesScreen() {
 }
 
 /** Crée les cartes SRS pour un lot d'items (diacritics ou words) dans SQLite local */
-async function createSRSCardsForItems(itemIds: string[], itemType: 'diacritic' | 'word'): Promise<void> {
+async function createSRSCardsForItems(itemIds: string[], itemType: 'diacritic' | 'word' | 'sentence'): Promise<void> {
   const { useAuthStore } = await import('../../../src/stores/useAuthStore');
   const userId = useAuthStore.getState().userId;
   if (!userId) return;

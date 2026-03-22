@@ -7,35 +7,130 @@ import ArabicText from '../arabic/ArabicText';
 import { Colors, Spacing, Radius, FontSizes, Layout } from '../../constants/theme';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 
+// ── Carte prompt (question) ────────────────────────────────────
+function PromptCard({
+  ar, fr, defaultHarakats, defaultTranslation,
+}: {
+  ar?: string; fr?: string;
+  defaultHarakats: boolean; defaultTranslation: boolean;
+}) {
+  const [showH, setShowH] = useState(defaultHarakats);
+  const [showT, setShowT] = useState(defaultTranslation);
+
+  const canToggleHarakats = !!ar && hasHarakats(ar);
+
+  return (
+    <View style={styles.promptBox}>
+      {ar ? (
+        canToggleHarakats ? (
+          <TouchableOpacity onPress={() => setShowH(v => !v)} activeOpacity={0.8}>
+            <ArabicText harakatsMode={showH ? 'always' : 'never'}>{ar}</ArabicText>
+          </TouchableOpacity>
+        ) : (
+          <ArabicText harakatsMode="never">{ar}</ArabicText>
+        )
+      ) : null}
+      {fr ? (
+        showT ? (
+          <TouchableOpacity onPress={() => setShowT(false)} activeOpacity={0.8}>
+            <Text style={styles.promptFr}>{fr}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => setShowT(true)} activeOpacity={0.8}>
+            <Text style={styles.revealHint}>Afficher la traduction</Text>
+          </TouchableOpacity>
+        )
+      ) : null}
+    </View>
+  );
+}
+
+const HARAKAT_REGEX = /[\u064B-\u065F\u0670]/;
+function hasHarakats(text: string) { return HARAKAT_REGEX.test(text); }
+
+// ── Carte option (réponse) ─────────────────────────────────────
+function OptionCard({
+  option, answered,
+  defaultHarakats, defaultTranslation,
+  onSelect, getStyle, getTextStyle,
+}: {
+  option: ExerciseOption;
+  answered: boolean; selected: string | null;
+  defaultHarakats: boolean; defaultTranslation: boolean;
+  onSelect: (o: ExerciseOption) => void;
+  getStyle: (o: ExerciseOption) => any;
+  getTextStyle: (o: ExerciseOption) => any;
+}) {
+  const [showH, setShowH] = useState(defaultHarakats);
+  const [showT, setShowT] = useState(defaultTranslation);
+
+  // Les lettres isolées n'ont pas de harakats → pas de toggle
+  const canToggleHarakats = !!option.text.ar && hasHarakats(option.text.ar);
+
+  return (
+    <TouchableOpacity
+      style={getStyle(option)}
+      onPress={() => onSelect(option)}
+      disabled={answered}
+      activeOpacity={0.75}
+    >
+      {option.text.ar ? (
+        canToggleHarakats ? (
+          <TouchableOpacity onPress={() => { if (!answered) setShowH(v => !v); }} activeOpacity={0.8}>
+            <ArabicText harakatsMode={showH ? 'always' : 'never'}>{option.text.ar}</ArabicText>
+          </TouchableOpacity>
+        ) : (
+          <ArabicText harakatsMode="never">{option.text.ar}</ArabicText>
+        )
+      ) : null}
+      {option.text.fr ? (
+        showT ? (
+          <TouchableOpacity onPress={() => { if (!answered) setShowT(false); }} activeOpacity={0.8} disabled={answered}>
+            <Text style={getTextStyle(option)}>{option.text.fr}</Text>
+          </TouchableOpacity>
+        ) : (
+          !answered ? (
+            <TouchableOpacity onPress={() => setShowT(true)} activeOpacity={0.8}>
+              <Text style={styles.revealHint}>Afficher la traduction</Text>
+            </TouchableOpacity>
+          ) : (
+            option.correct ? (
+              <Text style={getTextStyle(option)}>{option.text.fr}</Text>
+            ) : null
+          )
+        )
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
+// ── Composant principal ────────────────────────────────────────
 export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
   const startTime = useRef(Date.now());
   const attempts = useRef(1);
   const hapticFeedback = useSettingsStore((s) => s.haptic_feedback);
+  const translationMode = useSettingsStore((s) => s.translation_mode);
+  const harakatsMode = useSettingsStore((s) => s.harakats_mode);
+
+  const defaultTranslation = translationMode === 'always';
+  const defaultHarakats = harakatsMode === 'always' || harakatsMode === 'adaptive';
 
   const options = config.options ?? [];
   const correctOption = options.find((o) => o.correct);
 
   function handleSelect(option: ExerciseOption) {
     if (answered) return;
-
     setSelected(option.id);
     setAnswered(true);
-
     const isCorrect = option.correct;
     if (!isCorrect) attempts.current = 2;
-
-    // Haptic feedback selon le réglage
     if (hapticFeedback) {
-      if (isCorrect) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      } else {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
+      Haptics.impactAsync(isCorrect
+        ? Haptics.ImpactFeedbackStyle.Light
+        : Haptics.ImpactFeedbackStyle.Medium);
     }
-
-    const delay = isCorrect ? 800 : 1200;
     setTimeout(() => {
       onComplete({
         exercise_id: config.id,
@@ -44,7 +139,7 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
         attempts: attempts.current,
         user_answer: option.id,
       });
-    }, delay);
+    }, isCorrect ? 800 : 1200);
   }
 
   function getOptionStyle(option: ExerciseOption) {
@@ -65,42 +160,33 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
 
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Instruction */}
       {config.instruction_fr ? (
         <Text style={styles.instruction}>{config.instruction_fr}</Text>
       ) : null}
 
-      {/* Prompt */}
-      <View style={styles.promptBox}>
-        {config.prompt.ar ? (
-          <ArabicText>{config.prompt.ar}</ArabicText>
-        ) : null}
-        {config.prompt.fr ? (
-          <Text style={styles.promptFr}>{config.prompt.fr}</Text>
-        ) : null}
-      </View>
+      <PromptCard
+        ar={config.prompt.ar}
+        fr={config.prompt.fr}
+        defaultHarakats={defaultHarakats}
+        defaultTranslation={defaultTranslation}
+      />
 
-      {/* Options */}
       <View style={styles.options}>
         {options.map((option) => (
-          <TouchableOpacity
+          <OptionCard
             key={option.id}
-            style={getOptionStyle(option)}
-            onPress={() => handleSelect(option)}
-            disabled={answered}
-            activeOpacity={0.75}
-          >
-            {option.text.ar ? (
-              <ArabicText>{option.text.ar}</ArabicText>
-            ) : null}
-            {option.text.fr ? (
-              <Text style={getOptionTextStyle(option)}>{option.text.fr}</Text>
-            ) : null}
-          </TouchableOpacity>
+            option={option}
+            answered={answered}
+            selected={selected}
+            defaultHarakats={defaultHarakats}
+            defaultTranslation={defaultTranslation}
+            onSelect={handleSelect}
+            getStyle={getOptionStyle}
+            getTextStyle={getOptionTextStyle}
+          />
         ))}
       </View>
 
-      {/* Feedback */}
       {answered ? (
         <View style={[styles.feedback, isCorrectAnswer ? styles.feedbackCorrect : styles.feedbackWrong]}>
           <Text style={[styles.feedbackText, isCorrectAnswer ? styles.feedbackTextCorrect : styles.feedbackTextWrong]}>
@@ -121,7 +207,6 @@ const styles = StyleSheet.create({
     gap: Spacing['2xl'],
   },
 
-  // Instruction
   instruction: {
     fontSize: FontSizes.body,
     color: Colors.textSecondary,
@@ -129,7 +214,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Prompt
   promptBox: {
     alignItems: 'center',
     backgroundColor: Colors.bgCard,
@@ -138,6 +222,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['2xl'],
     borderWidth: 1,
     borderColor: Colors.border,
+    gap: Spacing.md,
   },
   promptFr: {
     fontSize: FontSizes.heading,
@@ -146,7 +231,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Options
+  revealHint: {
+    fontSize: FontSizes.small,
+    color: Colors.textMuted,
+    opacity: 0.5,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+
   options: {
     gap: Spacing.md,
   },
@@ -160,6 +252,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 56,
     justifyContent: 'center',
+    gap: Spacing.xs,
   },
   optionCorrect: {
     borderColor: Colors.success,
@@ -177,36 +270,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textPrimary,
   },
-  optionTextCorrect: {
-    color: Colors.success,
-  },
-  optionTextWrong: {
-    color: Colors.error,
-  },
-  optionTextDimmed: {
-    color: Colors.textMuted,
-  },
+  optionTextCorrect: { color: Colors.success },
+  optionTextWrong: { color: Colors.error },
+  optionTextDimmed: { color: Colors.textMuted },
 
-  // Feedback
   feedback: {
     borderRadius: Radius.md,
     padding: Spacing.lg,
     alignItems: 'center',
   },
-  feedbackCorrect: {
-    backgroundColor: Colors.successLight,
-  },
-  feedbackWrong: {
-    backgroundColor: Colors.errorLight,
-  },
+  feedbackCorrect: { backgroundColor: Colors.successLight },
+  feedbackWrong: { backgroundColor: Colors.errorLight },
   feedbackText: {
     fontSize: FontSizes.body,
     fontWeight: '700',
   },
-  feedbackTextCorrect: {
-    color: Colors.success,
-  },
-  feedbackTextWrong: {
-    color: Colors.error,
-  },
+  feedbackTextCorrect: { color: Colors.success },
+  feedbackTextWrong: { color: Colors.error },
 });

@@ -4,6 +4,7 @@ import { supabase } from '../db/remote';
 import {
   upsertLetters, upsertDiacritics, upsertModules, upsertLessons,
   upsertRoots, upsertWords, upsertWordVariants,
+  upsertSentences, upsertDialogues, upsertDialogueTurns,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
 
@@ -139,6 +140,54 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
     result.errors.push(`word_variants: ${e.message}`);
   }
 
+  // --- Sentences ---
+  try {
+    const { data, error } = await supabase
+      .from('sentences')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertSentences(data);
+      await updateSyncMetadata('sentences', data.length);
+      result.tables.sentences = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`sentences: ${e.message}`);
+  }
+
+  // --- Dialogues ---
+  try {
+    const { data, error } = await supabase
+      .from('dialogues')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertDialogues(data);
+      await updateSyncMetadata('dialogues', data.length);
+      result.tables.dialogues = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`dialogues: ${e.message}`);
+  }
+
+  // --- Dialogue Turns ---
+  try {
+    const { data, error } = await supabase
+      .from('dialogue_turns')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertDialogueTurns(data);
+      await updateSyncMetadata('dialogue_turns', data.length);
+      result.tables.dialogue_turns = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`dialogue_turns: ${e.message}`);
+  }
+
   return result;
 }
 
@@ -147,7 +196,11 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
  * Retourne true si au moins une table n'a jamais été sync.
  */
 export async function needsContentSync(): Promise<boolean> {
-  const tables = ['letters', 'diacritics', 'modules', 'lessons', 'roots', 'words', 'word_variants'];
+  const tables = [
+    'letters', 'diacritics', 'modules', 'lessons',
+    'roots', 'words', 'word_variants',
+    'sentences', 'dialogues', 'dialogue_turns',
+  ];
   for (const table of tables) {
     const meta = await getSyncMetadata(table);
     if (!meta) return true; // Jamais sync

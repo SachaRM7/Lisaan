@@ -86,8 +86,9 @@ export function generateWordExercises(
   }
 
   if (config.type === 'solar_lunar') {
-    // Exercices spécifiques solaires/lunaires
-    for (const word of lessonWords) {
+    // Exercices spécifiques solaires/lunaires — uniquement pour les noms
+    const nounsOnly = lessonWords.filter(w => w.pos === 'noun');
+    for (const word of nounsOnly) {
       exercises.push({
         id: `mcq-article-${word.id}`,
         type: 'mcq',
@@ -216,15 +217,23 @@ function generateDecodingOptions(correct: Word, allWords: Word[]): ExerciseOptio
   ]);
 }
 
+// Lettres solaires arabes : le ل de l'article s'assimile à la lettre suivante
+const SOLAR_LETTERS = new Set([
+  'ت', 'ث', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ل', 'ن',
+]);
+
 function generateArticleOptions(word: Word): ExerciseOption[] {
-  const assimilated = `a${word.transliteration.charAt(0)}-${word.transliteration}`;
+  // Ignore les diacritiques pour trouver la première lettre de base
+  const firstLetter = word.arabic_vocalized.replace(/[\u064B-\u065F\u0670]/g, '').charAt(0);
+  const isSolar = SOLAR_LETTERS.has(firstLetter);
+
+  const firstTranslit = word.transliteration.charAt(0);
+  const assimilated = `a${firstTranslit}-${word.transliteration}`;
   const regular = `al-${word.transliteration}`;
 
-  // TODO : déterminer si la lettre est solaire ou lunaire via les données letters
-  // Pour l'instant on fournit les deux options — la logique complète sera dans Mission 8
   return shuffleArray([
-    { id: 'regular', text: { fr: regular }, correct: true },
-    { id: 'assimilated', text: { fr: assimilated }, correct: false },
+    { id: 'regular',     text: { fr: regular },    correct: !isSolar },
+    { id: 'assimilated', text: { fr: assimilated }, correct: isSolar },
   ]);
 }
 
