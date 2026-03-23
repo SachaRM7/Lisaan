@@ -340,9 +340,6 @@ export default function LessonScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.listenBtn} activeOpacity={0.7}>
-          <Text style={styles.listenLabel}>🔊 Écouter</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.8}>
           <Text style={styles.nextLabel}>
             {isLast ? 'Commencer les exercices →' : 'Suivant →'}

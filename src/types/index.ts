@@ -228,6 +228,7 @@ export interface UserSettings {
   transliteration_mode: DisplayMode;
   translation_mode: DisplayMode;
   exercise_direction: ExerciseDirection;
+  audio_enabled: boolean;
   audio_autoplay: boolean;
   audio_speed: AudioSpeed;
   font_size: FontSizePref;

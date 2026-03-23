@@ -12,6 +12,7 @@ export interface UserSettings {
   transliteration_mode: TransliterationMode;
   translation_mode: TranslationMode;
   exercise_direction: ExerciseDirection;
+  audio_enabled: boolean;
   audio_autoplay: boolean;
   audio_speed: AudioSpeed;
   font_size: FontSizePreference;
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   transliteration_mode: 'always',
   translation_mode: 'always',
   exercise_direction: 'both',
+  audio_enabled: true,
   audio_autoplay: true,
   audio_speed: 'slow',
   font_size: 'large',

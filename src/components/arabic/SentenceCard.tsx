@@ -3,6 +3,7 @@
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { Colors, Spacing, Radius, Shadows, FontSizes } from '../../constants/theme';
 import ArabicText from './ArabicText';
+import { AudioButton } from '../AudioButton';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import type { Sentence } from '../../hooks/useSentences';
 
@@ -46,15 +47,23 @@ export default function SentenceCard({
 
   const card = (
     <View style={[styles.card, mode === 'compact' && styles.cardCompact]}>
-      {/* Texte arabe */}
+      {/* Texte arabe + bouton audio */}
       {mode === 'full' ? (
-        <ArabicText
-          size="large"
-          showTransliteration={false}
-          showTranslation={false}
-        >
-          {sentence.arabic_vocalized}
-        </ArabicText>
+        <View style={styles.sentenceRow}>
+          <AudioButton
+            audioUrl={sentence.audio_url}
+            fallbackText={sentence.arabic}
+            size={22}
+            style={styles.audioBtn}
+          />
+          <ArabicText
+            size="large"
+            showTransliteration={false}
+            showTranslation={false}
+          >
+            {sentence.arabic_vocalized}
+          </ArabicText>
+        </View>
       ) : (
         <CompactArabicRow parts={arabicDisplay} />
       )}
@@ -145,6 +154,14 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
 
+  sentenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  audioBtn: {
+    marginRight: Spacing.xs,
+  },
   arabicRow: {
     flexDirection: 'row-reverse',
     flexWrap: 'wrap',

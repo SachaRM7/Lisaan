@@ -1,5 +1,5 @@
 // app/(tabs)/profile.tsx
-import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -7,6 +7,7 @@ import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/c
 import { useSettingsStore } from '../../src/stores/useSettingsStore';
 import { SettingRow } from '../../src/components/settings/SettingRow';
 import ArabicText from '../../src/components/arabic/ArabicText';
+import { clearAudioCache } from '../../src/services/audio-cache-service';
 import { supabase } from '../../src/db/remote';
 
 // ─── Options des sélecteurs ───────────────────────────────
@@ -226,6 +227,13 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>AUDIO</Text>
         <View style={styles.sectionCard}>
           <SettingRow
+            label="Son activé"
+            type="toggle"
+            isOn={store.audio_enabled}
+            onToggle={(v) => store.updateSetting('audio_enabled', v)}
+          />
+          <View style={styles.separator} />
+          <SettingRow
             label="Lecture auto"
             type="toggle"
             isOn={store.audio_autoplay}
@@ -239,6 +247,20 @@ export default function ProfileScreen() {
             selectedValue={store.audio_speed}
             onSelect={(v) => store.updateSetting('audio_speed', v as never)}
           />
+          <View style={styles.separator} />
+          <Pressable
+            style={styles.accountRow}
+            onPress={async () => {
+              await clearAudioCache();
+              if (Platform.OS === 'web') {
+                window.alert('Cache audio vidé — Les fichiers seront re-téléchargés à la prochaine lecture.');
+              } else {
+                Alert.alert('Cache audio vidé', 'Les fichiers seront re-téléchargés à la prochaine lecture.');
+              }
+            }}
+          >
+            <Text style={styles.accountRowText}>Vider le cache audio</Text>
+          </Pressable>
         </View>
 
         {/* ── Objectif ── */}

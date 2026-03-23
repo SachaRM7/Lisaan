@@ -7,6 +7,7 @@ import {
   upsertSentences, upsertDialogues, upsertDialogueTurns,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
+import { prefetchAudio } from '../services/audio-cache-service';
 
 export interface ContentSyncResult {
   tables: Record<string, { synced: number; skipped: boolean }>;
@@ -187,6 +188,9 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
   } catch (e: any) {
     result.errors.push(`dialogue_turns: ${e.message}`);
   }
+
+  // Pré-téléchargement audio en arrière-plan (fire-and-forget)
+  prefetchAudio().catch(err => console.warn('[content-sync] prefetch audio failed:', err));
 
   return result;
 }

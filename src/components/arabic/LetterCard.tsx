@@ -1,7 +1,10 @@
 // src/components/arabic/LetterCard.tsx
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Colors, Spacing, Radius, Shadows, FontSizes } from '../../constants/theme';
 import ArabicText from './ArabicText';
+import { AudioButton } from '../AudioButton';
+import { useAudio } from '../../hooks/useAudio';
 
 interface LetterCardProps {
   letter: {
@@ -16,6 +19,7 @@ interface LetterCardProps {
     connects_left: boolean;
     connects_right: boolean;
     articulation_fr: string;
+    audio_url?: string | null;
   };
   mode?: 'full' | 'compact' | 'quiz';
   highlightedForm?: 'isolated' | 'initial' | 'medial' | 'final';
@@ -35,6 +39,15 @@ export default function LetterCard({
   highlightedForm,
   onPress,
 }: LetterCardProps) {
+  const { play, shouldAutoPlay } = useAudio({
+    audioUrl: letter.audio_url,
+    fallbackText: letter.name_fr,
+    fallbackLanguage: 'fr',
+  });
+
+  useEffect(() => {
+    if (shouldAutoPlay) { play(); }
+  }, []);
 
   // ── Mode QUIZ ──────────────────────────────────────────────
   if (mode === 'quiz') {
@@ -71,6 +84,13 @@ export default function LetterCard({
         highlightedForm === 'isolated' && styles.formHighlighted,
       ]}>
         <ArabicText size="xlarge">{letter.form_isolated}</ArabicText>
+        <AudioButton
+          audioUrl={letter.audio_url}
+          fallbackText={letter.name_fr}
+          fallbackLanguage="fr"
+          size={28}
+          style={styles.audioBtn}
+        />
       </View>
 
       {/* 3 autres formes — ordre RTL : Finale → Médiane → Initiale */}
@@ -158,6 +178,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.lg,
     marginBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  audioBtn: {
+    marginTop: Spacing.sm,
   },
 
   // 3 formes secondaires

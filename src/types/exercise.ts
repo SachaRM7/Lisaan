@@ -40,6 +40,7 @@ export interface ExerciseConfig {
   matchPairs?: MatchPair[];
   correct_answer?: string | string[];
   audio_url?: string;
+  audio_fallback_text?: string;  // Texte arabe pour TTS si audio_url absent
   metadata?: Record<string, unknown>;
   display_settings?: {
     show_harakats?: boolean;

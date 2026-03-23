@@ -336,9 +336,7 @@ export default function LearnScreen() {
     if (module2Unlocked && !prevUnlocked.current[2]) {
       prevUnlocked.current[2] = true;
       const mod2 = allModules.find(m => m.sort_order === 2);
-      const alreadyHadProgress = mod2
-        ? progress.some(p => lessonsByModule[mod2.id]?.some((l: { id: string }) => l.id === p.lesson_id))
-        : false;
+      const alreadyHadProgress = mod2 ? (progressByModule[mod2.id]?.length ?? 0) > 0 : false;
       if (!alreadyHadProgress) {
         setNewlyUnlockedIndex(1);
         setUnlockBannerMessage('🎉 Module 2 débloqué ! Découvre les harakats.');
@@ -357,9 +355,7 @@ export default function LearnScreen() {
     if (module3Unlocked && !prevUnlocked.current[3]) {
       prevUnlocked.current[3] = true;
       const mod3 = allModules.find(m => m.sort_order === 3);
-      const alreadyHadProgress = mod3
-        ? progress.some(p => lessonsByModule[mod3.id]?.some((l: { id: string }) => l.id === p.lesson_id))
-        : false;
+      const alreadyHadProgress = mod3 ? (progressByModule[mod3.id]?.length ?? 0) > 0 : false;
       if (!alreadyHadProgress) {
         setNewlyUnlockedIndex(2);
         setUnlockBannerMessage('🎉 Module 3 débloqué ! Lis tes premiers mots arabes.');
@@ -378,16 +374,16 @@ export default function LearnScreen() {
     if (module4Unlocked && !prevUnlocked.current[4]) {
       prevUnlocked.current[4] = true;
       const mod4 = allModules.find(m => m.sort_order === 4);
-      const alreadyHadProgress = mod4
-        ? progress.some(p => lessonsByModule[mod4.id]?.some((l: { id: string }) => l.id === p.lesson_id))
-        : false;
-      if (!alreadyHadProgress && module4Lessons && module4Lessons.length > 0) {
-        unlockModule.mutate(module4Lessons[0].id);
+      const alreadyHadProgress = mod4 ? (progressByModule[mod4.id]?.length ?? 0) > 0 : false;
+      if (!alreadyHadProgress) {
+        if (module4Lessons && module4Lessons.length > 0) {
+          unlockModule.mutate(module4Lessons[0].id);
+        }
+        setNewlyUnlockedIndex(3);
+        setUnlockBannerMessage('🎉 Module 4 débloqué ! Construis du sens en arabe.');
+        setTimeout(() => setUnlockBannerMessage(null), 4000);
+        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
       }
-      setNewlyUnlockedIndex(3);
-      setUnlockBannerMessage('🎉 Module 4 débloqué ! Construis du sens en arabe.');
-      setTimeout(() => setUnlockBannerMessage(null), 4000);
-      setTimeout(() => setNewlyUnlockedIndex(null), 6000);
     }
   }, [module4Unlocked]);
 

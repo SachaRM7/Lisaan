@@ -209,12 +209,26 @@ export async function initLocalSchema(): Promise<void> {
       transliteration_mode TEXT NOT NULL DEFAULT 'always',
       translation_mode TEXT NOT NULL DEFAULT 'always',
       exercise_direction TEXT NOT NULL DEFAULT 'both',
+      audio_enabled INTEGER NOT NULL DEFAULT 1,
       audio_autoplay INTEGER NOT NULL DEFAULT 1,
       audio_speed TEXT NOT NULL DEFAULT 'slow',
       font_size TEXT NOT NULL DEFAULT 'large',
       haptic_feedback INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL,
       synced_at TEXT
+    );
+
+    -- ============================================================
+    -- TABLE AUDIO CACHE (É8)
+    -- ============================================================
+
+    CREATE TABLE IF NOT EXISTS audio_cache (
+      id TEXT PRIMARY KEY,           -- "{type}_{item_id}" ou SHA de l'URL
+      remote_url TEXT NOT NULL,
+      local_path TEXT NOT NULL,      -- chemin FileSystem.documentDirectory + 'audio/...'
+      downloaded_at INTEGER NOT NULL,
+      file_size INTEGER,
+      UNIQUE(remote_url)
     );
 
     -- ============================================================
@@ -248,6 +262,16 @@ export async function initLocalSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_sentences_difficulty ON sentences(difficulty);
     CREATE INDEX IF NOT EXISTS idx_dialogue_turns_dialogue ON dialogue_turns(dialogue_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_dialogues_sort ON dialogues(sort_order);
+    CREATE INDEX IF NOT EXISTS idx_audio_cache_url ON audio_cache(remote_url);
 
   `);
+
+  // ── Migrations additives (colonnes ajoutées après création initiale) ──
+  // SQLite ne supporte pas ALTER TABLE IF NOT EXISTS → on ignore l'erreur "duplicate column"
+  const migrations = [
+    `ALTER TABLE user_settings ADD COLUMN audio_enabled INTEGER NOT NULL DEFAULT 1`,
+  ];
+  for (const sql of migrations) {
+    try { await db.execAsync(sql); } catch (_) { /* colonne déjà présente */ }
+  }
 }

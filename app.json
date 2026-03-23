@@ -28,7 +28,8 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      ["expo-av", { "microphonePermission": false }]
     ],
     "experiments": {
       "typedRoutes": true

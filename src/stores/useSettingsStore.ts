@@ -36,6 +36,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           transliteration_mode: data.transliteration_mode ?? DEFAULT_SETTINGS.transliteration_mode,
           translation_mode: data.translation_mode ?? DEFAULT_SETTINGS.translation_mode,
           exercise_direction: data.exercise_direction ?? DEFAULT_SETTINGS.exercise_direction,
+          audio_enabled: data.audio_enabled !== undefined ? !!data.audio_enabled : DEFAULT_SETTINGS.audio_enabled,
           audio_autoplay: !!data.audio_autoplay,
           audio_speed: data.audio_speed ?? DEFAULT_SETTINGS.audio_speed,
           font_size: data.font_size ?? DEFAULT_SETTINGS.font_size,

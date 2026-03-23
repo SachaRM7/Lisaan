@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import * as Haptics from 'expo-haptics';
 import type { ExerciseComponentProps, ExerciseOption } from '../../types/exercise';
 import ArabicText from '../arabic/ArabicText';
+import { AudioButton } from '../AudioButton';
 import { Colors, Spacing, Radius, FontSizes, Layout } from '../../constants/theme';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 
@@ -164,12 +165,24 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
         <Text style={styles.instruction}>{config.instruction_fr}</Text>
       ) : null}
 
-      <PromptCard
-        ar={config.prompt.ar}
-        fr={config.prompt.fr}
-        defaultHarakats={defaultHarakats}
-        defaultTranslation={defaultTranslation}
-      />
+      {config.audio_url || config.audio_fallback_text ? (
+        <View style={styles.promptBox}>
+          <AudioButton
+            audioUrl={config.audio_url}
+            fallbackText={config.audio_fallback_text}
+            autoPlay={true}
+            size={40}
+            style={styles.bigAudioBtn}
+          />
+        </View>
+      ) : (
+        <PromptCard
+          ar={config.prompt.ar}
+          fr={config.prompt.fr}
+          defaultHarakats={defaultHarakats}
+          defaultTranslation={defaultTranslation}
+        />
+      )}
 
       <View style={styles.options}>
         {options.map((option) => (
@@ -287,4 +300,8 @@ const styles = StyleSheet.create({
   },
   feedbackTextCorrect: { color: Colors.success },
   feedbackTextWrong: { color: Colors.error },
+
+  bigAudioBtn: {
+    alignSelf: 'center',
+  },
 });

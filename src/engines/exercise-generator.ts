@@ -45,6 +45,34 @@ export function generateLetterExercises(
   return shuffleArray(exercises);
 }
 
+/**
+ * Génère un exercice "écoute et identifie" pour une lettre.
+ * L'utilisateur entend le son et choisit la bonne lettre parmi 4 options.
+ */
+export function generateAudioMCQ(
+  letter: Letter,
+  lessonLetters: Letter[],
+  allLetters: Letter[],
+): ExerciseConfig {
+  const distractors = pickDistractors(letter, lessonLetters, allLetters, 3);
+  const options: ExerciseOption[] = shuffleArray([letter, ...distractors]).map(l => ({
+    id: l.id,
+    text: { ar: l.form_isolated },
+    correct: l.id === letter.id,
+  }));
+
+  return {
+    id: `audio-mcq-${letter.id}`,
+    type: 'mcq',
+    instruction_fr: 'Quelle lettre entends-tu ?',
+    prompt: {},
+    audio_url: letter.audio_url ?? undefined,
+    audio_fallback_text: letter.form_isolated,
+    options,
+    metadata: { letter_id: letter.id },
+  };
+}
+
 function generateOptions(
   correctLetter: Letter,
   lessonLetters: Letter[],

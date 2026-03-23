@@ -299,13 +299,14 @@ export async function upsertSettings(userId: string, settings: Record<string, an
   const now = new Date().toISOString();
   await db.runAsync(
     `INSERT INTO user_settings (user_id, harakats_mode, transliteration_mode, translation_mode,
-      exercise_direction, audio_autoplay, audio_speed, font_size, haptic_feedback, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      exercise_direction, audio_enabled, audio_autoplay, audio_speed, font_size, haptic_feedback, updated_at, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
      ON CONFLICT(user_id) DO UPDATE SET
        harakats_mode = excluded.harakats_mode,
        transliteration_mode = excluded.transliteration_mode,
        translation_mode = excluded.translation_mode,
        exercise_direction = excluded.exercise_direction,
+       audio_enabled = excluded.audio_enabled,
        audio_autoplay = excluded.audio_autoplay,
        audio_speed = excluded.audio_speed,
        font_size = excluded.font_size,
@@ -313,8 +314,8 @@ export async function upsertSettings(userId: string, settings: Record<string, an
        updated_at = ?,
        synced_at = NULL`,
     [userId, settings.harakats_mode, settings.transliteration_mode, settings.translation_mode,
-     settings.exercise_direction, settings.audio_autoplay ? 1 : 0, settings.audio_speed,
-     settings.font_size, settings.haptic_feedback ? 1 : 0, now, now]
+     settings.exercise_direction, settings.audio_enabled ? 1 : 0, settings.audio_autoplay ? 1 : 0,
+     settings.audio_speed, settings.font_size, settings.haptic_feedback ? 1 : 0, now, now]
   );
 }
 

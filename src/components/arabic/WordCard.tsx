@@ -3,6 +3,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Spacing, Radius, Shadows, FontSizes } from '../../constants/theme';
 import ArabicText from './ArabicText';
+import { AudioButton } from '../AudioButton';
 import type { Word } from '../../hooks/useWords';
 import type { Root } from '../../hooks/useRoots';
 
@@ -33,9 +34,12 @@ export default function WordCard({
   if (mode === 'compact') {
     return (
       <View style={[styles.card, styles.cardCompact]}>
-        <ArabicText size="large" showTransliteration={false}>
-          {word.arabic_vocalized}
-        </ArabicText>
+        <View style={styles.wordRow}>
+          <ArabicText size="large" showTransliteration={false}>
+            {word.arabic_vocalized}
+          </ArabicText>
+          <AudioButton audioUrl={word.audio_url} fallbackText={word.arabic} size={20} />
+        </View>
         {showTransliteration && (
           <Text style={styles.transliteration}>{word.transliteration}</Text>
         )}
@@ -51,13 +55,16 @@ export default function WordCard({
     <View style={styles.card}>
       {/* Hero : mot vocalisé */}
       <View style={styles.heroContainer}>
-        <ArabicText
-          size={fontSize}
-          transliteration={showTransliteration ? word.transliteration : undefined}
-          showTransliteration={showTransliteration}
-        >
-          {word.arabic_vocalized}
-        </ArabicText>
+        <View style={styles.wordRow}>
+          <ArabicText
+            size={fontSize}
+            transliteration={showTransliteration ? word.transliteration : undefined}
+            showTransliteration={showTransliteration}
+          >
+            {word.arabic_vocalized}
+          </ArabicText>
+          <AudioButton audioUrl={word.audio_url} fallbackText={word.arabic} size={24} />
+        </View>
         {showTranslation && (
           <Text style={styles.translationHero}>{word.translation_fr}</Text>
         )}
@@ -117,6 +124,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     paddingVertical: Spacing.lg,
     gap: Spacing.sm,
+  },
+  wordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   transliteration: {
     fontSize: FontSizes.caption,

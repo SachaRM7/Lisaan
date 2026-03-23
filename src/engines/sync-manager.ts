@@ -107,6 +107,7 @@ export async function runSync(): Promise<SyncResult> {
           transliteration_mode: s.transliteration_mode,
           translation_mode: s.translation_mode,
           exercise_direction: s.exercise_direction,
+          audio_enabled: !!s.audio_enabled,
           audio_autoplay: !!s.audio_autoplay,
           audio_speed: s.audio_speed,
           font_size: s.font_size,
