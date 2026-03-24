@@ -30,6 +30,17 @@ import { useSettingsStore } from '../../../src/stores/useSettingsStore';
 import { updateStreak } from '../../../src/engines/streak';
 import { addXP, calculateLessonXP } from '../../../src/engines/xp';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../../src/constants/theme';
+import { XPFloatingLabel } from '../../../src/components/XPFloatingLabel';
+import { BadgeUnlockModal } from '../../../src/components/BadgeUnlockModal';
+import { StreakCelebration } from '../../../src/components/StreakCelebration';
+import { useBadges } from '../../../src/hooks/useBadges';
+import { BadgeUnlock } from '../../../src/engines/badge-engine';
+import { useAuthStore } from '../../../src/stores/useAuthStore';
+import {
+  getCompletedLessonsCount,
+  checkIfModuleComplete,
+  getModuleStats,
+} from '../../../src/db/local-queries';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
@@ -56,6 +67,11 @@ export default function ExercisesScreen() {
   const updatedItemIds = useRef(new Set<string>());
   const completeLesson = useCompleteLesson();
   const exercise_direction = useSettingsStore((s) => s.exercise_direction);
+  const { checkBadges } = useBadges();
+  const [showXP, setShowXP] = useState(false);
+  const [currentBadge, setCurrentBadge] = useState<BadgeUnlock | null>(null);
+  const pendingBadges = useRef<BadgeUnlock[]>([]);
+  const [showStreak, setShowStreak] = useState(false);
 
   const { data: lesson } = useLesson(id ?? '');
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
@@ -128,8 +144,15 @@ export default function ExercisesScreen() {
     const baseXP = (lesson?.xp_reward as number | undefined) ?? 20;
     const xp = calculateLessonXP(baseXP, pct);
     addXP(xp);
+    setShowXP(true);
     updateStreak().then((data) => {
-      if (data) setUpdatedStreakCurrent(data.streak_current);
+      if (data) {
+        setUpdatedStreakCurrent(data.streak_current);
+        const milestones = [3, 7, 14, 30];
+        if (milestones.includes(data.streak_current)) {
+          setShowStreak(true);
+        }
+      }
     });
 
     if (contentType === 'diacritics' && lessonDiacritics && lessonDiacritics.length > 0) {
@@ -263,19 +286,81 @@ export default function ExercisesScreen() {
     const earnedXP = calculateLessonXP(baseXP, pct);
     const isPerfect = pct >= 100;
 
-    function handleContinue() {
-      if (id) {
-        completeLesson.mutate({
-          lessonId: id as string,
-          score: pct,
-          timeSpentSeconds: totalTime,
-        });
+    async function handleContinue() {
+      if (!id) { router.replace('/(tabs)/learn'); return; }
+      const userId = useAuthStore.getState().userId;
+
+      // 1. Marquer la leçon complétée
+      await completeLesson.mutateAsync({
+        lessonId: id as string,
+        score: pct,
+        timeSpentSeconds: totalTime,
+      });
+
+      if (!userId) { router.replace('/(tabs)/learn'); return; }
+
+      // 2. Vérifier si le module est complété
+      const moduleId = lesson?.module_id;
+      const isModuleComplete = moduleId
+        ? await checkIfModuleComplete(moduleId, userId)
+        : false;
+
+      // 3. Vérifier les nouveaux badges
+      const completedCount = await getCompletedLessonsCount(userId);
+      const newBadges = await checkBadges({
+        lessonCount: completedCount,
+        completedModuleId: isModuleComplete && moduleId ? moduleId : undefined,
+        isPerfectScore: pct === 100,
+      });
+
+      // 4. Module complété → écran de célébration
+      if (isModuleComplete && moduleId) {
+        const stats = await getModuleStats(moduleId, userId);
+        router.replace({
+          pathname: '/module-complete',
+          params: {
+            moduleTitle: stats.title_fr,
+            moduleIcon: stats.icon,
+            totalXP: stats.total_xp.toString(),
+            lessonsCount: stats.lessons_count.toString(),
+            timeMinutes: Math.round(stats.total_seconds / 60).toString(),
+          },
+        } as any);
+        return;
       }
-      router.replace('/(tabs)/learn');
+
+      // 5. Badges à afficher en file d'attente
+      if (newBadges.length > 0) {
+        pendingBadges.current = [...newBadges];
+        setCurrentBadge(pendingBadges.current.shift() ?? null);
+      } else {
+        router.replace('/(tabs)/learn');
+      }
+    }
+
+    function handleBadgeDismiss() {
+      const next = pendingBadges.current.shift();
+      if (next) {
+        setCurrentBadge(next);
+      } else {
+        setCurrentBadge(null);
+        router.replace('/(tabs)/learn');
+      }
     }
 
     return (
       <SafeAreaView style={styles.safe}>
+        <XPFloatingLabel
+          xp={earnedXP}
+          visible={showXP}
+          onAnimationEnd={() => setShowXP(false)}
+        />
+        <StreakCelebration
+          streakDays={updatedStreakCurrent ?? 0}
+          visible={showStreak}
+          onHide={() => setShowStreak(false)}
+        />
+        <BadgeUnlockModal badge={currentBadge} onDismiss={handleBadgeDismiss} />
         <ScrollView contentContainerStyle={styles.resultsScroll}>
           <Text style={styles.resultsTitle}>Leçon terminée !</Text>
           <Text style={styles.encouragement}>{getEncouragement(pct)}</Text>

@@ -1,0 +1,81 @@
+{
+  "found": [],
+  "not_found": [
+    "letter-002-ba",
+    "letter-003-ta",
+    "letter-004-tha",
+    "letter-005-jim",
+    "letter-006-ha",
+    "letter-007-kha",
+    "letter-008-dal",
+    "letter-009-dhal",
+    "letter-010-ra",
+    "letter-011-zay",
+    "letter-013-shin",
+    "letter-014-sad",
+    "letter-015-dad",
+    "letter-016-taa",
+    "letter-017-dhaa",
+    "letter-020-fa",
+    "letter-021-qaf",
+    "letter-022-kaf",
+    "letter-024-mim",
+    "letter-026-ha-end",
+    "letter-027-waw",
+    "letter-028-ya",
+    "special-hamza",
+    "special-ta-marbuta",
+    "diacritic-fatha",
+    "diacritic-damma",
+    "diacritic-kasra",
+    "diacritic-dammatan",
+    "diacritic-kasratan",
+    "diacritic-sukun",
+    "diacritic-shadda"
+  ],
+  "converted": [
+    {
+      "id": "letter-001-alif",
+      "source": "File:LL-Q13955 (ara)-Nehaoua-ألف.wav",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/LL-Q13955_%28ara%29-Nehaoua-%D8%A3%D9%84%D9%81.wav",
+      "duration": 0.7
+    },
+    {
+      "id": "letter-012-sin",
+      "source": "File:LL-Q13955 (ara)-Raghda (Akbarali)-سين.wav",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/LL-Q13955_%28ara%29-Raghda_%28Akbarali%29-%D8%B3%D9%8A%D9%86.wav",
+      "duration": 1.1
+    },
+    {
+      "id": "letter-018-ayn",
+      "source": "File:LL-Q13955 (ara)-Nehaoua-عين ولمان.wav",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/7/70/LL-Q13955_%28ara%29-Nehaoua-%D8%B9%D9%8A%D9%86_%D9%88%D9%84%D9%85%D8%A7%D9%86.wav",
+      "duration": 1.3
+    },
+    {
+      "id": "letter-019-ghayn",
+      "source": "File:LL-Q13955 (ara)-AlNatiq-غ.wav",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/6/62/LL-Q13955_%28ara%29-AlNatiq-%D8%BA.wav",
+      "duration": 0.9
+    },
+    {
+      "id": "letter-023-lam",
+      "source": "File:LL-Q13955 (ara)-Spotless Mind1988-لام.wav",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/d/d4/LL-Q13955_%28ara%29-Spotless_Mind1988-%D9%84%D8%A7%D9%85.wav",
+      "duration": 1.1
+    },
+    {
+      "id": "letter-025-nun",
+      "source": "File:LL-Q13955 (ara)-Raghda (Akbarali)-نون.wav",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/2/2f/LL-Q13955_%28ara%29-Raghda_%28Akbarali%29-%D9%86%D9%88%D9%86.wav",
+      "duration": 0.9
+    },
+    {
+      "id": "diacritic-fathatan",
+      "source": "File:LL-Q13955 (ara)-XANA000-فَتْحَتَانِ.wav",
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/9/9a/LL-Q13955_%28ara%29-XANA000-%D9%81%D9%8E%D8%AA%D9%92%D8%AD%D9%8E%D8%AA%D9%8E%D8%A7%D9%86%D9%90.wav",
+      "duration": 1.4
+    }
+  ],
+  "failed": []
+}

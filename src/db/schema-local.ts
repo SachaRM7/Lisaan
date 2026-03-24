@@ -232,6 +232,35 @@ export async function initLocalSchema(): Promise<void> {
     );
 
     -- ============================================================
+    -- TABLES GAMIFICATION — Badges (É9)
+    -- ============================================================
+
+    CREATE TABLE IF NOT EXISTS badges (
+      id TEXT PRIMARY KEY,
+      title_fr TEXT NOT NULL,
+      description_fr TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      category TEXT NOT NULL,       -- 'progress' | 'streak' | 'mastery' | 'speed'
+      condition_type TEXT NOT NULL, -- 'lesson_count' | 'module_complete' | 'streak_days' | 'perfect_score' | 'speed_exercise'
+      condition_value INTEGER NOT NULL,
+      condition_target TEXT,        -- ID optionnel (ex: module_id pour 'module_complete')
+      xp_reward INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      synced_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS user_badges (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      badge_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,    -- ISO 8601
+      seen INTEGER NOT NULL DEFAULT 0, -- 0 = pas encore affiché à l'utilisateur
+      updated_at TEXT NOT NULL,
+      synced_at TEXT,
+      UNIQUE(user_id, badge_id)
+    );
+
+    -- ============================================================
     -- TABLE SYNC METADATA
     -- ============================================================
 
@@ -263,6 +292,8 @@ export async function initLocalSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_dialogue_turns_dialogue ON dialogue_turns(dialogue_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_dialogues_sort ON dialogues(sort_order);
     CREATE INDEX IF NOT EXISTS idx_audio_cache_url ON audio_cache(remote_url);
+    CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_badges_seen ON user_badges(user_id, seen);
 
   `);
 

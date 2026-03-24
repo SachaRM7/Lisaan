@@ -528,6 +528,96 @@ export async function upsertDialogueTurns(turns: any[]): Promise<void> {
 
 // --- Sync Metadata ---
 
+// ============================================================
+// PROGRESSION — helpers gamification (É9)
+// ============================================================
+
+export async function getCompletedLessonsCount(userId: string): Promise<number> {
+  const db = getLocalDB();
+  const result = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM user_progress WHERE user_id = ? AND status = 'completed'`,
+    [userId]
+  );
+  return result?.count ?? 0;
+}
+
+export async function checkIfModuleComplete(moduleId: string, userId: string): Promise<boolean> {
+  const db = getLocalDB();
+  const result = await db.getFirstAsync<{ total: number; completed: number }>(
+    `SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN up.status = 'completed' THEN 1 ELSE 0 END) as completed
+     FROM lessons l
+     LEFT JOIN user_progress up ON up.lesson_id = l.id AND up.user_id = ?
+     WHERE l.module_id = ?`,
+    [userId, moduleId]
+  );
+  return !!result && result.total > 0 && result.total === result.completed;
+}
+
+export async function getModuleStats(moduleId: string, userId: string) {
+  const db = getLocalDB();
+  const module = await db.getFirstAsync<{ title_fr: string; icon: string }>(
+    `SELECT title_fr, icon FROM modules WHERE id = ?`,
+    [moduleId]
+  );
+  const stats = await db.getFirstAsync<{ total_xp: number; lessons_count: number; total_seconds: number }>(
+    `SELECT
+      COALESCE(SUM(up.score), 0) as total_xp,
+      COUNT(*) as lessons_count,
+      COALESCE(SUM(up.time_spent_seconds), 0) as total_seconds
+     FROM user_progress up
+     JOIN lessons l ON l.id = up.lesson_id
+     WHERE l.module_id = ? AND up.user_id = ? AND up.status = 'completed'`,
+    [moduleId, userId]
+  );
+  return {
+    title_fr: module?.title_fr ?? 'Module',
+    icon: module?.icon ?? '📚',
+    total_xp: stats?.total_xp ?? 0,
+    lessons_count: stats?.lessons_count ?? 0,
+    total_seconds: stats?.total_seconds ?? 0,
+  };
+}
+
+// ============================================================
+// BADGES (É9)
+// ============================================================
+
+export async function upsertBadges(badges: any[]): Promise<void> {
+  const db = getLocalDB();
+  for (const b of badges) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO badges
+       (id, title_fr, description_fr, icon, category, condition_type, condition_value,
+        condition_target, xp_reward, sort_order, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        b.id, b.title_fr, b.description_fr, b.icon,
+        b.category, b.condition_type, b.condition_value,
+        b.condition_target ?? null, b.xp_reward, b.sort_order,
+        new Date().toISOString(),
+      ]
+    );
+  }
+}
+
+export async function getUnsyncedUserBadges(): Promise<any[]> {
+  const db = getLocalDB();
+  return db.getAllAsync(`SELECT * FROM user_badges WHERE synced_at IS NULL`);
+}
+
+export async function markUserBadgesSynced(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  const placeholders = ids.map(() => '?').join(',');
+  await db.runAsync(
+    `UPDATE user_badges SET synced_at = ? WHERE id IN (${placeholders})`,
+    [now, ...ids]
+  );
+}
+
 export async function getSyncMetadata(tableName: string) {
   const db = getLocalDB();
   return db.getFirstAsync<any>(

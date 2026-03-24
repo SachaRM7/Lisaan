@@ -55,6 +55,8 @@ export function generateWordExercises(
         type: 'mcq',
         instruction_fr: 'Que signifie ce mot ?',
         prompt: { ar: word.arabic_vocalized },
+        audio_url: word.audio_url ?? undefined,
+        audio_fallback_text: word.arabic_vocalized,
         options: generateTranslationOptions(word, allWords, 'ar_to_fr'),
         metadata: { word_id: word.id },
       });
@@ -79,6 +81,8 @@ export function generateWordExercises(
         type: 'mcq',
         instruction_fr: 'Comment se prononce ce mot ?',
         prompt: { ar: word.arabic_vocalized },
+        audio_url: word.audio_url ?? undefined,
+        audio_fallback_text: word.arabic_vocalized,
         options: generateDecodingOptions(word, allWords),
         metadata: { word_id: word.id },
       });
@@ -94,6 +98,8 @@ export function generateWordExercises(
         type: 'mcq',
         instruction_fr: `Comment se prononce "le/la" + "${word.transliteration}" ?`,
         prompt: { ar: word.arabic_vocalized, fr: word.translation_fr },
+        audio_url: word.audio_url ?? undefined,
+        audio_fallback_text: word.arabic_vocalized,
         options: generateArticleOptions(word),
         metadata: { word_id: word.id },
       });
@@ -106,6 +112,8 @@ export function generateWordExercises(
         type: 'mcq',
         instruction_fr: 'Que signifie ce mot ?',
         prompt: { ar: word.arabic_vocalized },
+        audio_url: word.audio_url ?? undefined,
+        audio_fallback_text: word.arabic_vocalized,
         options: generateTranslationOptions(word, allWords, 'ar_to_fr'),
         metadata: { word_id: word.id },
       });
@@ -125,6 +133,8 @@ export function generateWordExercises(
           type: 'mcq',
           instruction_fr: 'Que signifie ce mot ?',
           prompt: { ar: word.arabic_vocalized },
+          audio_url: word.audio_url ?? undefined,
+          audio_fallback_text: word.arabic_vocalized,
           options: generateTranslationOptions(word, allWords, 'ar_to_fr'),
           metadata: { word_id: word.id, root_id: root.id },
         });

@@ -6,11 +6,12 @@ import {
   getUnsyncedProgress, markProgressSynced,
   getUnsyncedSRSCards, markSRSCardsSynced,
   getUnsyncedSettings, markSettingsSynced,
+  getUnsyncedUserBadges, markUserBadgesSynced,
 } from '../db/local-queries';
 import { syncContentFromCloud, needsContentSync } from './content-sync';
 
 export interface SyncResult {
-  pushed: { progress: number; srsCards: number; settings: number };
+  pushed: { progress: number; srsCards: number; settings: number; userBadges: number };
   pulled: { content: boolean };
   errors: string[];
 }
@@ -27,7 +28,7 @@ export interface SyncResult {
  */
 export async function runSync(): Promise<SyncResult> {
   const result: SyncResult = {
-    pushed: { progress: 0, srsCards: 0, settings: 0 },
+    pushed: { progress: 0, srsCards: 0, settings: 0, userBadges: 0 },
     pulled: { content: false },
     errors: [],
   };
@@ -119,6 +120,31 @@ export async function runSync(): Promise<SyncResult> {
     }
   } catch (e: any) {
     result.errors.push(`push settings: ${e.message}`);
+  }
+
+  // --- PUSH : user_badges ---
+  try {
+    const unsyncedBadges = await getUnsyncedUserBadges();
+    if (unsyncedBadges.length > 0) {
+      const { error } = await supabase
+        .from('user_badges')
+        .upsert(
+          unsyncedBadges.map(ub => ({
+            id: ub.id,
+            user_id: ub.user_id,
+            badge_id: ub.badge_id,
+            unlocked_at: ub.unlocked_at,
+            seen: ub.seen === 1,
+            updated_at: ub.updated_at,
+          })),
+          { onConflict: 'user_id,badge_id' }
+        );
+      if (error) throw error;
+      await markUserBadgesSynced(unsyncedBadges.map(ub => ub.id));
+      result.pushed.userBadges = unsyncedBadges.length;
+    }
+  } catch (e: any) {
+    result.errors.push(`push user_badges: ${e.message}`);
   }
 
   // --- PULL : contenu (si nécessaire) ---

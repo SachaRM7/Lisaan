@@ -1,4 +1,5 @@
 // app/(tabs)/profile.tsx
+import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +10,17 @@ import { SettingRow } from '../../src/components/settings/SettingRow';
 import ArabicText from '../../src/components/arabic/ArabicText';
 import { clearAudioCache } from '../../src/services/audio-cache-service';
 import { supabase } from '../../src/db/remote';
+import { useBadges } from '../../src/hooks/useBadges';
+import { useAuthStore } from '../../src/stores/useAuthStore';
+import { getLocalDB } from '../../src/db/local';
+
+interface BadgeItem {
+  id: string;
+  title_fr: string;
+  icon: string;
+  description_fr: string;
+  unlocked: number;
+}
 
 // ─── Options des sélecteurs ───────────────────────────────
 
@@ -62,6 +74,21 @@ const GOAL_OPTIONS = [
 export default function ProfileScreen() {
   const store = useSettingsStore();
   const router = useRouter();
+  const userId = useAuthStore(s => s.userId);
+  const { allUnlockedBadges } = useBadges();
+  const [allBadges, setAllBadges] = useState<BadgeItem[]>([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    getLocalDB().getAllAsync<BadgeItem>(
+      `SELECT b.id, b.title_fr, b.icon, b.description_fr,
+              CASE WHEN ub.badge_id IS NOT NULL THEN 1 ELSE 0 END as unlocked
+       FROM badges b
+       LEFT JOIN user_badges ub ON ub.badge_id = b.id AND ub.user_id = ?
+       ORDER BY b.sort_order`,
+      [userId]
+    ).then(setAllBadges);
+  }, [userId, allUnlockedBadges]);
 
   // Charger les données utilisateur
   const { data: userData, refetch } = useQuery({
@@ -154,6 +181,29 @@ export default function ProfileScreen() {
               <Text style={styles.statLabel}>record</Text>
             </View>
           </View>
+        </View>
+
+        {/* ── Badges ── */}
+        <Text style={styles.sectionTitle}>
+          BADGES · {allUnlockedBadges.length}/{allBadges.length}
+        </Text>
+        <View style={styles.badgesGrid}>
+          {allBadges.map(badge => (
+            <View
+              key={badge.id}
+              style={[styles.badgeItem, !badge.unlocked && styles.badgeLocked]}
+            >
+              <Text style={[styles.badgeIcon, !badge.unlocked && styles.badgeIconLocked]}>
+                {badge.unlocked ? badge.icon : '🔒'}
+              </Text>
+              <Text
+                style={[styles.badgeTitle, !badge.unlocked && styles.badgeTitleLocked]}
+                numberOfLines={2}
+              >
+                {badge.unlocked ? badge.title_fr : '???'}
+              </Text>
+            </View>
+          ))}
         </View>
 
         {/* ── Affichage ── */}
@@ -349,6 +399,37 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: Colors.border,
   },
+
+  // Badges
+  badgesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: Spacing.sm,
+  },
+  badgeItem: {
+    width: '30%',
+    alignItems: 'center',
+    backgroundColor: Colors.bgCard,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.card,
+  },
+  badgeLocked: {
+    backgroundColor: '#F5F5F5',
+    borderColor: '#E0E0E0',
+  },
+  badgeIcon: { fontSize: 36, marginBottom: 6 },
+  badgeIconLocked: { opacity: 0.3 },
+  badgeTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  badgeTitleLocked: { color: '#AAA' },
 
   // Preview live
   previewBox: {

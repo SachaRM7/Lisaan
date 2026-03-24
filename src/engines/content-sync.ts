@@ -5,6 +5,7 @@ import {
   upsertLetters, upsertDiacritics, upsertModules, upsertLessons,
   upsertRoots, upsertWords, upsertWordVariants,
   upsertSentences, upsertDialogues, upsertDialogueTurns,
+  upsertBadges,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
 import { prefetchAudio } from '../services/audio-cache-service';
@@ -189,6 +190,22 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
     result.errors.push(`dialogue_turns: ${e.message}`);
   }
 
+  // --- Badges ---
+  try {
+    const { data, error } = await supabase
+      .from('badges')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertBadges(data);
+      await updateSyncMetadata('badges', data.length);
+      result.tables.badges = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`badges: ${e.message}`);
+  }
+
   // Pré-téléchargement audio en arrière-plan (fire-and-forget)
   prefetchAudio().catch(err => console.warn('[content-sync] prefetch audio failed:', err));
 
@@ -204,6 +221,7 @@ export async function needsContentSync(): Promise<boolean> {
     'letters', 'diacritics', 'modules', 'lessons',
     'roots', 'words', 'word_variants',
     'sentences', 'dialogues', 'dialogue_turns',
+    'badges',
   ];
   for (const table of tables) {
     const meta = await getSyncMetadata(table);

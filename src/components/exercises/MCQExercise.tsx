@@ -10,9 +10,10 @@ import { useSettingsStore } from '../../stores/useSettingsStore';
 
 // ── Carte prompt (question) ────────────────────────────────────
 function PromptCard({
-  ar, fr, defaultHarakats, defaultTranslation,
+  ar, fr, audioUrl, audioFallbackText, defaultHarakats, defaultTranslation,
 }: {
   ar?: string; fr?: string;
+  audioUrl?: string; audioFallbackText?: string;
   defaultHarakats: boolean; defaultTranslation: boolean;
 }) {
   const [showH, setShowH] = useState(defaultHarakats);
@@ -30,6 +31,15 @@ function PromptCard({
         ) : (
           <ArabicText harakatsMode="never">{ar}</ArabicText>
         )
+      ) : null}
+      {(audioUrl || audioFallbackText) ? (
+        <AudioButton
+          audioUrl={audioUrl}
+          fallbackText={audioFallbackText}
+          autoPlay={true}
+          size={36}
+          style={styles.bigAudioBtn}
+        />
       ) : null}
       {fr ? (
         showT ? (
@@ -85,8 +95,13 @@ function OptionCard({
         )
       ) : null}
       {option.text.fr ? (
-        showT ? (
-          <TouchableOpacity onPress={() => { if (!answered) setShowT(false); }} activeOpacity={0.8} disabled={answered}>
+        // Si pas d'arabe, le français EST la réponse → toujours visible
+        !option.text.ar || showT ? (
+          <TouchableOpacity
+            onPress={() => { if (!answered && option.text.ar) setShowT(false); }}
+            activeOpacity={option.text.ar ? 0.8 : 1}
+            disabled={answered || !option.text.ar}
+          >
             <Text style={getTextStyle(option)}>{option.text.fr}</Text>
           </TouchableOpacity>
         ) : (
@@ -165,7 +180,18 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
         <Text style={styles.instruction}>{config.instruction_fr}</Text>
       ) : null}
 
-      {config.audio_url || config.audio_fallback_text ? (
+      {config.prompt.ar || config.prompt.fr ? (
+        // Prompt textuel (mots, phrases…) + bouton audio optionnel intégré
+        <PromptCard
+          ar={config.prompt.ar}
+          fr={config.prompt.fr}
+          audioUrl={config.audio_url}
+          audioFallbackText={config.audio_fallback_text}
+          defaultHarakats={defaultHarakats}
+          defaultTranslation={defaultTranslation}
+        />
+      ) : (config.audio_url || config.audio_fallback_text) ? (
+        // Pas de prompt texte → AudioButton seul (ex: exercice lettres)
         <View style={styles.promptBox}>
           <AudioButton
             audioUrl={config.audio_url}
@@ -175,14 +201,7 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
             style={styles.bigAudioBtn}
           />
         </View>
-      ) : (
-        <PromptCard
-          ar={config.prompt.ar}
-          fr={config.prompt.fr}
-          defaultHarakats={defaultHarakats}
-          defaultTranslation={defaultTranslation}
-        />
-      )}
+      ) : null}
 
       <View style={styles.options}>
         {options.map((option) => (
