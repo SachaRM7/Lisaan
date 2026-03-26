@@ -13,6 +13,7 @@ import { supabase } from '../../src/db/remote';
 import { useBadges } from '../../src/hooks/useBadges';
 import { useAuthStore } from '../../src/stores/useAuthStore';
 import { getLocalDB } from '../../src/db/local';
+import { reset as posthogReset } from '../../src/analytics/posthog';
 
 interface BadgeItem {
   id: string;
@@ -141,6 +142,7 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await supabase.auth.signOut();
+            posthogReset();
             router.replace('/(onboarding)/step1' as never);
           },
         },
@@ -187,6 +189,13 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>
           BADGES · {allUnlockedBadges.length}/{allBadges.length}
         </Text>
+        {allBadges.length === 0 ? (
+          <View style={styles.badgesEmpty}>
+            <Text style={styles.badgesEmptyText}>
+              Complete ta première leçon pour débloquer des badges 🏅
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.badgesGrid}>
           {allBadges.map(badge => (
             <View
@@ -430,6 +439,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   badgeTitleLocked: { color: '#AAA' },
+  badgesEmpty: {
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.sm,
+  },
+  badgesEmptyText: {
+    fontSize: FontSizes.body,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 
   // Preview live
   previewBox: {

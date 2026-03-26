@@ -14,6 +14,7 @@ import { useOnboardingStore } from '../../src/stores/useOnboardingStore';
 import type { Variant, OnboardingAnswers } from '../../src/types/onboarding';
 import { syncOnboardingToSupabase } from '../../src/engines/onboarding-sync';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
+import { track } from '../../src/analytics/posthog';
 
 const VARIANT_LABELS: Record<Variant, string> = {
   msa:       'Arabe standard (MSA)',
@@ -119,6 +120,13 @@ export default function Recommendation() {
   async function handleStart() {
     // Marquer l'onboarding comme complété localement
     await completeOnboarding();
+
+    track('onboarding_completed', {
+      variant_recommended: recommended,
+      variant_chosen: available ? recommended : 'msa',
+      level: arabicLevel,
+      daily_goal: dailyTime,
+    });
 
     // Fire-and-forget : ne bloque pas la navigation si le réseau est down
     if (arabicLevel && primaryGoal && dialectContact && dailyTime) {

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Lisaan",
+    "name": "Lisaan — Apprendre l'arabe",
     "slug": "lisaan",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "lisaan",
@@ -11,28 +11,64 @@
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FDF6EC"
+      "backgroundColor": "#1B3A2D"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.lisaan.app"
+      "supportsTablet": false,
+      "bundleIdentifier": "com.lisaan.app",
+      "buildNumber": "1",
+      "requireFullScreen": false,
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true,
+        "NSMicrophoneUsageDescription": "Lisaan utilisera le microphone pour les exercices de prononciation dans une version future.",
+        "NSSpeechRecognitionUsageDescription": "Lisaan utilisera la reconnaissance vocale pour évaluer votre prononciation dans une version future.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.lisaan.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#FDF6EC"
+        "backgroundColor": "#1B3A2D"
       },
-      "package": "com.lisaan.app"
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "plugins": [
       "expo-router",
       "expo-font",
       "expo-secure-store",
       "expo-sqlite",
-      ["expo-av", { "microphonePermission": false }]
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ],
+      "expo-localization",
+      "./plugins/withPrivacyManifest"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c57ac55d-2bfc-4025-a5b7-6719bd9085a1"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c57ac55d-2bfc-4025-a5b7-6719bd9085a1"
     }
   }
 }

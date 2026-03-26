@@ -130,7 +130,12 @@ export default function ArabicText({
 
   // ─── Rendu texte arabe ─────────────────────────────────────
   const arabicText = (
-    <Text style={[styles.arabic, { fontSize: s.arabic, lineHeight: s.lineHeight }]}>
+    <Text
+      style={[styles.arabic, { fontSize: s.arabic, lineHeight: s.lineHeight }]}
+      accessibilityLabel={transliteration ?? stripHarakats(children)}
+      accessibilityLanguage="ar"
+      accessible={true}
+    >
       {displayText}
     </Text>
   );

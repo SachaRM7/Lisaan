@@ -41,6 +41,7 @@ import {
   checkIfModuleComplete,
   getModuleStats,
 } from '../../../src/db/local-queries';
+import { track } from '../../../src/analytics/posthog';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
@@ -143,6 +144,15 @@ export default function ExercisesScreen() {
     const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
     const baseXP = (lesson?.xp_reward as number | undefined) ?? 20;
     const xp = calculateLessonXP(baseXP, pct);
+
+    track('lesson_completed', {
+      lesson_id: id,
+      module_id: lesson?.module_id,
+      score: pct,
+      time_seconds: Math.round((Date.now() - startTime) / 1000),
+      xp_earned: xp,
+      is_perfect: pct === 100,
+    });
     addXP(xp);
     setShowXP(true);
     updateStreak().then((data) => {

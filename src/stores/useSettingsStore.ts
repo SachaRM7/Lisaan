@@ -6,6 +6,7 @@ import { getSettings, upsertSettings } from '../db/local-queries';
 import { runSync } from '../engines/sync-manager';
 import type { UserSettings } from '../types/settings';
 import { DEFAULT_SETTINGS } from '../types/settings';
+import { track } from '../analytics/posthog';
 
 interface SettingsState extends UserSettings {
   isLoaded: boolean;
@@ -55,6 +56,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSetting: (key, value) => {
     // Mise à jour locale immédiate
     set({ [key]: value } as Partial<SettingsState>);
+    track('setting_changed', { setting: key, value: value as unknown });
 
     // Écriture SQLite + sync vers Cloud en arrière-plan
     (async () => {

@@ -84,6 +84,9 @@ function OptionCard({
       onPress={() => onSelect(option)}
       disabled={answered}
       activeOpacity={0.75}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: answered && option.correct }}
+      accessibilityLabel={option.text.fr ?? option.text.ar}
     >
       {option.text.ar ? (
         canToggleHarakats ? (

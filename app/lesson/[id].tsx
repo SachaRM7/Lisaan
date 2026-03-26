@@ -29,6 +29,7 @@ import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/
 import { LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
 import { LESSON_WORD_CONFIG, LESSON_ROOT_TRANSLITS } from '../../src/engines/word-exercise-generator';
 import { LESSON_SENTENCE_CONFIG } from '../../src/engines/sentence-exercise-generator';
+import { track } from '../../src/analytics/posthog';
 import type { Root } from '../../src/hooks/useRoots';
 import type { Word } from '../../src/hooks/useWords';
 import type { Sentence } from '../../src/hooks/useSentences';
@@ -175,6 +176,18 @@ export default function LessonScreen() {
     sentences.forEach(s => items.push({ kind: 'sentence', sentence: s }));
     return items;
   }, [contentType, lesson?.sort_order, sentenceConfig, allSentences, dial0, dial1, dial2]);
+
+  // Track lesson_started une seule fois
+  const trackedLessonId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lesson || trackedLessonId.current === lesson.id) return;
+    trackedLessonId.current = lesson.id;
+    track('lesson_started', {
+      lesson_id: lesson.id,
+      module_id: lesson.module_id,
+      lesson_order: lesson.sort_order,
+    });
+  }, [lesson]);
 
   const isLoading = lessonLoading || lettersLoading || diacriticsLoading
     || (contentType === 'words' && (rootsLoading || simpleWordsLoading || rootWordsLoading))

@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useDueCards, useSRSCards } from '../../src/hooks/useSRSCards';
+import { track } from '../../src/analytics/posthog';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
 
 function formatNextReview(isoDate: string): string {
@@ -104,7 +105,10 @@ export default function ReviewScreen() {
         {/* CTA */}
         <TouchableOpacity
           style={styles.startBtn}
-          onPress={() => router.push('/review-session' as never)}
+          onPress={() => {
+            track('srs_session_started', { cards_due: dueCards.length });
+            router.push('/review-session' as never);
+          }}
           activeOpacity={0.85}
         >
           <Text style={styles.startLabel}>Commencer la révision →</Text>

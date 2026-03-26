@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
+import { getPostHog, identify } from '../src/analytics/posthog';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
+
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -16,6 +19,7 @@ import { initLocalSchema } from '../src/db/schema-local';
 import { needsContentSync, syncContentFromCloud } from '../src/engines/content-sync';
 import { startSyncListener } from '../src/engines/sync-manager';
 import { ContentDownloadScreen } from '../src/components/ui/ContentDownloadScreen';
+import { NetworkErrorScreen } from '../src/components/NetworkErrorScreen';
 
 const DEVICE_ID_KEY = 'lisaan_device_id';
 
@@ -37,9 +41,11 @@ export default function RootLayout() {
   const loadSettings = useSettingsStore((s) => s.loadSettings);
 
   const setUserId = useAuthStore((s) => s.setUserId);
+  const userId = useAuthStore((s) => s.userId);
 
   const [dbReady, setDbReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(false);
 
   const [fontsLoaded, _fontError] = useFonts({
     'Amiri': require('../assets/fonts/Amiri-Regular.ttf'),
@@ -47,6 +53,10 @@ export default function RootLayout() {
     'Inter': require('../assets/fonts/Inter-Variable.ttf'),
     'NotoNaskhArabic': require('../assets/fonts/NotoNaskhArabic-Variable.ttf'),
   });
+
+  // 0. Initialiser Sentry + PostHog
+  useEffect(() => { getPostHog(); }, []);
+  useEffect(() => { if (userId) identify(userId); }, [userId]);
 
   // 1. Initialiser SQLite au démarrage
   useEffect(() => {
@@ -61,7 +71,13 @@ export default function RootLayout() {
         // Sync contenu si premier lancement
         if (await needsContentSync()) {
           setSyncing(true);
-          await syncContentFromCloud();
+          try {
+            await syncContentFromCloud();
+          } catch (_) {
+            setSyncing(false);
+            setSyncError(true);
+            return;
+          }
           setSyncing(false);
         }
         setDbReady(true);
@@ -122,7 +138,10 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, dbReady, isLoading, isCompleted]);
 
-  // Écran de téléchargement du contenu (premier lancement)
+  if (syncError) {
+    return <NetworkErrorScreen onRetry={() => { setSyncError(false); setSyncing(false); setDbReady(false); }} />;
+  }
+
   if (syncing) {
     return <ContentDownloadScreen />;
   }
@@ -135,6 +154,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
+        <ErrorBoundary>
         <StatusBar style="dark" backgroundColor={Colors.bg} />
         <Stack
           screenOptions={{
@@ -165,6 +185,7 @@ export default function RootLayout() {
             options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
           />
         </Stack>
+        </ErrorBoundary>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
