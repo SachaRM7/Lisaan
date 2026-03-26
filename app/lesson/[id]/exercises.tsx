@@ -12,13 +12,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useLesson } from '../../../src/hooks/useLessons';
 import { useLetters, useLettersForLesson } from '../../../src/hooks/useLetters';
 import { useDiacritics, useDiacriticsForLesson } from '../../../src/hooks/useDiacritics';
-import { useWords, useSimpleWords } from '../../../src/hooks/useWords';
+import { useWords, useSimpleWords, useWordsByTheme } from '../../../src/hooks/useWords';
 import { useRoots } from '../../../src/hooks/useRoots';
 import { useSentences } from '../../../src/hooks/useSentences';
 import { useDialogues, useDialogueWithTurns } from '../../../src/hooks/useDialogues';
 import { generateLetterExercises } from '../../../src/engines/exercise-generator';
 import { generateHarakatExercises, LESSON_DIACRITIC_RANGES } from '../../../src/engines/harakat-exercise-generator';
-import { generateWordExercises, LESSON_WORD_CONFIG, LESSON_ROOT_TRANSLITS } from '../../../src/engines/word-exercise-generator';
+import { generateWordExercises, LESSON_WORD_CONFIG } from '../../../src/engines/word-exercise-generator';
 import { generateSentenceExercises, LESSON_SENTENCE_CONFIG } from '../../../src/engines/sentence-exercise-generator';
 import { ExerciseRenderer } from '../../../src/components/exercises/ExerciseRenderer';
 import type { ExerciseResult } from '../../../src/types/exercise';
@@ -115,11 +115,13 @@ export default function ExercisesScreen() {
   const { data: dial1 } = useDialogueWithTurns(dial1Id);
   const { data: dial2 } = useDialogueWithTurns(dial2Id);
 
-  const lessonRoots = useMemo(() => {
-    if (contentType !== 'words' || !lesson) return [];
-    const translits = LESSON_ROOT_TRANSLITS[lesson.sort_order] ?? [];
-    return (allRoots ?? []).filter(r => translits.includes(r.transliteration));
-  }, [allRoots, contentType, lesson?.sort_order]);
+  const wordTheme = useMemo(() => {
+    if (contentType !== 'words' || !lesson) return null;
+    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
+    return wordConfig?.type === 'theme' ? (wordConfig.theme ?? null) : null;
+  }, [contentType, lesson?.sort_order]);
+
+  const { data: themeWords } = useWordsByTheme(wordTheme);
 
   const lessonWords = useMemo(() => {
     if (contentType !== 'words' || !lesson) return [];
@@ -129,12 +131,11 @@ export default function ExercisesScreen() {
     if (wordConfig.type === 'simple' || wordConfig.type === 'solar_lunar') {
       return simpleWords ?? [];
     }
-    if (wordConfig.type === 'root') {
-      const rootIds = lessonRoots.map(r => r.id);
-      return (allWords ?? []).filter(w => w.root_id && rootIds.includes(w.root_id));
+    if (wordConfig.type === 'theme') {
+      return themeWords ?? [];
     }
     return allWords ?? []; // revision
-  }, [contentType, lesson?.sort_order, simpleWords, allWords, lessonRoots]);
+  }, [contentType, lesson?.sort_order, simpleWords, allWords, themeWords]);
 
   // Déclencher streak + XP + SRS dès l'entrée en phase résultats
   useEffect(() => {

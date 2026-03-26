@@ -1,7 +1,7 @@
 // src/hooks/useWords.ts
 
 import { useQuery } from '@tanstack/react-query';
-import { getAllWords, getSimpleWords, getWordsByRootId, getWordsByRootIds } from '../db/local-queries';
+import { getAllWords, getSimpleWords, getWordsByRootId, getWordsByRootIds, getWordsByTheme } from '../db/local-queries';
 
 export interface Word {
   id: string;
@@ -18,6 +18,7 @@ export interface Word {
   gender: string | null;
   is_simple_word: boolean;
   pedagogy_notes: string | null;
+  theme: string | null;
   sort_order: number;
 }
 
@@ -52,5 +53,14 @@ export function useWordsByRoots(rootIds: string[]) {
     queryFn: () => getWordsByRootIds(rootIds),
     enabled: rootIds.length > 0,
     staleTime: Infinity,
+  });
+}
+
+export function useWordsByTheme(theme: string | null) {
+  return useQuery({
+    queryKey: ['words', 'theme', theme],
+    queryFn: () => getWordsByTheme(theme!),
+    staleTime: Infinity,
+    enabled: !!theme,
   });
 }

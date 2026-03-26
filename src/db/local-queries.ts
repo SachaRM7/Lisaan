@@ -385,6 +385,14 @@ export async function getWordsByRootId(rootId: string) {
   return db.getAllAsync<any>('SELECT * FROM words WHERE root_id = ? ORDER BY sort_order ASC', [rootId]);
 }
 
+export async function getWordsByTheme(theme: string) {
+  const db = getLocalDB();
+  return db.getAllAsync<any>(
+    'SELECT * FROM words WHERE theme = ? ORDER BY sort_order ASC',
+    [theme]
+  );
+}
+
 export async function getWordsByRootIds(rootIds: string[]) {
   const db = getLocalDB();
   const placeholders = rootIds.map(() => '?').join(',');
@@ -402,11 +410,11 @@ export async function upsertWords(words: any[]): Promise<void> {
       `INSERT OR REPLACE INTO words (
         id, root_id, arabic, arabic_vocalized, transliteration, ipa,
         translation_fr, pattern, pos, frequency_rank, audio_url,
-        gender, is_simple_word, pedagogy_notes, sort_order, synced_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        gender, is_simple_word, pedagogy_notes, theme, sort_order, synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [w.id, w.root_id, w.arabic, w.arabic_vocalized, w.transliteration, w.ipa,
        w.translation_fr, w.pattern, w.pos, w.frequency_rank, w.audio_url,
-       w.gender, w.is_simple_word ? 1 : 0, w.pedagogy_notes, w.sort_order ?? 0, now]
+       w.gender, w.is_simple_word ? 1 : 0, w.pedagogy_notes, w.theme ?? null, w.sort_order ?? 0, now]
     );
   }
 }

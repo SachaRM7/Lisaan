@@ -15,7 +15,7 @@ import { useLettersForLesson } from '../../src/hooks/useLetters';
 import { useDiacriticsForLesson } from '../../src/hooks/useDiacritics';
 import { useCreateSRSCardsForLesson } from '../../src/hooks/useSRSCards';
 import { useRoots } from '../../src/hooks/useRoots';
-import { useSimpleWords, useWordsByRoots } from '../../src/hooks/useWords';
+import { useSimpleWords, useWordsByTheme } from '../../src/hooks/useWords';
 import { useSentences } from '../../src/hooks/useSentences';
 import { useDialogues, useDialogueWithTurns } from '../../src/hooks/useDialogues';
 import LetterCard from '../../src/components/arabic/LetterCard';
@@ -27,7 +27,7 @@ import SentenceCard from '../../src/components/arabic/SentenceCard';
 import DialogueDisplay from '../../src/components/arabic/DialogueDisplay';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
 import { LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
-import { LESSON_WORD_CONFIG, LESSON_ROOT_TRANSLITS } from '../../src/engines/word-exercise-generator';
+import { LESSON_WORD_CONFIG } from '../../src/engines/word-exercise-generator';
 import { LESSON_SENTENCE_CONFIG } from '../../src/engines/sentence-exercise-generator';
 import { track } from '../../src/analytics/posthog';
 import type { Root } from '../../src/hooks/useRoots';
@@ -91,17 +91,13 @@ export default function LessonScreen() {
   const { data: allRoots, isLoading: rootsLoading } = useRoots();
   const { data: simpleWords, isLoading: simpleWordsLoading } = useSimpleWords();
 
-  const lessonRoots = useMemo(
-    () => {
-      if (contentType !== 'words' || !lesson) return [];
-      const translits = LESSON_ROOT_TRANSLITS[lesson.sort_order] ?? [];
-      return (allRoots ?? []).filter(r => translits.includes(r.transliteration));
-    },
-    [allRoots, contentType, lesson?.sort_order],
-  );
+  const wordTheme = useMemo(() => {
+    if (contentType !== 'words' || !lesson) return null;
+    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
+    return wordConfig?.type === 'theme' ? (wordConfig.theme ?? null) : null;
+  }, [contentType, lesson?.sort_order]);
 
-  const lessonRootIds = useMemo(() => lessonRoots.map(r => r.id), [lessonRoots]);
-  const { data: rootWords, isLoading: rootWordsLoading } = useWordsByRoots(lessonRootIds);
+  const { data: themeWords, isLoading: themeWordsLoading } = useWordsByTheme(wordTheme);
 
   const wordPresentationItems = useMemo<WordPresentationItem[]>(() => {
     if (contentType !== 'words' || !lesson) return [];
@@ -119,20 +115,12 @@ export default function LessonScreen() {
       ];
     }
 
-    if (wordConfig.type === 'root') {
-      const items: WordPresentationItem[] = [];
-      for (const root of lessonRoots) {
-        const words = (rootWords ?? []).filter(w => w.root_id === root.id);
-        items.push({ kind: 'root_family' as const, root, words });
-        for (const word of words) {
-          items.push({ kind: 'word' as const, word, root });
-        }
-      }
-      return items;
+    if (wordConfig.type === 'theme') {
+      return (themeWords ?? []).map(w => ({ kind: 'word' as const, word: w, root: null }));
     }
 
     return [];
-  }, [contentType, lesson?.sort_order, simpleWords, rootWords, lessonRoots]);
+  }, [contentType, lesson?.sort_order, simpleWords, themeWords]);
 
   // ── Module 4 : phrases et dialogues ────────────────────────
   const { data: allSentences, isLoading: sentencesLoading, refetch: refetchSentences } = useSentences();
@@ -190,7 +178,7 @@ export default function LessonScreen() {
   }, [lesson]);
 
   const isLoading = lessonLoading || lettersLoading || diacriticsLoading
-    || (contentType === 'words' && (rootsLoading || simpleWordsLoading || rootWordsLoading))
+    || (contentType === 'words' && (rootsLoading || simpleWordsLoading || themeWordsLoading))
     || (contentType === 'sentences' && (sentencesLoading || dialoguesLoading || forceSyncing));
 
   const items: unknown[] = contentType === 'letters'

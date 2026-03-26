@@ -107,6 +107,7 @@ export async function initLocalSchema(): Promise<void> {
       gender TEXT,                      -- masculine | feminine | n/a
       is_simple_word INTEGER NOT NULL DEFAULT 0,  -- 1 = mot simple (leçon 1), 0 = mot de racine
       pedagogy_notes TEXT,
+      theme TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
       synced_at TEXT,
       FOREIGN KEY (root_id) REFERENCES roots(id)
@@ -285,6 +286,7 @@ export async function initLocalSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_words_root ON words(root_id);
     CREATE INDEX IF NOT EXISTS idx_words_sort ON words(sort_order);
     CREATE INDEX IF NOT EXISTS idx_words_simple ON words(is_simple_word);
+    CREATE INDEX IF NOT EXISTS idx_words_theme ON words(theme);
     CREATE INDEX IF NOT EXISTS idx_word_variants_word ON word_variants(word_id, variant);
     CREATE INDEX IF NOT EXISTS idx_roots_freq ON roots(frequency_rank);
     CREATE INDEX IF NOT EXISTS idx_sentences_sort ON sentences(sort_order);
@@ -301,6 +303,8 @@ export async function initLocalSchema(): Promise<void> {
   // SQLite ne supporte pas ALTER TABLE IF NOT EXISTS → on ignore l'erreur "duplicate column"
   const migrations = [
     `ALTER TABLE user_settings ADD COLUMN audio_enabled INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE words ADD COLUMN theme TEXT`,
+    `CREATE INDEX IF NOT EXISTS idx_words_theme ON words(theme)`,
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch (_) { /* colonne déjà présente */ }
