@@ -1,6 +1,8 @@
 // src/engines/exercise-generator.ts
 
 import type { ExerciseConfig, ExerciseOption } from '../types/exercise';
+import type { LessonSections } from '../types/section';
+import { buildSection, buildLessonSections } from './section-utils';
 import type { Letter } from '../hooks/useLetters';
 
 /**
@@ -71,6 +73,27 @@ export function generateAudioMCQ(
     options,
     metadata: { letter_id: letter.id },
   };
+}
+
+/**
+ * Génère les sections d'une leçon du Module 1 (Lettres).
+ * En pratique : 1 seule section car les leçons ont 3-5 lettres.
+ */
+export function generateLetterLessonSections(
+  lessonLetters: Letter[],
+  allLetters: Letter[],
+  direction: 'ar_to_fr' | 'fr_to_ar' | 'both' = 'both',
+): LessonSections {
+  const exercises = generateLetterExercises(lessonLetters, allLetters, direction);
+
+  const section = buildSection(
+    0,
+    `Lettres ${lessonLetters[0]?.name_fr ?? ''} → ${lessonLetters[lessonLetters.length - 1]?.name_fr ?? ''}`,
+    lessonLetters.map(l => l.id),
+    exercises,
+  );
+
+  return buildLessonSections('letters', [section]);
 }
 
 function generateOptions(

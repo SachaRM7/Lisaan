@@ -1,6 +1,8 @@
 // src/engines/harakat-exercise-generator.ts
 
 import type { ExerciseConfig, ExerciseOption, MatchPair } from '../types/exercise';
+import type { LessonSections } from '../types/section';
+import { buildSection, buildLessonSections } from './section-utils';
 import type { Diacritic } from '../hooks/useDiacritics';
 import type { Letter } from '../hooks/useLetters';
 
@@ -117,6 +119,28 @@ export function generateHarakatExercises(
   }
 
   return shuffleArray(exercises);
+}
+
+/**
+ * Génère les sections d'une leçon du Module 2 (Harakats).
+ * En pratique : 1 seule section car les leçons ont peu de diacritiques.
+ */
+export function generateHarakatLessonSections(
+  lessonSortOrder: number,
+  lessonDiacritics: Diacritic[],
+  allDiacritics: Diacritic[],
+  letters: Letter[],
+): LessonSections {
+  const exercises = generateHarakatExercises(lessonSortOrder, lessonDiacritics, allDiacritics, letters);
+
+  const section = buildSection(
+    0,
+    lessonDiacritics.map(d => d.name_fr).join(', '),
+    lessonDiacritics.map(d => d.id),
+    exercises,
+  );
+
+  return buildLessonSections('diacritics', [section]);
 }
 
 // ---- Fonctions helper ----

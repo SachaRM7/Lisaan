@@ -13,6 +13,10 @@ import { supabase } from '../../src/db/remote';
 import { useBadges } from '../../src/hooks/useBadges';
 import { useAuthStore } from '../../src/stores/useAuthStore';
 import { getLocalDB } from '../../src/db/local';
+import { devCompleteAllLessons, getCompletedLessonsCount } from '../../src/db/local-queries';
+import { runSync } from '../../src/engines/sync-manager';
+import { checkAndUnlockBadges } from '../../src/engines/badge-engine';
+import { useQueryClient } from '@tanstack/react-query';
 import { reset as posthogReset } from '../../src/analytics/posthog';
 
 interface BadgeItem {
@@ -76,6 +80,7 @@ export default function ProfileScreen() {
   const store = useSettingsStore();
   const router = useRouter();
   const userId = useAuthStore(s => s.userId);
+  const queryClient = useQueryClient();
   const { allUnlockedBadges } = useBadges();
   const [allBadges, setAllBadges] = useState<BadgeItem[]>([]);
 
@@ -345,6 +350,34 @@ export default function ProfileScreen() {
             <Text style={[styles.accountRowText, styles.danger]}>Se déconnecter</Text>
           </Pressable>
         </View>
+
+        {/* ── DEV ONLY ── */}
+        {__DEV__ && (
+          <>
+            <Text style={styles.sectionTitle}>DEV</Text>
+            <View style={styles.sectionCard}>
+              <Pressable
+                style={styles.accountRow}
+                onPress={async () => {
+                  try {
+                    if (!userId) { Alert.alert('Non connecté'); return; }
+                    const count = await devCompleteAllLessons(userId);
+                    const lessonCount = await getCompletedLessonsCount(userId);
+                    // Vérifier tous les badges débloquables (lesson_count + perfect_score)
+                    await checkAndUnlockBadges({ userId, lessonCount, isPerfectScore: true, streakDays: 30 });
+                    await queryClient.invalidateQueries({ queryKey: ['progress'] });
+                    runSync().catch(() => {});
+                    Alert.alert('✅ Dev', `${count} leçons marquées complètes`);
+                  } catch (e: any) {
+                    Alert.alert('Erreur', e?.message ?? String(e));
+                  }
+                }}
+              >
+                <Text style={styles.accountRowText}>Compléter toutes les leçons</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
 
       </ScrollView>
     </SafeAreaView>

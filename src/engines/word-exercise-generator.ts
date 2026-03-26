@@ -1,6 +1,8 @@
 // src/engines/word-exercise-generator.ts
 
 import type { ExerciseConfig, ExerciseOption } from '../types/exercise';
+import type { LessonSection, LessonSections } from '../types/section';
+import { chunkItems, buildSection, buildLessonSections, DEFAULT_SECTION_SIZE } from './section-utils';
 import type { Word } from '../hooks/useWords';
 import type { Root } from '../hooks/useRoots';
 
@@ -32,22 +34,56 @@ export const LESSON_WORD_CONFIG: Record<number, {
 };
 
 /**
- * Génère des exercices pour une leçon du Module 3.
+ * Génère les sections d'une leçon du Module 3.
+ * Chaque section contient les IDs des mots à présenter + les exercices associés.
+ *
+ * @returns LessonSections avec contentType 'words'
  */
-export function generateWordExercises(
+export function generateWordLessonSections(
   lessonSortOrder: number,
   lessonWords: Word[],
   allWords: Word[],
   roots: Root[],
+): LessonSections {
+  const config = LESSON_WORD_CONFIG[lessonSortOrder];
+  if (!config) {
+    return buildLessonSections('words', []);
+  }
+
+  const wordChunks = chunkItems(lessonWords, DEFAULT_SECTION_SIZE);
+
+  const sections: LessonSection[] = wordChunks.map((chunkWords, index) => {
+    const exercises = _generateExercisesForWords(config, chunkWords, allWords, roots);
+
+    const title = wordChunks.length === 1
+      ? config.theme ?? 'Vocabulaire'
+      : `Partie ${index + 1}`;
+
+    return buildSection(
+      index,
+      title,
+      chunkWords.map(w => w.id),
+      exercises,
+    );
+  });
+
+  return buildLessonSections('words', sections);
+}
+
+/**
+ * Génère les exercices pour un sous-ensemble de mots (une section).
+ */
+function _generateExercisesForWords(
+  config: { type: string; theme?: string },
+  sectionWords: Word[],
+  allWords: Word[],
+  roots: Root[],
 ): ExerciseConfig[] {
   const exercises: ExerciseConfig[] = [];
-  const config = LESSON_WORD_CONFIG[lessonSortOrder];
-
-  if (!config) return [];
 
   if (config.type === 'simple' || config.type === 'revision') {
-    // MCQ : Mot arabe → traduction française
-    for (const word of lessonWords) {
+    // MCQ AR→FR pour chaque mot
+    for (const word of sectionWords) {
       exercises.push({
         id: `mcq-ar-to-fr-${word.id}`,
         type: 'mcq',
@@ -60,8 +96,8 @@ export function generateWordExercises(
       });
     }
 
-    // MCQ : Traduction française → mot arabe
-    for (const word of lessonWords.slice(0, 4)) {
+    // MCQ FR→AR pour la moitié des mots
+    for (const word of sectionWords.slice(0, Math.ceil(sectionWords.length / 2))) {
       exercises.push({
         id: `mcq-fr-to-ar-${word.id}`,
         type: 'mcq',
@@ -72,8 +108,8 @@ export function generateWordExercises(
       });
     }
 
-    // MCQ : Mot arabe → translittération (exercice de décodage)
-    for (const word of lessonWords.slice(0, 4)) {
+    // MCQ décodage pour max 4 mots
+    for (const word of sectionWords.slice(0, Math.min(4, sectionWords.length))) {
       exercises.push({
         id: `mcq-decode-${word.id}`,
         type: 'mcq',
@@ -88,9 +124,8 @@ export function generateWordExercises(
   }
 
   if (config.type === 'solar_lunar') {
-    // Exercices spécifiques solaires/lunaires — uniquement pour les noms
-    const nounsOnly = lessonWords.filter(w => w.pos === 'noun');
-    for (const word of nounsOnly) {
+    // Exercices article solaires/lunaires pour chaque mot
+    for (const word of sectionWords) {
       exercises.push({
         id: `mcq-article-${word.id}`,
         type: 'mcq',
@@ -103,8 +138,8 @@ export function generateWordExercises(
       });
     }
 
-    // MCQ de traduction classiques en complément
-    for (const word of lessonWords) {
+    // MCQ traduction classiques en complément
+    for (const word of sectionWords) {
       exercises.push({
         id: `mcq-ar-to-fr-solar-${word.id}`,
         type: 'mcq',
@@ -119,8 +154,8 @@ export function generateWordExercises(
   }
 
   if (config.type === 'theme') {
-    // MCQ : Mot arabe → traduction française (pour chaque mot du thème)
-    for (const word of lessonWords) {
+    // MCQ AR→FR
+    for (const word of sectionWords) {
       exercises.push({
         id: `mcq-ar-to-fr-${word.id}`,
         type: 'mcq',
@@ -133,8 +168,8 @@ export function generateWordExercises(
       });
     }
 
-    // MCQ : Traduction française → mot arabe (moitié des mots)
-    for (const word of lessonWords.slice(0, Math.ceil(lessonWords.length / 2))) {
+    // MCQ FR→AR (moitié)
+    for (const word of sectionWords.slice(0, Math.ceil(sectionWords.length / 2))) {
       exercises.push({
         id: `mcq-fr-to-ar-${word.id}`,
         type: 'mcq',
@@ -145,8 +180,8 @@ export function generateWordExercises(
       });
     }
 
-    // MCQ : Décodage (mot arabe → translittération)
-    for (const word of lessonWords.slice(0, 4)) {
+    // MCQ décodage (max 4)
+    for (const word of sectionWords.slice(0, Math.min(4, sectionWords.length))) {
       exercises.push({
         id: `mcq-decode-${word.id}`,
         type: 'mcq',
@@ -159,14 +194,14 @@ export function generateWordExercises(
       });
     }
 
-    // Match : Associer 4 mots du thème à leurs traductions
-    if (lessonWords.length >= 4) {
+    // Match (si ≥ 4 mots dans la section)
+    if (sectionWords.length >= 4) {
       exercises.push({
-        id: `match-theme-${config.theme}`,
+        id: `match-theme-${config.theme}-s${sectionWords[0]?.id}`,
         type: 'match',
         instruction_fr: 'Associe les mots à leur traduction',
         prompt: { fr: '' },
-        matchPairs: lessonWords.slice(0, 4).map(w => ({
+        matchPairs: sectionWords.slice(0, 4).map(w => ({
           id: w.id,
           left: { ar: w.arabic_vocalized },
           right: { fr: w.translation_fr },
@@ -175,22 +210,21 @@ export function generateWordExercises(
       });
     }
 
-    // BONUS RACINE : Si 2+ mots de la leçon partagent une racine, ajouter un exercice "quelle racine ?"
+    // Bonus racine
     const rootGroups = new Map<string, Word[]>();
-    for (const word of lessonWords) {
+    for (const word of sectionWords) {
       if (word.root_id) {
         const group = rootGroups.get(word.root_id) || [];
         group.push(word);
         rootGroups.set(word.root_id, group);
       }
     }
-
     for (const [rootId, rootWords] of rootGroups) {
       if (rootWords.length >= 2) {
         const root = roots.find(r => r.id === rootId);
         if (root) {
           exercises.push({
-            id: `mcq-root-bonus-${rootId}`,
+            id: `mcq-root-bonus-${rootId}-s${sectionWords[0]?.id}`,
             type: 'mcq',
             instruction_fr: 'Ces mots partagent une racine. Laquelle ?',
             prompt: {
@@ -216,6 +250,20 @@ export function generateWordExercises(
   }
 
   return shuffleArray(exercises);
+}
+
+/**
+ * @deprecated Utiliser generateWordLessonSections() à la place.
+ * Conservé temporairement pour compatibilité pendant le refactoring de lesson/[id].tsx.
+ */
+export function generateWordExercises(
+  lessonSortOrder: number,
+  lessonWords: Word[],
+  allWords: Word[],
+  roots: Root[],
+): ExerciseConfig[] {
+  const sections = generateWordLessonSections(lessonSortOrder, lessonWords, allWords, roots);
+  return sections.sections.flatMap(s => s.exercises);
 }
 
 // ── Helpers ──────────────────────────────────────────────────

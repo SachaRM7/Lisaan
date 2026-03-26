@@ -297,6 +297,21 @@ export async function initLocalSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id);
     CREATE INDEX IF NOT EXISTS idx_user_badges_seen ON user_badges(user_id, seen);
 
+    -- ============================================================
+    -- TABLE SESSION — État transitoire des leçons en cours (É10.7)
+    -- PAS synchronisée vers Cloud. Supprimée à la complétion.
+    -- ============================================================
+
+    CREATE TABLE IF NOT EXISTS lesson_session (
+      id TEXT PRIMARY KEY,
+      lesson_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      current_section_index INTEGER NOT NULL DEFAULT 0,
+      section_progress TEXT NOT NULL DEFAULT '[]',  -- JSON : SectionProgress[]
+      updated_at TEXT NOT NULL,
+      UNIQUE(lesson_id, user_id)
+    );
+
   `);
 
   // ── Migrations additives (colonnes ajoutées après création initiale) ──

@@ -322,6 +322,7 @@ export default function ExercisesScreen() {
         lessonCount: completedCount,
         completedModuleId: isModuleComplete && moduleId ? moduleId : undefined,
         isPerfectScore: pct === 100,
+        streakDays: updatedStreakCurrent ?? undefined,
       });
 
       // 4. Module complété → écran de célébration

@@ -1,6 +1,7 @@
 // src/db/local-queries.ts
 
 import { getLocalDB } from './local';
+import type { LessonSessionState, SectionProgress } from '../types/section';
 
 // ================================================================
 // CONTENT — Lecture seule (sync depuis Cloud → SQLite)
@@ -176,6 +177,18 @@ export async function getProgressForUser(userId: string) {
     'SELECT * FROM user_progress WHERE user_id = ?',
     [userId]
   );
+}
+
+export async function getLessonProgress(
+  lessonId: string,
+  userId: string,
+): Promise<{ status: string; score: number } | null> {
+  const db = getLocalDB();
+  const row = await db.getFirstAsync<{ status: string; score: number }>(
+    'SELECT status, score FROM user_progress WHERE lesson_id = ? AND user_id = ?',
+    [lessonId, userId]
+  );
+  return row ?? null;
 }
 
 export async function upsertProgress(progress: {
@@ -624,6 +637,94 @@ export async function markUserBadgesSynced(ids: string[]): Promise<void> {
     `UPDATE user_badges SET synced_at = ? WHERE id IN (${placeholders})`,
     [now, ...ids]
   );
+}
+
+// ============================================================
+// Lesson Session (É10.7) — État transitoire des leçons en cours
+// ============================================================
+
+/**
+ * Récupère la session en cours pour une leçon donnée.
+ * Retourne null si aucune session n'existe (leçon pas commencée ou déjà complétée).
+ */
+export async function getLessonSession(
+  lessonId: string,
+  userId: string
+): Promise<LessonSessionState | null> {
+  const db = getLocalDB();
+  const row = await db.getFirstAsync<{
+    lesson_id: string;
+    user_id: string;
+    current_section_index: number;
+    section_progress: string;
+    updated_at: string;
+  }>(
+    'SELECT * FROM lesson_session WHERE lesson_id = ? AND user_id = ?',
+    [lessonId, userId]
+  );
+  if (!row) return null;
+  return {
+    lessonId: row.lesson_id,
+    userId: row.user_id,
+    currentSectionIndex: row.current_section_index,
+    sectionProgress: JSON.parse(row.section_progress) as SectionProgress[],
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * Crée ou met à jour la session d'une leçon.
+ * Appelé à chaque changement d'état (avancer dans les teachings, répondre à un exercice, changer de section).
+ */
+export async function upsertLessonSession(state: LessonSessionState): Promise<void> {
+  const db = getLocalDB();
+  const id = `session-${state.lessonId}-${state.userId}`;
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO lesson_session
+     (id, lesson_id, user_id, current_section_index, section_progress, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      id,
+      state.lessonId,
+      state.userId,
+      state.currentSectionIndex,
+      JSON.stringify(state.sectionProgress),
+      now,
+    ]
+  );
+}
+
+/**
+ * Supprime la session d'une leçon.
+ * Appelé quand la leçon est complétée (toutes les sections terminées).
+ */
+export async function deleteLessonSession(lessonId: string, userId: string): Promise<void> {
+  const db = getLocalDB();
+  await db.runAsync(
+    'DELETE FROM lesson_session WHERE lesson_id = ? AND user_id = ?',
+    [lessonId, userId]
+  );
+}
+
+// ============================================================
+// DEV UTILITIES (jamais appelé en production)
+// ============================================================
+
+export async function devCompleteAllLessons(userId: string): Promise<number> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  const lessons = await db.getAllAsync<{ id: string }>('SELECT id FROM lessons');
+  for (const lesson of lessons) {
+    await db.runAsync(
+      `INSERT INTO user_progress (id, user_id, lesson_id, status, score, completed_at, attempts, time_spent_seconds, updated_at, synced_at)
+       VALUES (?, ?, ?, 'completed', 100, ?, 1, 60, ?, NULL)
+       ON CONFLICT(user_id, lesson_id) DO UPDATE SET
+         status = 'completed', score = 100, completed_at = ?, updated_at = ?, synced_at = NULL`,
+      [crypto.randomUUID(), userId, lesson.id, now, now, now, now]
+    );
+  }
+  return lessons.length;
 }
 
 export async function getSyncMetadata(tableName: string) {

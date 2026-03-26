@@ -10,85 +10,138 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+
+// ── Hooks data ───────────────────────────────────────────────
 import { useLesson } from '../../src/hooks/useLessons';
-import { useLettersForLesson } from '../../src/hooks/useLetters';
-import { useDiacriticsForLesson } from '../../src/hooks/useDiacritics';
-import { useCreateSRSCardsForLesson } from '../../src/hooks/useSRSCards';
+import { useLetters, useLettersForLesson } from '../../src/hooks/useLetters';
+import { useDiacritics, useDiacriticsForLesson } from '../../src/hooks/useDiacritics';
+import { useWords, useSimpleWords, useWordsByTheme } from '../../src/hooks/useWords';
 import { useRoots } from '../../src/hooks/useRoots';
-import { useSimpleWords, useWordsByTheme } from '../../src/hooks/useWords';
 import { useSentences } from '../../src/hooks/useSentences';
 import { useDialogues, useDialogueWithTurns } from '../../src/hooks/useDialogues';
-import LetterCard from '../../src/components/arabic/LetterCard';
-import DiacriticCard from '../../src/components/arabic/DiacriticCard';
-import SyllableDisplay from '../../src/components/arabic/SyllableDisplay';
-import WordCard from '../../src/components/arabic/WordCard';
-import RootFamilyDisplay from '../../src/components/arabic/RootFamilyDisplay';
-import SentenceCard from '../../src/components/arabic/SentenceCard';
-import DialogueDisplay from '../../src/components/arabic/DialogueDisplay';
-import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
-import { LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
-import { LESSON_WORD_CONFIG } from '../../src/engines/word-exercise-generator';
-import { LESSON_SENTENCE_CONFIG } from '../../src/engines/sentence-exercise-generator';
-import { track } from '../../src/analytics/posthog';
-import type { Root } from '../../src/hooks/useRoots';
-import type { Word } from '../../src/hooks/useWords';
-import type { Sentence } from '../../src/hooks/useSentences';
-import type { DialogueWithTurns } from '../../src/hooks/useDialogues';
+import { useUpdateSRSCard, useSRSCards } from '../../src/hooks/useSRSCards';
+import { useCompleteLesson } from '../../src/hooks/useProgress';
+import { useBadges } from '../../src/hooks/useBadges';
+import { useAuthStore } from '../../src/stores/useAuthStore';
+import { useSettingsStore } from '../../src/stores/useSettingsStore';
 
+// ── Generators ───────────────────────────────────────────────
+import { generateLetterLessonSections } from '../../src/engines/exercise-generator';
+import { generateHarakatLessonSections, LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
+import { generateWordLessonSections, LESSON_WORD_CONFIG } from '../../src/engines/word-exercise-generator';
+import { generateSentenceLessonSections, LESSON_SENTENCE_CONFIG } from '../../src/engines/sentence-exercise-generator';
+
+// ── Engines ──────────────────────────────────────────────────
+import { computeSRSUpdate, exerciseResultToQuality, createNewCard } from '../../src/engines/srs';
+import { updateStreak } from '../../src/engines/streak';
+import { addXP, calculateLessonXP } from '../../src/engines/xp';
+import { track } from '../../src/analytics/posthog';
+
+// ── DB ───────────────────────────────────────────────────────
+import {
+  getLessonSession,
+  upsertLessonSession,
+  deleteLessonSession,
+  getLessonProgress,
+  getCompletedLessonsCount,
+  checkIfModuleComplete,
+  getModuleStats,
+} from '../../src/db/local-queries';
+
+// ── Components ───────────────────────────────────────────────
+import { SectionPlayer } from '../../src/components/lesson/SectionPlayer';
+import { LessonHub } from '../../src/components/lesson/LessonHub';
+import { XPFloatingLabel } from '../../src/components/XPFloatingLabel';
+import { BadgeUnlockModal } from '../../src/components/BadgeUnlockModal';
+import { StreakCelebration } from '../../src/components/StreakCelebration';
+
+// ── Types ────────────────────────────────────────────────────
+import type { LessonSections } from '../../src/types/section';
+import type { LessonSessionState, SectionProgress } from '../../src/types/section';
+import type { ExerciseResult } from '../../src/types/exercise';
+import { BadgeUnlock } from '../../src/engines/badge-engine';
+import { Colors, Spacing, Radius, Layout, FontSizes } from '../../src/constants/theme';
+
+// ── Constants ────────────────────────────────────────────────
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
   5: [16, 19], 6: [20, 23], 7: [24, 28],
 };
 
-type LessonContentType = 'letters' | 'diacritics' | 'words' | 'sentences';
+type LessonScreenMode = 'loading' | 'hub' | 'playing' | 'lesson_complete';
 
-function getLessonContentType(moduleSortOrder: number): LessonContentType {
-  if (moduleSortOrder === 2) return 'diacritics';
-  if (moduleSortOrder === 3) return 'words';
-  if (moduleSortOrder === 4) return 'sentences';
-  return 'letters';
+function getEncouragement(pct: number): string {
+  if (pct === 100) return 'Parfait ! 🎉';
+  if (pct >= 70) return 'Bien joué ! Continue comme ça.';
+  return 'Pas mal ! Refais la leçon pour consolider.';
 }
 
-type SentencePresentationItem =
-  | { kind: 'suffix_table' }
-  | { kind: 'nominal_rule' }
-  | { kind: 'sentence'; sentence: Sentence }
-  | { kind: 'dialogue'; dialogue: DialogueWithTurns };
-
-type WordPresentationItem =
-  | { kind: 'word'; word: Word; root?: Root | null }
-  | { kind: 'root_family'; root: Root; words: Word[] }
-  | { kind: 'solar_intro' };
+// ── Composant principal ───────────────────────────────────────
 
 export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [forceSyncing, setForceSyncing] = useState(false);
-  const syncAttempted = useRef(false);
-  const createSRSCards = useCreateSRSCardsForLesson();
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.userId);
 
+  // ── Mode & session ───────────────────────────────────────
+  const [mode, setMode] = useState<LessonScreenMode>('loading');
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [sessionState, setSessionState] = useState<LessonSessionState | null>(null);
+  const [lessonStatus, setLessonStatus] = useState<'not_started' | 'in_progress' | 'completed'>('not_started');
+  const [replayMode, setReplayMode] = useState<'teaching_only' | 'exercises_only' | undefined>();
+  const [playerKey, setPlayerKey] = useState(0);
+
+  // ── Résultat final ───────────────────────────────────────
+  const [finalScore, setFinalScore] = useState(0);
+  const [finalTime, setFinalTime] = useState(0);
+  const [finalSectionProgress, setFinalSectionProgress] = useState<SectionProgress[]>([]);
+  const startTime = useRef(Date.now());
+
+  // ── XP / Badges / Streak ─────────────────────────────────
+  const [showXP, setShowXP] = useState(false);
+  const [earnedXP, setEarnedXP] = useState(0);
+  const [updatedStreakCurrent, setUpdatedStreakCurrent] = useState<number | null>(null);
+  const [showStreak, setShowStreak] = useState(false);
+  const [currentBadge, setCurrentBadge] = useState<BadgeUnlock | null>(null);
+  const pendingBadges = useRef<BadgeUnlock[]>([]);
+
+  // ── Hooks ────────────────────────────────────────────────
   const { data: lesson, isLoading: lessonLoading } = useLesson(id ?? '');
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
-  const contentType = getLessonContentType(moduleSortOrder);
+  const contentType: LessonSections['contentType'] = moduleSortOrder === 2 ? 'diacritics'
+    : moduleSortOrder === 3 ? 'words'
+    : moduleSortOrder === 4 ? 'sentences'
+    : 'letters';
 
-  // ── Module 1 : lettres ──────────────────────────────────────
+  const exercise_direction = useSettingsStore((s) => s.exercise_direction);
+  const updateSRSCard = useUpdateSRSCard();
+  const { data: srsCards } = useSRSCards();
+  const updatedItemIds = useRef(new Set<string>());
+  const completeLesson = useCompleteLesson();
+  const { checkBadges } = useBadges();
+
+  // ── Module 1 : lettres ───────────────────────────────────
   const letterRange = contentType === 'letters' && lesson
     ? (LESSON_LETTER_RANGES[lesson.sort_order] ?? null)
     : null;
-  const { data: letters, isLoading: lettersLoading } = useLettersForLesson(
+  const { data: lessonLetters, isLoading: lettersLoading } = useLettersForLesson(
     letterRange?.[0] ?? 0,
     letterRange?.[1] ?? 0,
   );
+  const { data: allLetters } = useLetters();
 
-  // ── Module 2 : diacritiques ─────────────────────────────────
+  // ── Module 2 : diacritiques ──────────────────────────────
   const diacriticSortOrders = contentType === 'diacritics' && lesson
     ? (LESSON_DIACRITIC_RANGES[lesson.sort_order] ?? [])
     : [];
-  const { data: diacritics, isLoading: diacriticsLoading } = useDiacriticsForLesson(diacriticSortOrders);
+  const { data: lessonDiacritics, isLoading: diacriticsLoading } = useDiacriticsForLesson(diacriticSortOrders);
+  const { data: allDiacritics } = useDiacritics();
 
-  // ── Module 3 : mots et racines ──────────────────────────────
+  // ── Module 3 : mots ──────────────────────────────────────
   const { data: allRoots, isLoading: rootsLoading } = useRoots();
+  const { data: allWords } = useWords();
   const { data: simpleWords, isLoading: simpleWordsLoading } = useSimpleWords();
 
   const wordTheme = useMemo(() => {
@@ -96,40 +149,26 @@ export default function LessonScreen() {
     const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
     return wordConfig?.type === 'theme' ? (wordConfig.theme ?? null) : null;
   }, [contentType, lesson?.sort_order]);
-
   const { data: themeWords, isLoading: themeWordsLoading } = useWordsByTheme(wordTheme);
 
-  const wordPresentationItems = useMemo<WordPresentationItem[]>(() => {
+  const lessonWords = useMemo(() => {
     if (contentType !== 'words' || !lesson) return [];
     const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
-    if (!wordConfig || wordConfig.type === 'revision') return [];
+    if (!wordConfig) return [];
+    if (wordConfig.type === 'simple' || wordConfig.type === 'solar_lunar') return simpleWords ?? [];
+    if (wordConfig.type === 'theme') return themeWords ?? [];
+    return allWords ?? [];
+  }, [contentType, lesson?.sort_order, simpleWords, allWords, themeWords]);
 
-    if (wordConfig.type === 'simple') {
-      return (simpleWords ?? []).map(w => ({ kind: 'word' as const, word: w, root: null }));
-    }
-
-    if (wordConfig.type === 'solar_lunar') {
-      return [
-        { kind: 'solar_intro' as const },
-        ...(simpleWords ?? []).map(w => ({ kind: 'word' as const, word: w, root: null })),
-      ];
-    }
-
-    if (wordConfig.type === 'theme') {
-      return (themeWords ?? []).map(w => ({ kind: 'word' as const, word: w, root: null }));
-    }
-
-    return [];
-  }, [contentType, lesson?.sort_order, simpleWords, themeWords]);
-
-  // ── Module 4 : phrases et dialogues ────────────────────────
+  // ── Module 4 : phrases ───────────────────────────────────
   const { data: allSentences, isLoading: sentencesLoading, refetch: refetchSentences } = useSentences();
   const { data: allDialogues, isLoading: dialoguesLoading } = useDialogues();
+  const [forceSyncing, setForceSyncing] = useState(false);
+  const syncAttempted = useRef(false);
 
   const sentenceConfig = contentType === 'sentences' && lesson
     ? LESSON_SENTENCE_CONFIG[lesson.sort_order]
     : null;
-
   const dial0Id = sentenceConfig?.dialogueIds?.[0] ?? null;
   const dial1Id = sentenceConfig?.dialogueIds?.[1] ?? null;
   const dial2Id = sentenceConfig?.dialogueIds?.[2] ?? null;
@@ -137,79 +176,25 @@ export default function LessonScreen() {
   const { data: dial1 } = useDialogueWithTurns(dial1Id);
   const { data: dial2 } = useDialogueWithTurns(dial2Id);
 
-  const sentencePresentationItems = useMemo<SentencePresentationItem[]>(() => {
-    if (contentType !== 'sentences' || !lesson || !sentenceConfig) return [];
-    const type = sentenceConfig.type;
-
-    // Leçon 5 : pas de présentation
-    if (type === 'fill_blank') return [];
-
-    // Leçon 6 : dialogues
-    if (type === 'dialogue') {
-      const items: SentencePresentationItem[] = [];
-      [dial0, dial1, dial2].forEach(d => {
-        if (d) items.push({ kind: 'dialogue', dialogue: d as DialogueWithTurns });
-      });
-      return items;
-    }
-
-    // Leçons 1-4 : phrases
+  const lessonSentences = useMemo(() => {
+    if (contentType !== 'sentences' || !sentenceConfig) return [];
     const ids = sentenceConfig.sentenceIds ?? [];
-    const sentences = (allSentences ?? []).filter(s => ids.includes(s.id));
-    const items: SentencePresentationItem[] = [];
+    if (sentenceConfig.type === 'fill_blank') {
+      return (allSentences ?? []).filter(s => s.difficulty <= 2);
+    }
+    return (allSentences ?? []).filter(s => ids.includes(s.id));
+  }, [contentType, sentenceConfig, allSentences]);
 
-    if (type === 'possessive') items.push({ kind: 'suffix_table' });
-    if (type === 'nominal') items.push({ kind: 'nominal_rule' });
+  const dialoguesWithTurns = useMemo(() => {
+    return [dial0, dial1, dial2].filter(Boolean) as any[];
+  }, [dial0, dial1, dial2]);
 
-    sentences.forEach(s => items.push({ kind: 'sentence', sentence: s }));
-    return items;
-  }, [contentType, lesson?.sort_order, sentenceConfig, allSentences, dial0, dial1, dial2]);
-
-  // Track lesson_started une seule fois
-  const trackedLessonId = useRef<string | null>(null);
-  useEffect(() => {
-    if (!lesson || trackedLessonId.current === lesson.id) return;
-    trackedLessonId.current = lesson.id;
-    track('lesson_started', {
-      lesson_id: lesson.id,
-      module_id: lesson.module_id,
-      lesson_order: lesson.sort_order,
-    });
-  }, [lesson]);
-
+  // ── isLoading ────────────────────────────────────────────
   const isLoading = lessonLoading || lettersLoading || diacriticsLoading
     || (contentType === 'words' && (rootsLoading || simpleWordsLoading || themeWordsLoading))
     || (contentType === 'sentences' && (sentencesLoading || dialoguesLoading || forceSyncing));
 
-  const items: unknown[] = contentType === 'letters'
-    ? (letters ?? [])
-    : contentType === 'diacritics'
-      ? (diacritics ?? [])
-      : contentType === 'sentences'
-        ? sentencePresentationItems
-        : wordPresentationItems;
-
-  const total = items.length;
-  const isLast = currentIndex === total - 1;
-
-  // Leçon 6 Module 3 (révision) : pas de présentation
-  useEffect(() => {
-    if (contentType !== 'words' || isLoading || !lesson) return;
-    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
-    if (wordConfig?.type === 'revision') {
-      router.replace(`/lesson/${id}/exercises` as never);
-    }
-  }, [contentType, isLoading, lesson?.sort_order]);
-
-  // Leçon 5 Module 4 (fill_blank) : pas de présentation
-  useEffect(() => {
-    if (contentType !== 'sentences' || isLoading || !lesson) return;
-    if (sentenceConfig?.type === 'fill_blank') {
-      router.replace(`/lesson/${id}/exercises` as never);
-    }
-  }, [contentType, isLoading, sentenceConfig?.type]);
-
-  // Si sentences vides après chargement → force sync une seule fois + refetch
+  // ── Force sync sentences si vides ────────────────────────
   useEffect(() => {
     if (contentType !== 'sentences' || sentencesLoading) return;
     if ((!allSentences || allSentences.length === 0) && !syncAttempted.current) {
@@ -221,25 +206,347 @@ export default function LessonScreen() {
           .finally(() => setForceSyncing(false))
       );
     }
-  }, [contentType, sentencesLoading]);
+  }, [contentType, sentencesLoading, allSentences]);
 
-  function handleNext() {
-    if (!isLast) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      const goToExercises = () => router.push(`/lesson/${id}/exercises` as never);
-      if (contentType === 'letters' && letters && letters.length > 0) {
-        createSRSCards.mutate(
-          { letterIds: letters.map((l) => l.id) },
-          { onSuccess: goToExercises, onError: goToExercises },
-        );
+  // ── Génération des sections ───────────────────────────────
+  const lessonSections = useMemo<LessonSections>(() => {
+    if (contentType === 'letters') {
+      if (!lessonLetters?.length || !allLetters?.length) return { contentType: 'letters', sections: [] };
+      return generateLetterLessonSections(lessonLetters, allLetters, exercise_direction);
+    }
+    if (contentType === 'diacritics') {
+      if (!lessonDiacritics?.length || !allDiacritics?.length || !lesson) return { contentType: 'diacritics', sections: [] };
+      return generateHarakatLessonSections(lesson.sort_order, lessonDiacritics, allDiacritics, allLetters ?? []);
+    }
+    if (contentType === 'words') {
+      if (!lesson || !allRoots) return { contentType: 'words', sections: [] };
+      return generateWordLessonSections(lesson.sort_order, lessonWords, allWords ?? [], allRoots);
+    }
+    // sentences
+    if (!lesson || !sentenceConfig) return { contentType: 'sentences', sections: [] };
+    return generateSentenceLessonSections(
+      lesson.sort_order, lessonSentences, allSentences ?? [], allWords ?? [], dialoguesWithTurns,
+    );
+  }, [contentType, lesson, lessonLetters, allLetters, exercise_direction,
+      lessonDiacritics, allDiacritics, lessonWords, allWords, allRoots,
+      lessonSentences, allSentences, sentenceConfig, dialoguesWithTurns]);
+
+  // ── Init : détecter mode au chargement ───────────────────
+  const initDone = useRef(false);
+  useEffect(() => {
+    if (isLoading || !lesson || !userId || lessonSections.sections.length === 0 || initDone.current) return;
+    initDone.current = true;
+
+    async function init() {
+      const lessonId = id ?? '';
+      const [progress, session] = await Promise.all([
+        getLessonProgress(lessonId, userId!),
+        getLessonSession(lessonId, userId!),
+      ]);
+
+      const status = (progress?.status ?? 'not_started') as 'not_started' | 'in_progress' | 'completed';
+      setLessonStatus(status);
+
+      if (status === 'not_started' && !session) {
+        // Première fois → démarrer directement en mode 'playing', section 0
+        const freshProgress: SectionProgress[] = lessonSections.sections.map(s => ({
+          sectionId: s.id,
+          teachingCompleted: false,
+          nextExerciseIndex: 0,
+          exerciseResults: [],
+          status: 'not_started' as const,
+        }));
+        const newSession: LessonSessionState = {
+          lessonId,
+          userId: userId!,
+          currentSectionIndex: 0,
+          sectionProgress: freshProgress,
+          updatedAt: new Date().toISOString(),
+        };
+        await upsertLessonSession(newSession);
+        setSessionState(newSession);
+        setCurrentSectionIndex(0);
+        setMode('playing');
+      } else if (session) {
+        // Session existante → hub
+        setSessionState(session);
+        setCurrentSectionIndex(session.currentSectionIndex);
+        setMode('hub');
+      } else if (status === 'completed') {
+        // Déjà complétée, pas de session → hub mode replay
+        setMode('hub');
       } else {
-        goToExercises();
+        // in_progress sans session → démarrer depuis le début
+        const freshProgress: SectionProgress[] = lessonSections.sections.map(s => ({
+          sectionId: s.id,
+          teachingCompleted: false,
+          nextExerciseIndex: 0,
+          exerciseResults: [],
+          status: 'not_started' as const,
+        }));
+        const newSession: LessonSessionState = {
+          lessonId,
+          userId: userId!,
+          currentSectionIndex: 0,
+          sectionProgress: freshProgress,
+          updatedAt: new Date().toISOString(),
+        };
+        await upsertLessonSession(newSession);
+        setSessionState(newSession);
+        setCurrentSectionIndex(0);
+        setMode('playing');
       }
+    }
+    init();
+  }, [isLoading, lesson, userId, lessonSections.sections.length]);
+
+  // ── Progression mid-section ───────────────────────────────
+  async function handleProgressUpdate(progress: SectionProgress) {
+    if (!sessionState || !userId || !id) return;
+    const updatedSectionProgress = [...(sessionState.sectionProgress)];
+    updatedSectionProgress[currentSectionIndex] = progress;
+    const newSession: LessonSessionState = {
+      ...sessionState,
+      sectionProgress: updatedSectionProgress,
+      updatedAt: new Date().toISOString(),
+    };
+    setSessionState(newSession);
+    await upsertLessonSession(newSession);
+  }
+
+  // ── Fin d'une section ─────────────────────────────────────
+  async function handleSectionComplete(progress: SectionProgress) {
+    // En mode relecture → enchaîner directement sur les exercices de la même section
+    if (replayMode === 'teaching_only') {
+      setReplayMode('exercises_only');
+      setPlayerKey(k => k + 1); // Force remontage du SectionPlayer
+      return;
+    }
+
+    // En mode exercices seuls (replay) → retour au hub
+    if (replayMode === 'exercises_only') {
+      setReplayMode(undefined);
+      setMode('hub');
+      return;
+    }
+
+    if (!sessionState || !userId || !id) return;
+
+    const updatedSectionProgress = [...(sessionState.sectionProgress)];
+    updatedSectionProgress[currentSectionIndex] = progress;
+    const nextIndex = currentSectionIndex + 1;
+
+    if (nextIndex >= lessonSections.sections.length) {
+      // Toutes les sections terminées
+      await deleteLessonSession(id, userId);
+      await handleLessonComplete(updatedSectionProgress);
+    } else {
+      // Passer à la section suivante
+      const newSession: LessonSessionState = {
+        ...sessionState,
+        currentSectionIndex: nextIndex,
+        sectionProgress: updatedSectionProgress,
+        updatedAt: new Date().toISOString(),
+      };
+      setSessionState(newSession);
+      await upsertLessonSession(newSession);
+      setCurrentSectionIndex(nextIndex);
+      setReplayMode(undefined);
     }
   }
 
-  if (isLoading) {
+  // ── Complétion de leçon (XP, badges, SRS) ────────────────
+  async function handleLessonComplete(allSectionProgress: SectionProgress[]) {
+    const lessonId = id ?? '';
+    const allResults: ExerciseResult[] = allSectionProgress.flatMap(sp => sp.exerciseResults);
+    const correct = allResults.filter(r => r.correct).length;
+    const total = allResults.length;
+    const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const totalTimeSecs = Math.round((Date.now() - startTime.current) / 1000);
+    const baseXP = (lesson?.xp_reward as number | undefined) ?? 20;
+    const xp = calculateLessonXP(baseXP, pct);
+
+    setFinalScore(pct);
+    setFinalTime(totalTimeSecs);
+    setFinalSectionProgress(allSectionProgress);
+    setEarnedXP(xp);
+
+    track('lesson_completed', {
+      lesson_id: lessonId,
+      module_id: lesson?.module_id,
+      score: pct,
+      time_seconds: totalTimeSecs,
+      xp_earned: xp,
+      is_perfect: pct === 100,
+    });
+
+    addXP(xp);
+    setShowXP(true);
+
+    updateStreak().then(data => {
+      if (data) {
+        setUpdatedStreakCurrent(data.streak_current);
+        if ([3, 7, 14, 30].includes(data.streak_current)) setShowStreak(true);
+      }
+    });
+
+    // SRS
+    if (contentType === 'diacritics' && lessonDiacritics?.length) {
+      await createSRSCardsForItems(lessonDiacritics.map(d => d.id), 'diacritic');
+      queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+    }
+    if (contentType === 'words' && lessonWords.length) {
+      await createSRSCardsForItems(lessonWords.map(w => w.id), 'word');
+      queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+    }
+    if (contentType === 'sentences' && sentenceConfig) {
+      const sentenceIds = sentenceConfig.type === 'fill_blank'
+        ? (allSentences ?? []).filter(s => s.difficulty <= 2).map(s => s.id)
+        : (sentenceConfig.sentenceIds ?? []);
+      if (sentenceIds.length > 0) {
+        await createSRSCardsForItems(sentenceIds, 'sentence');
+        queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+      }
+    }
+
+    setMode('lesson_complete');
+  }
+
+  // ── Hub callbacks ─────────────────────────────────────────
+  function handleResumeAtSection(sectionIndex: number) {
+    setReplayMode(undefined);
+    setCurrentSectionIndex(sectionIndex);
+    setMode('playing');
+  }
+
+  function handleReplayTeaching(sectionIndex: number) {
+    setReplayMode('teaching_only');
+    setCurrentSectionIndex(sectionIndex);
+    setPlayerKey(k => k + 1);
+    setMode('playing');
+  }
+
+  function handleReplayExercises(sectionIndex: number) {
+    setReplayMode('exercises_only');
+    setCurrentSectionIndex(sectionIndex);
+    setPlayerKey(k => k + 1);
+    setMode('playing');
+  }
+
+  async function handleStartFromBeginning() {
+    if (!userId || !id) return;
+    await deleteLessonSession(id, userId);
+    const freshProgress: SectionProgress[] = lessonSections.sections.map(s => ({
+      sectionId: s.id,
+      teachingCompleted: false,
+      nextExerciseIndex: 0,
+      exerciseResults: [],
+      status: 'not_started' as const,
+    }));
+    const newSession: LessonSessionState = {
+      lessonId: id,
+      userId,
+      currentSectionIndex: 0,
+      sectionProgress: freshProgress,
+      updatedAt: new Date().toISOString(),
+    };
+    await upsertLessonSession(newSession);
+    setSessionState(newSession);
+    setCurrentSectionIndex(0);
+    setReplayMode(undefined);
+    startTime.current = Date.now();
+    setMode('playing');
+  }
+
+  // ── SectionPlayer back ────────────────────────────────────
+  function handleSectionBack() {
+    // La session est déjà sauvegardée en continu → on affiche le hub
+    if (lessonStatus === 'completed') {
+      setMode('hub');
+    } else {
+      setLessonStatus('in_progress');
+      setMode('hub');
+    }
+  }
+
+  // ── ContentData pour SectionPlayer ───────────────────────
+  const wordConfig = contentType === 'words' && lesson ? LESSON_WORD_CONFIG[lesson.sort_order] : null;
+
+  const contentData = useMemo(() => ({
+    letters: lessonLetters,
+    diacritics: lessonDiacritics,
+    words: lessonWords,
+    roots: allRoots ?? [],
+    sentences: lessonSentences,
+    dialogues: dialoguesWithTurns,
+    wordConfigType: wordConfig?.type,
+    sentenceConfigType: sentenceConfig?.type,
+    lessonSortOrder: lesson?.sort_order,
+  }), [lessonLetters, lessonDiacritics, lessonWords, allRoots, lessonSentences,
+       dialoguesWithTurns, wordConfig?.type, sentenceConfig?.type, lesson?.sort_order]);
+
+  // ── Résultat de leçon ─────────────────────────────────────
+  async function handleContinue() {
+    if (!id) { router.replace('/(tabs)/learn'); return; }
+    const uid = useAuthStore.getState().userId;
+
+    await completeLesson.mutateAsync({
+      lessonId: id,
+      score: finalScore,
+      timeSpentSeconds: finalTime,
+    });
+
+    if (!uid) { router.replace('/(tabs)/learn'); return; }
+
+    const moduleId = lesson?.module_id;
+    const isModuleComplete = moduleId ? await checkIfModuleComplete(moduleId, uid) : false;
+    const completedCount = await getCompletedLessonsCount(uid);
+    const newBadges = await checkBadges({
+      lessonCount: completedCount,
+      completedModuleId: isModuleComplete && moduleId ? moduleId : undefined,
+      isPerfectScore: finalScore === 100,
+      streakDays: updatedStreakCurrent ?? undefined,
+    });
+
+    if (isModuleComplete && moduleId) {
+      const stats = await getModuleStats(moduleId, uid);
+      router.replace({
+        pathname: '/module-complete',
+        params: {
+          moduleTitle: stats.title_fr,
+          moduleIcon: stats.icon,
+          totalXP: stats.total_xp.toString(),
+          lessonsCount: stats.lessons_count.toString(),
+          timeMinutes: Math.round(stats.total_seconds / 60).toString(),
+        },
+      } as any);
+      return;
+    }
+
+    if (newBadges.length > 0) {
+      pendingBadges.current = [...newBadges];
+      setCurrentBadge(pendingBadges.current.shift() ?? null);
+    } else {
+      router.replace('/(tabs)/learn');
+    }
+  }
+
+  function handleBadgeDismiss() {
+    const next = pendingBadges.current.shift();
+    if (next) {
+      setCurrentBadge(next);
+    } else {
+      setCurrentBadge(null);
+      router.replace('/(tabs)/learn');
+    }
+  }
+
+  // ── Settings ──────────────────────────────────────────────
+  const settingsForPlayer = useSettingsStore.getState();
+
+  // ── Rendu ─────────────────────────────────────────────────
+
+  if (mode === 'loading' || isLoading) {
     return (
       <SafeAreaView style={styles.safe}>
         <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
@@ -247,408 +554,218 @@ export default function LessonScreen() {
     );
   }
 
-  if (total === 0) {
-    const wordConfig = contentType === 'words' && lesson ? LESSON_WORD_CONFIG[lesson.sort_order] : null;
-    const isRevision = wordConfig?.type === 'revision';
-    if (!isRevision) {
+  if (mode === 'hub' && lesson) {
+    return (
+      <LessonHub
+        lesson={lesson as any}
+        sections={lessonSections.sections}
+        sectionProgress={sessionState?.sectionProgress ?? []}
+        lessonStatus={lessonStatus}
+        onStartFromBeginning={handleStartFromBeginning}
+        onResumeAtSection={handleResumeAtSection}
+        onReplayTeaching={handleReplayTeaching}
+        onReplayExercises={handleReplayExercises}
+        onBack={() => router.back()}
+      />
+    );
+  }
+
+  if (mode === 'playing' && lessonSections.sections.length > 0) {
+    const section = lessonSections.sections[currentSectionIndex];
+    if (!section) {
       return (
         <SafeAreaView style={styles.safe}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-              <Text style={styles.backArrow}>←</Text>
-            </TouchableOpacity>
-            <Text style={styles.lessonTitle} numberOfLines={1}>{lesson?.title_fr}</Text>
-            <View style={styles.backBtn} />
-          </View>
-          <Text style={styles.errorText}>
-            {contentType === 'words'
-              ? 'Contenu non disponible. Vérifiez votre connexion et relancez l\'app.'
-              : 'Contenu introuvable.'}
-          </Text>
+          <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
         </SafeAreaView>
       );
     }
+
+    const initialProgress: SectionProgress = sessionState?.sectionProgress[currentSectionIndex] ?? {
+      sectionId: section.id,
+      teachingCompleted: false,
+      nextExerciseIndex: 0,
+      exerciseResults: [],
+      status: 'not_started',
+    };
+
+    return (
+      <>
+        <XPFloatingLabel xp={earnedXP} visible={showXP} onAnimationEnd={() => setShowXP(false)} />
+        <SectionPlayer
+          key={playerKey}
+          section={section}
+          contentType={lessonSections.contentType}
+          initialProgress={replayMode === 'exercises_only'
+            ? { ...initialProgress, nextExerciseIndex: 0, exerciseResults: [] }
+            : initialProgress}
+          contentData={contentData as any}
+          settings={settingsForPlayer as any}
+          onProgressUpdate={handleProgressUpdate}
+          onSectionComplete={handleSectionComplete}
+          onBack={handleSectionBack}
+          replayMode={replayMode}
+        />
+      </>
+    );
   }
 
+  if (mode === 'lesson_complete') {
+    const allResults = finalSectionProgress.flatMap(sp => sp.exerciseResults);
+    const correct = allResults.filter(r => r.correct).length;
+    const total = allResults.length;
+    const isPerfect = finalScore >= 100;
+
+    return (
+      <SafeAreaView style={styles.safe}>
+        <XPFloatingLabel xp={earnedXP} visible={showXP} onAnimationEnd={() => setShowXP(false)} />
+        <StreakCelebration
+          streakDays={updatedStreakCurrent ?? 0}
+          visible={showStreak}
+          onHide={() => setShowStreak(false)}
+        />
+        <BadgeUnlockModal badge={currentBadge} onDismiss={handleBadgeDismiss} />
+        <ScrollView contentContainerStyle={styles.resultsScroll}>
+          <Text style={styles.resultsTitle}>Leçon terminée !</Text>
+          <Text style={styles.encouragement}>{getEncouragement(finalScore)}</Text>
+
+          <View style={styles.scoreBox}>
+            <Text style={styles.scoreNumber}>{correct}/{total}</Text>
+            <Text style={styles.scoreLabel}>bonnes réponses</Text>
+            <View style={styles.scoreBarTrack}>
+              <View style={[styles.scoreBarFill, { width: `${finalScore}%` }]} />
+            </View>
+            <Text style={styles.scorePct}>{finalScore}%</Text>
+          </View>
+
+          <View style={styles.xpBox}>
+            <Text style={styles.xpText}>
+              {isPerfect ? `+${earnedXP} XP 🎯` : `+${earnedXP} XP`}
+            </Text>
+            {isPerfect && <Text style={styles.xpBonus}>Bonus score parfait ×1,5 !</Text>}
+            {updatedStreakCurrent !== null && (
+              <Text style={styles.streakText}>
+                🔥 Streak : {updatedStreakCurrent} jour{updatedStreakCurrent > 1 ? 's' : ''}
+              </Text>
+            )}
+          </View>
+
+          <Text style={styles.timeText}>
+            Temps total : {finalTime < 60
+              ? `${finalTime}s`
+              : `${Math.floor(finalTime / 60)}min ${finalTime % 60}s`}
+          </Text>
+
+          <TouchableOpacity style={styles.ctaBtn} onPress={handleContinue} activeOpacity={0.85}>
+            <Text style={styles.ctaLabel}>Continuer →</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // Fallback
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.lessonTitle} numberOfLines={1}>{lesson?.title_fr}</Text>
-        <View style={styles.backBtn} />
-      </View>
-
-      {/* Dots de progression */}
-      {total > 0 && (
-        <>
-          <View style={styles.dotsRow}>
-            {items.map((_, i) => (
-              <View key={i} style={[styles.dot, i <= currentIndex && styles.dotFilled]} />
-            ))}
-          </View>
-          <Text style={styles.counter}>{currentIndex + 1} / {total}</Text>
-        </>
-      )}
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {contentType === 'letters' ? (
-          <>
-            {letters?.[currentIndex] && (
-              <LetterCard letter={letters[currentIndex]} mode="full" />
-            )}
-            {letters?.[currentIndex]?.pedagogy_notes ? (
-              <View style={styles.pedagogyBox}>
-                <Text style={styles.pedagogyText}>{letters[currentIndex].pedagogy_notes}</Text>
-              </View>
-            ) : null}
-          </>
-        ) : contentType === 'diacritics' ? (
-          <>
-            {diacritics?.[currentIndex] && (
-              <DiacriticCard
-                diacritic={diacritics[currentIndex]}
-                mode="full"
-                fontSize="xlarge"
-              />
-            )}
-            {diacritics?.[currentIndex]?.pedagogy_notes ? (
-              <View style={styles.pedagogyBox}>
-                <Text style={styles.pedagogyText}>{diacritics[currentIndex].pedagogy_notes}</Text>
-              </View>
-            ) : null}
-            {diacritics?.[currentIndex] && (
-              <SyllableDisplay
-                mode="single_diacritic"
-                diacritics={[diacritics[currentIndex]]}
-                letterForms={diacritics[currentIndex].example_letters}
-              />
-            )}
-            {lesson && lesson.sort_order >= 2 && diacritics && diacritics.length > 0 && (
-              <CompareDiacriticsSection lessonSortOrder={lesson.sort_order} />
-            )}
-          </>
-        ) : contentType === 'sentences' ? (
-          // ── Module 4 : phrases et dialogues ──────────────────
-          <SentencePresentationContent item={sentencePresentationItems[currentIndex] ?? null} />
-        ) : (
-          // ── Module 3 : mots ──────────────────────────────────
-          <WordPresentationContent item={wordPresentationItems[currentIndex] ?? null} />
-        )}
-      </ScrollView>
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.8}>
-          <Text style={styles.nextLabel}>
-            {isLast ? 'Commencer les exercices →' : 'Suivant →'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
     </SafeAreaView>
   );
 }
 
-// ── Rendu d'un item de présentation mots ─────────────────────
+// ── Création cartes SRS ───────────────────────────────────────
 
-function WordPresentationContent({ item }: { item: WordPresentationItem | null }) {
-  if (!item) return null;
-
-  if (item.kind === 'solar_intro') {
-    return (
-      <View style={styles.solarIntroBox}>
-        <Text style={styles.solarIntroTitle}>L'article en arabe : الـ</Text>
-        <Text style={styles.solarIntroText}>
-          En arabe, l'article "le / la" s'écrit الـ (al-). Mais sa prononciation change selon la lettre qui suit.
-        </Text>
-        <View style={styles.solarRow}>
-          <View style={styles.solarCard}>
-            <Text style={styles.solarAr}>الْقَمَر</Text>
-            <Text style={styles.solarLabel}>Lettre lunaire</Text>
-            <Text style={styles.solarDesc}>Le ل se prononce{'\n'}al-qamar</Text>
-          </View>
-          <View style={[styles.solarCard, styles.solarCardSun]}>
-            <Text style={styles.solarAr}>الشَّمْس</Text>
-            <Text style={styles.solarLabel}>Lettre solaire</Text>
-            <Text style={styles.solarDesc}>Le ل s'assimile{'\n'}ash-shams</Text>
-          </View>
-        </View>
-        <View style={styles.pedagogyBox}>
-          <Text style={styles.pedagogyText}>
-            💡 Les lettres solaires "absorbent" le ل de l'article. Les lettres lunaires le laissent sonner clairement.
-          </Text>
-        </View>
-      </View>
-    );
+async function createSRSCardsForItems(
+  itemIds: string[],
+  itemType: 'diacritic' | 'word' | 'sentence',
+): Promise<void> {
+  const { useAuthStore } = await import('../../src/stores/useAuthStore');
+  const userId = useAuthStore.getState().userId;
+  if (!userId) return;
+  const { upsertSRSCard } = await import('../../src/db/local-queries');
+  for (const itemId of itemIds) {
+    const card = createNewCard(userId, itemType, itemId);
+    await upsertSRSCard({ id: `${userId}-${itemType}-${itemId}`, ...card });
   }
-
-  if (item.kind === 'root_family') {
-    return (
-      <RootFamilyDisplay
-        root={item.root}
-        words={item.words}
-      />
-    );
-  }
-
-  // kind === 'word'
-  return (
-    <WordCard
-      word={item.word}
-      root={item.root}
-      mode="full"
-    />
-  );
 }
 
-// ── Rendu d'un item de présentation sentences ─────────────────
-
-function SentencePresentationContent({ item }: { item: SentencePresentationItem | null }) {
-  if (!item) return null;
-
-  if (item.kind === 'sentence') {
-    return <SentenceCard sentence={item.sentence} mode="full" />;
-  }
-
-  if (item.kind === 'dialogue') {
-    return <DialogueDisplay dialogue={item.dialogue} />;
-  }
-
-  if (item.kind === 'suffix_table') {
-    return (
-      <View style={styles.pedagogyBox}>
-        <Text style={styles.pedagogyText}>
-          Les suffixes possessifs s'attachent au nom :
-        </Text>
-        {[
-          { suffix: '-ي',  label: '(moi)',   example: 'كِتَابِي',   meaning: 'mon livre' },
-          { suffix: '-كَ', label: '(toi m)', example: 'كِتَابُكَ',  meaning: 'ton livre' },
-          { suffix: '-هُ', label: '(lui)',   example: 'كِتَابُهُ',  meaning: 'son livre' },
-          { suffix: '-نَا',label: '(nous)',  example: 'كِتَابُنَا', meaning: 'notre livre' },
-        ].map(row => (
-          <View key={row.suffix} style={styles.suffixRow}>
-            <Text style={styles.suffixCode}>{row.suffix}</Text>
-            <Text style={styles.suffixLabel}>{row.label}</Text>
-            <Text style={styles.suffixExample}>{row.example}</Text>
-            <Text style={styles.suffixMeaning}>{row.meaning}</Text>
-          </View>
-        ))}
-      </View>
-    );
-  }
-
-  if (item.kind === 'nominal_rule') {
-    return (
-      <View style={styles.pedagogyBox}>
-        <Text style={styles.pedagogyText}>
-          {'La phrase nominale :\n\nSujet défini (avec الـ) + adjectif indéfini\n= "X est [adj]"\n\n'}
-          <Text style={{ fontFamily: 'Amiri', fontSize: 20 }}>الْبَيْتُ كَبِيرٌ</Text>
-          {'\n→ La maison est grande.\n\n'}
-          {'L\'adjectif s\'accorde en genre :\n'}
-          <Text style={{ fontFamily: 'Amiri', fontSize: 18 }}>جَمِيل</Text>
-          {' (m) → '}
-          <Text style={{ fontFamily: 'Amiri', fontSize: 18 }}>جَمِيلَة</Text>
-          {' (f)'}
-        </Text>
-      </View>
-    );
-  }
-
-  return null;
-}
-
-// ── CompareDiacriticsSection (inchangé) ──────────────────────
-
-function CompareDiacriticsSection({ lessonSortOrder }: { lessonSortOrder: number }) {
-  const compareSortOrders: number[] = [];
-  if (lessonSortOrder === 2) {
-    compareSortOrders.push(1, 3);
-  } else if (lessonSortOrder === 3) {
-    compareSortOrders.push(1, 3, 2);
-  }
-  const { data: compareDiacritics } = useDiacriticsForLesson(compareSortOrders);
-  if (!compareDiacritics || compareDiacritics.length < 2) return null;
-
-  return (
-    <View style={styles.compareSection}>
-      <Text style={styles.compareSectionTitle}>Comparaison :</Text>
-      <SyllableDisplay
-        mode="compare_diacritics"
-        diacritics={compareDiacritics}
-        letterForms={['ب', 'ت', 'س', 'ن']}
-      />
-    </View>
-  );
-}
+// ── Styles ────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   loader: { flex: 1 },
-  errorText: { padding: Spacing.xl, color: Colors.textSecondary, textAlign: 'center' },
 
-  header: {
-    flexDirection: 'row',
+  resultsScroll: {
+    paddingHorizontal: Layout.screenPaddingH,
+    paddingTop: Spacing['4xl'],
+    paddingBottom: Spacing['3xl'],
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    gap: Spacing.xl,
   },
-  backBtn: { width: 36, height: 36, justifyContent: 'center' },
-  backArrow: { fontSize: 22, color: Colors.textSecondary },
-  lessonTitle: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: Spacing.sm,
-  },
-
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Layout.screenPaddingH,
-  },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
-  dotFilled: { backgroundColor: Colors.primary },
-  counter: { textAlign: 'center', fontSize: FontSizes.small, color: Colors.textMuted, marginBottom: Spacing.md },
-
-  scroll: { paddingHorizontal: Layout.screenPaddingH, paddingBottom: Spacing['2xl'], gap: Spacing.xl },
-
-  pedagogyBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
-  },
-  pedagogyText: { fontSize: FontSizes.body, color: Colors.textPrimary, lineHeight: 24 },
-
-  compareSection: { gap: Spacing.sm },
-  compareSectionTitle: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-
-  // Solar/Lunar intro
-  solarIntroBox: { gap: Spacing.xl },
-  solarIntroTitle: {
-    fontSize: FontSizes.heading,
+  resultsTitle: {
+    fontSize: FontSizes.title,
     fontWeight: '700',
     color: Colors.textPrimary,
+  },
+  encouragement: {
+    fontSize: FontSizes.heading,
+    color: Colors.primary,
+    fontWeight: '600',
     textAlign: 'center',
   },
-  solarIntroText: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    lineHeight: 24,
-    textAlign: 'center',
-  },
-  solarRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  solarCard: {
-    flex: 1,
+  scoreBox: {
     backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    padding: Spacing['3xl'],
     alignItems: 'center',
+    width: '100%',
     gap: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  solarCardSun: {
-    borderColor: '#D4A843',
-    backgroundColor: '#FFF8E1',
-  },
-  solarAr: {
-    fontSize: 28,
-    fontFamily: 'Amiri',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  solarLabel: {
-    fontSize: FontSizes.caption,
+  scoreNumber: {
+    fontSize: 56,
     fontWeight: '700',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  solarDesc: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-
-  suffixRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8E2D9',
-  },
-  suffixCode: {
-    fontFamily: 'Amiri',
-    fontSize: 20,
     color: Colors.primary,
-    width: 40,
-    textAlign: 'right',
+    lineHeight: 64,
   },
-  suffixLabel: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    width: 56,
+  scoreLabel: { fontSize: FontSizes.body, color: Colors.textSecondary },
+  scoreBarTrack: {
+    width: '100%',
+    height: 8,
+    backgroundColor: Colors.border,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+    marginTop: Spacing.md,
   },
-  suffixExample: {
-    fontFamily: 'Amiri',
-    fontSize: 18,
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'right',
+  scoreBarFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
   },
-  suffixMeaning: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-    width: 80,
+  scorePct: {
+    fontSize: FontSizes.heading,
+    fontWeight: '700',
+    color: Colors.primary,
   },
-
-  footer: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.bg,
-  },
-  listenBtn: {
-    height: Layout.buttonHeight,
-    paddingHorizontal: Spacing.xl,
+  xpBox: {
+    backgroundColor: Colors.primaryLight,
     borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: Spacing.xs,
   },
-  listenLabel: { fontSize: FontSizes.body, color: Colors.primary, fontWeight: '600' },
-  nextBtn: {
-    flex: 1,
+  xpText: { fontSize: FontSizes.heading, fontWeight: '700', color: Colors.primary },
+  xpBonus: { fontSize: FontSizes.caption, color: Colors.primary },
+  streakText: { fontSize: FontSizes.caption, color: Colors.textSecondary, marginTop: 2 },
+  timeText: { fontSize: FontSizes.caption, color: Colors.textMuted },
+  ctaBtn: {
+    width: '100%',
     height: Layout.buttonHeight,
     backgroundColor: Colors.primary,
     borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: Spacing.lg,
   },
-  nextLabel: { fontSize: FontSizes.body, fontWeight: '700', color: Colors.textOnPrimary },
+  ctaLabel: { fontSize: FontSizes.body, fontWeight: '700', color: Colors.textOnPrimary },
 });
