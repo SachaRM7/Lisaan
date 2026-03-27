@@ -30,6 +30,7 @@ import type { Word } from '../../hooks/useWords';
 import type { Root } from '../../hooks/useRoots';
 import type { Sentence } from '../../hooks/useSentences';
 import type { Dialogue, DialogueTurn, DialogueWithTurns } from '../../hooks/useDialogues';
+import type { GrammarRule, ConjugationEntry } from '../../types/grammar';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -43,6 +44,11 @@ type SentencePresentationItem =
   | { kind: 'sentence'; sentence: Sentence }
   | { kind: 'dialogue'; dialogue: DialogueWithTurns };
 
+type ConjugationTeachingItem = {
+  wordId: string;
+  entries: ConjugationEntry[];
+};
+
 interface ContentData {
   letters?: Letter[];
   diacritics?: Diacritic[];
@@ -50,6 +56,8 @@ interface ContentData {
   roots?: Root[];
   sentences?: Sentence[];
   dialogues?: (Dialogue & { turns: DialogueTurn[] })[];
+  grammarRules?: GrammarRule[];
+  conjugationEntries?: ConjugationEntry[];
   /** Pour savoir s'il faut afficher solar_intro */
   wordConfigType?: string;
   /** Pour savoir s'il faut afficher suffix_table ou nominal_rule */
@@ -128,6 +136,12 @@ export function SectionPlayer({
         contentData.sentenceConfigType,
         section.index === 0,
       );
+    }
+    if (contentType === 'grammar') {
+      return buildGrammarItems(section.teachingItemIds, contentData.grammarRules ?? []);
+    }
+    if (contentType === 'conjugation') {
+      return buildConjugationItems(section.teachingItemIds, contentData.conjugationEntries ?? []);
     }
     return [];
   }, [section, contentType, contentData]);
@@ -232,6 +246,12 @@ export function SectionPlayer({
           {contentType === 'sentences' && (
             <SentencePresentationContent item={item as SentencePresentationItem | null} />
           )}
+          {contentType === 'grammar' && (
+            <GrammarRuleContent rule={item as GrammarRule | null} />
+          )}
+          {contentType === 'conjugation' && (
+            <ConjugationContent item={item as ConjugationTeachingItem | null} />
+          )}
         </ScrollView>
 
         {/* Footer */}
@@ -276,6 +296,7 @@ export function SectionPlayer({
       </View>
 
       <ExerciseRenderer
+        key={currentExercise.id}
         config={currentExercise}
         onComplete={handleExerciseComplete}
       />
@@ -340,6 +361,17 @@ function buildSentenceItems(
   }
 
   return items;
+}
+
+function buildGrammarItems(ids: string[], rules: GrammarRule[]): GrammarRule[] {
+  const map = new Map(rules.map(r => [r.id, r]));
+  return ids.map(id => map.get(id)).filter(Boolean) as GrammarRule[];
+}
+
+function buildConjugationItems(wordIds: string[], entries: ConjugationEntry[]): ConjugationTeachingItem[] {
+  return wordIds
+    .map(wordId => ({ wordId, entries: entries.filter(e => e.word_id === wordId) }))
+    .filter(item => item.entries.length > 0);
 }
 
 // ── Sous-composants de teaching ───────────────────────────────
@@ -475,6 +507,61 @@ function SentencePresentationContent({ item }: { item: SentencePresentationItem 
   }
 
   return null;
+}
+
+function GrammarRuleContent({ rule }: { rule: GrammarRule | null }) {
+  if (!rule) return null;
+  return (
+    <View style={styles.grammarCard}>
+      <Text style={styles.grammarTitle}>{rule.title_fr}</Text>
+      {rule.title_ar ? <Text style={styles.grammarTitleAr}>{rule.title_ar}</Text> : null}
+      <Text style={styles.grammarConcept}>{rule.concept_fr}</Text>
+      {rule.formula ? (
+        <View style={styles.formulaBox}>
+          <Text style={styles.formulaText}>{rule.formula}</Text>
+        </View>
+      ) : null}
+      <View style={styles.grammarExampleBox}>
+        <Text style={styles.grammarExampleAr}>{rule.example_ar_vocalized}</Text>
+        <Text style={styles.grammarTranslit}>{rule.example_transliteration}</Text>
+        <Text style={styles.grammarTranslation}>« {rule.example_translation_fr} »</Text>
+      </View>
+      {rule.pedagogy_notes ? (
+        <View style={styles.pedagogyBox}>
+          <Text style={styles.pedagogyText}>💡 {rule.pedagogy_notes}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ConjugationContent({ item }: { item: ConjugationTeachingItem | null }) {
+  if (!item || item.entries.length === 0) return null;
+  const firstEntry = item.entries[0];
+  return (
+    <View style={styles.conjCard}>
+      <Text style={styles.conjVerbAr}>{firstEntry.conjugated_ar_vocalized}</Text>
+      <Text style={styles.conjTitle}>Conjugaison au passé</Text>
+      <View style={styles.conjTable}>
+        {item.entries.map(entry => (
+          <View key={entry.id} style={styles.conjRow}>
+            <Text style={styles.conjPronounFr}>{entry.pronoun_fr}</Text>
+            <Text style={styles.conjPronounAr}>{entry.pronoun_ar}</Text>
+            <Text style={styles.conjForm}>{entry.conjugated_ar_vocalized}</Text>
+            <Text style={styles.conjTranslit}>{entry.conjugated_transliteration}</Text>
+          </View>
+        ))}
+      </View>
+      {firstEntry.example_sentence_ar_vocalized ? (
+        <View style={styles.pedagogyBox}>
+          <Text style={styles.grammarExampleAr}>{firstEntry.example_sentence_ar_vocalized}</Text>
+          {firstEntry.example_sentence_translation_fr ? (
+            <Text style={styles.grammarTranslation}>« {firstEntry.example_sentence_translation_fr} »</Text>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 function CompareDiacriticsSection({ lessonSortOrder }: { lessonSortOrder: number }) {
@@ -665,5 +752,127 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontStyle: 'italic',
     width: 80,
+  },
+
+  // Grammar rule teaching
+  grammarCard: {
+    gap: Spacing.lg,
+  },
+  grammarTitle: {
+    fontSize: FontSizes.heading,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  grammarTitleAr: {
+    fontFamily: 'Amiri',
+    fontSize: 22,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  grammarConcept: {
+    fontSize: FontSizes.body,
+    color: Colors.textSecondary,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+  formulaBox: {
+    backgroundColor: Colors.primaryLight,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    alignSelf: 'center',
+  },
+  formulaText: {
+    fontFamily: 'Amiri',
+    fontSize: 22,
+    color: Colors.primary,
+    textAlign: 'center',
+  },
+  grammarExampleBox: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing['2xl'],
+    paddingHorizontal: Spacing.xl,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  grammarExampleAr: {
+    fontFamily: 'Amiri',
+    fontSize: 36,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  grammarTranslit: {
+    fontSize: FontSizes.body,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  grammarTranslation: {
+    fontSize: FontSizes.body,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+
+  // Conjugation teaching
+  conjCard: {
+    gap: Spacing.lg,
+    alignItems: 'center',
+  },
+  conjVerbAr: {
+    fontFamily: 'Amiri',
+    fontSize: 48,
+    color: Colors.primary,
+    textAlign: 'center',
+  },
+  conjTitle: {
+    fontSize: FontSizes.caption,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  conjTable: {
+    width: '100%',
+    gap: 2,
+  },
+  conjRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.sm,
+    gap: Spacing.sm,
+  },
+  conjPronounFr: {
+    fontSize: FontSizes.small,
+    color: Colors.textMuted,
+    width: 36,
+  },
+  conjPronounAr: {
+    fontFamily: 'Amiri',
+    fontSize: 16,
+    color: Colors.textSecondary,
+    width: 48,
+    textAlign: 'right',
+  },
+  conjForm: {
+    fontFamily: 'Amiri',
+    fontSize: 22,
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: 'right',
+  },
+  conjTranslit: {
+    fontSize: FontSizes.small,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+    width: 90,
+    textAlign: 'right',
   },
 });

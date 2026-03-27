@@ -6,7 +6,9 @@ export type ExerciseType =
   | 'match'
   | 'fill_blank'
   | 'trace'
-  | 'listen_select';
+  | 'listen_select'
+  | 'reorder'
+  | 'dialogue';
 
 /** Texte localisé (arabe + français) */
 export interface LocalizedText {
@@ -56,6 +58,67 @@ export interface ExerciseConfig {
     ar: string;
     position: number;
   };
+  // reorder specific
+  sentence_id?: string;
+  words_shuffled?: ReorderWord[];
+  correct_order?: string[];
+  show_transliteration?: boolean;
+  show_translation?: boolean;
+  hint_fr?: string;
+  // dialogue specific
+  context_fr?: string;
+  turns?: DialogueTurn[];
+  choices?: DialogueChoice[];
+}
+
+// ── Reorder ──────────────────────────────────────────────────
+
+export interface ReorderWord {
+  id: string;
+  arabic: string;
+  arabic_vocalized: string;
+  transliteration?: string;
+}
+
+export interface ReorderExerciseConfig {
+  type: 'reorder';
+  sentence_id: string;
+  words_shuffled: ReorderWord[];
+  correct_order: string[];
+  show_transliteration: boolean;
+  show_translation: boolean;
+  hint_fr?: string;
+}
+
+// ── Dialogue ─────────────────────────────────────────────────
+
+export interface DialogueTurn {
+  id: string;
+  speaker: 'a' | 'b';
+  speaker_name?: string;
+  arabic: string;
+  arabic_vocalized: string;
+  transliteration?: string;
+  translation_fr?: string;
+  audio_url?: string;
+}
+
+export interface DialogueChoice {
+  id: string;
+  arabic: string;
+  arabic_vocalized: string;
+  transliteration?: string;
+  is_correct: boolean;
+  feedback_fr?: string;
+}
+
+export interface DialogueExerciseConfig {
+  type: 'dialogue';
+  context_fr?: string;
+  turns: DialogueTurn[];
+  choices: DialogueChoice[];
+  show_transliteration: boolean;
+  show_translation: boolean;
 }
 
 /** Résultat d'un exercice complété */

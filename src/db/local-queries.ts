@@ -142,7 +142,7 @@ export async function getFirstLessonOfNextModule(currentModuleId: string) {
 export async function getLessonWithModule(lessonId: string) {
   const db = getLocalDB();
   return db.getFirstAsync<any>(
-    `SELECT l.*, m.sort_order as module_sort_order
+    `SELECT l.*, m.sort_order as module_sort_order, l.content_refs
      FROM lessons l
      JOIN modules m ON l.module_id = m.id
      WHERE l.id = ?`,
@@ -154,13 +154,17 @@ export async function upsertLessons(lessons: any[]): Promise<void> {
   const db = getLocalDB();
   const now = new Date().toISOString();
   for (const l of lessons) {
+    // content_refs arrive comme TEXT[] de Supabase → stocker en JSON
+    const contentRefs = Array.isArray(l.content_refs)
+      ? JSON.stringify(l.content_refs)
+      : (l.content_refs ?? '[]');
     await db.runAsync(
       `INSERT OR REPLACE INTO lessons (
         id, module_id, title_fr, title_ar, description_fr,
-        sort_order, xp_reward, estimated_minutes, synced_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sort_order, xp_reward, estimated_minutes, content_refs, synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [l.id, l.module_id, l.title_fr, l.title_ar, l.description_fr,
-       l.sort_order, l.xp_reward, l.estimated_minutes, now]
+       l.sort_order, l.xp_reward, l.estimated_minutes, contentRefs, now]
     );
   }
 }
@@ -705,6 +709,74 @@ export async function deleteLessonSession(lessonId: string, userId: string): Pro
     'DELETE FROM lesson_session WHERE lesson_id = ? AND user_id = ?',
     [lessonId, userId]
   );
+}
+
+// ============================================================
+// GRAMMAIRE & CONJUGAISON (É11)
+// ============================================================
+
+export async function getGrammarRulesByModule(moduleId: string): Promise<any[]> {
+  const db = getLocalDB();
+  return db.getAllAsync(
+    'SELECT * FROM grammar_rules WHERE module_id = ? ORDER BY sort_order ASC',
+    [moduleId]
+  );
+}
+
+export async function upsertGrammarRules(rules: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const r of rules) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO grammar_rules
+         (id, module_id, sort_order, title_fr, title_ar, concept_fr, formula,
+          example_ar, example_ar_vocalized, example_transliteration, example_translation_fr,
+          example_audio_url, pedagogy_notes, difficulty, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [r.id, r.module_id, r.sort_order, r.title_fr, r.title_ar ?? null,
+       r.concept_fr, r.formula ?? null, r.example_ar, r.example_ar_vocalized,
+       r.example_transliteration, r.example_translation_fr,
+       r.example_audio_url ?? null, r.pedagogy_notes ?? null, r.difficulty, now]
+    );
+  }
+}
+
+export async function getConjugationsByWords(wordIds: string[], tense: string): Promise<any[]> {
+  if (wordIds.length === 0) return [];
+  const db = getLocalDB();
+  const placeholders = wordIds.map(() => '?').join(',');
+  return db.getAllAsync(
+    `SELECT * FROM conjugation_entries WHERE word_id IN (${placeholders}) AND tense = ? ORDER BY word_id, pronoun_code ASC`,
+    [...wordIds, tense]
+  );
+}
+
+export async function getConjugationsByWord(wordId: string, tense: string): Promise<any[]> {
+  const db = getLocalDB();
+  return db.getAllAsync(
+    'SELECT * FROM conjugation_entries WHERE word_id = ? AND tense = ? ORDER BY pronoun_code ASC',
+    [wordId, tense]
+  );
+}
+
+export async function upsertConjugationEntries(entries: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const e of entries) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO conjugation_entries
+         (id, word_id, tense, form, pronoun_code, pronoun_ar, pronoun_fr,
+          conjugated_ar, conjugated_ar_vocalized, conjugated_transliteration, audio_url,
+          example_sentence_ar, example_sentence_ar_vocalized,
+          example_sentence_translation_fr, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [e.id, e.word_id, e.tense, e.form, e.pronoun_code, e.pronoun_ar, e.pronoun_fr,
+       e.conjugated_ar, e.conjugated_ar_vocalized, e.conjugated_transliteration,
+       e.audio_url ?? null, e.example_sentence_ar ?? null,
+       e.example_sentence_ar_vocalized ?? null,
+       e.example_sentence_translation_fr ?? null, now]
+    );
+  }
 }
 
 // ============================================================

@@ -20,6 +20,8 @@ import { useWords, useSimpleWords, useWordsByTheme } from '../../src/hooks/useWo
 import { useRoots } from '../../src/hooks/useRoots';
 import { useSentences } from '../../src/hooks/useSentences';
 import { useDialogues, useDialogueWithTurns } from '../../src/hooks/useDialogues';
+import { useGrammarRules } from '../../src/hooks/useGrammarRules';
+import { useConjugationsByWords } from '../../src/hooks/useConjugations';
 import { useUpdateSRSCard, useSRSCards } from '../../src/hooks/useSRSCards';
 import { useCompleteLesson } from '../../src/hooks/useProgress';
 import { useBadges } from '../../src/hooks/useBadges';
@@ -31,6 +33,8 @@ import { generateLetterLessonSections } from '../../src/engines/exercise-generat
 import { generateHarakatLessonSections, LESSON_DIACRITIC_RANGES } from '../../src/engines/harakat-exercise-generator';
 import { generateWordLessonSections, LESSON_WORD_CONFIG } from '../../src/engines/word-exercise-generator';
 import { generateSentenceLessonSections, LESSON_SENTENCE_CONFIG } from '../../src/engines/sentence-exercise-generator';
+import { generateGrammarExercises } from '../../src/engines/grammar-exercise-generator';
+import { generateConjugationExercises } from '../../src/engines/conjugation-exercise-generator';
 
 // ── Engines ──────────────────────────────────────────────────
 import { computeSRSUpdate, exerciseResultToQuality, createNewCard } from '../../src/engines/srs';
@@ -68,6 +72,9 @@ const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
   5: [16, 19], 6: [20, 23], 7: [24, 28],
 };
+
+const MODULE_GRAMMAR_ID    = 'a1000000-0000-0000-0000-000000000005';
+const MODULE_CONJUGATION_ID = 'a1000000-0000-0000-0000-000000000006';
 
 type LessonScreenMode = 'loading' | 'hub' | 'playing' | 'lesson_complete';
 
@@ -110,10 +117,19 @@ export default function LessonScreen() {
   // ── Hooks ────────────────────────────────────────────────
   const { data: lesson, isLoading: lessonLoading } = useLesson(id ?? '');
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
-  const contentType: LessonSections['contentType'] = moduleSortOrder === 2 ? 'diacritics'
-    : moduleSortOrder === 3 ? 'words'
-    : moduleSortOrder === 4 ? 'sentences'
-    : 'letters';
+  const moduleId = lesson?.module_id ?? '';
+  const contentType: LessonSections['contentType'] =
+    moduleId === MODULE_GRAMMAR_ID    ? 'grammar'      :
+    moduleId === MODULE_CONJUGATION_ID ? 'conjugation'  :
+    moduleSortOrder === 2 ? 'diacritics' :
+    moduleSortOrder === 3 ? 'words'      :
+    moduleSortOrder === 4 ? 'sentences'  :
+    'letters';
+
+  // content_refs : IDs des règles / mots liés à cette leçon
+  const contentRefs: string[] = useMemo(() => {
+    try { return JSON.parse(lesson?.content_refs ?? '[]'); } catch { return []; }
+  }, [lesson?.content_refs]);
 
   const exercise_direction = useSettingsStore((s) => s.exercise_direction);
   const updateSRSCard = useUpdateSRSCard();
@@ -160,6 +176,28 @@ export default function LessonScreen() {
     return allWords ?? [];
   }, [contentType, lesson?.sort_order, simpleWords, allWords, themeWords]);
 
+  // ── Module 5 : grammaire ─────────────────────────────────
+  const { rules: grammarRules, loading: grammarLoading } = useGrammarRules(
+    contentType === 'grammar' ? moduleId : ''
+  );
+
+  // ── Module 6 : conjugaison ───────────────────────────────
+  const { conjugations: lessonConjugations, loading: conjugationsLoading } = useConjugationsByWords(
+    contentType === 'conjugation' ? contentRefs : [],
+    'past'
+  );
+  const { conjugations: allConjugations } = useConjugationsByWords(
+    contentType === 'conjugation' ? [
+      'd0000000-0000-0000-0000-000000000001',
+      'd0000000-0000-0000-0000-000000000002',
+      'd0000000-0000-0000-0000-000000000003',
+      'd0000000-0000-0000-0000-000000000004',
+      'd0000000-0000-0000-0000-000000000005',
+      'd0000000-0000-0000-0000-000000000006',
+    ] : [],
+    'past'
+  );
+
   // ── Module 4 : phrases ───────────────────────────────────
   const { data: allSentences, isLoading: sentencesLoading, refetch: refetchSentences } = useSentences();
   const { data: allDialogues, isLoading: dialoguesLoading } = useDialogues();
@@ -192,7 +230,9 @@ export default function LessonScreen() {
   // ── isLoading ────────────────────────────────────────────
   const isLoading = lessonLoading || lettersLoading || diacriticsLoading
     || (contentType === 'words' && (rootsLoading || simpleWordsLoading || themeWordsLoading))
-    || (contentType === 'sentences' && (sentencesLoading || dialoguesLoading || forceSyncing));
+    || (contentType === 'sentences' && (sentencesLoading || dialoguesLoading || forceSyncing))
+    || (contentType === 'grammar' && grammarLoading)
+    || (contentType === 'conjugation' && conjugationsLoading);
 
   // ── Force sync sentences si vides ────────────────────────
   useEffect(() => {
@@ -222,6 +262,30 @@ export default function LessonScreen() {
       if (!lesson || !allRoots) return { contentType: 'words', sections: [] };
       return generateWordLessonSections(lesson.sort_order, lessonWords, allWords ?? [], allRoots);
     }
+    if (contentType === 'grammar') {
+      if (!grammarRules.length) return { contentType: 'grammar', sections: [] };
+      const lessonRules = contentRefs.length
+        ? grammarRules.filter(r => contentRefs.includes(r.id))
+        : grammarRules;
+      if (!lessonRules.length) return { contentType: 'grammar', sections: [] };
+      const exercises = generateGrammarExercises(lessonRules);
+      return {
+        contentType: 'grammar',
+        sections: [{ id: 'section-grammar-0', index: 0, title_fr: lessonRules[0].title_fr, teachingItemIds: lessonRules.map(r => r.id), exercises }],
+      };
+    }
+    if (contentType === 'conjugation') {
+      if (!lessonConjugations.length) return { contentType: 'conjugation', sections: [] };
+      const wordIds = [...new Set(lessonConjugations.map(e => e.word_id))];
+      const allVerbEntries = allConjugations.length ? allConjugations : lessonConjugations;
+      const exercises = wordIds.flatMap(wid =>
+        generateConjugationExercises(wid, lessonConjugations.filter(e => e.word_id === wid), allVerbEntries)
+      );
+      return {
+        contentType: 'conjugation',
+        sections: [{ id: 'section-conj-0', index: 0, title_fr: lesson?.title_fr ?? 'Conjugaison', teachingItemIds: wordIds, exercises }],
+      };
+    }
     // sentences
     if (!lesson || !sentenceConfig) return { contentType: 'sentences', sections: [] };
     return generateSentenceLessonSections(
@@ -229,7 +293,8 @@ export default function LessonScreen() {
     );
   }, [contentType, lesson, lessonLetters, allLetters, exercise_direction,
       lessonDiacritics, allDiacritics, lessonWords, allWords, allRoots,
-      lessonSentences, allSentences, sentenceConfig, dialoguesWithTurns]);
+      lessonSentences, allSentences, sentenceConfig, dialoguesWithTurns,
+      grammarRules, contentRefs, lessonConjugations, allConjugations]);
 
   // ── Init : détecter mode au chargement ───────────────────
   const initDone = useRef(false);
@@ -479,11 +544,14 @@ export default function LessonScreen() {
     roots: allRoots ?? [],
     sentences: lessonSentences,
     dialogues: dialoguesWithTurns,
+    grammarRules: grammarRules,
+    conjugationEntries: lessonConjugations,
     wordConfigType: wordConfig?.type,
     sentenceConfigType: sentenceConfig?.type,
     lessonSortOrder: lesson?.sort_order,
   }), [lessonLetters, lessonDiacritics, lessonWords, allRoots, lessonSentences,
-       dialoguesWithTurns, wordConfig?.type, sentenceConfig?.type, lesson?.sort_order]);
+       dialoguesWithTurns, grammarRules, lessonConjugations,
+       wordConfig?.type, sentenceConfig?.type, lesson?.sort_order]);
 
   // ── Résultat de leçon ─────────────────────────────────────
   async function handleContinue() {

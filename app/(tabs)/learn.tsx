@@ -153,9 +153,9 @@ function UnlockedModuleCard({
   useEffect(() => {
     if (isNewlyUnlocked) {
       Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0.6, duration: 300, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+        Animated.timing(glowAnim, { toValue: 0.6, duration: 300, useNativeDriver: false }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
       ]).start();
     }
   }, [isNewlyUnlocked]);
@@ -265,11 +265,13 @@ function useUnlockModule() {
 
 export default function LearnScreen() {
   const { data: modules, isLoading } = useModules();
-  const { data: progress = [] } = useProgress();
+  const { data: progress = [], isSuccess: progressLoaded } = useProgress();
   const { data: module1Lessons } = useLessons(modules?.[0]?.id ?? '');
   const { data: module2Lessons } = useLessons(modules?.[1]?.id ?? '');
   const { data: module3Lessons } = useLessons(modules?.[2]?.id ?? '');
   const { data: module4Lessons } = useLessons(modules?.[3]?.id ?? '');
+  const { data: module5Lessons } = useLessons(modules?.[4]?.id ?? '');
+  const { data: module6Lessons } = useLessons(modules?.[5]?.id ?? '');
   const initFirstLesson = useInitFirstLesson();
   const unlockModule = useUnlockModule();
   const userId = useAuthStore((s) => s.userId);
@@ -291,13 +293,16 @@ export default function LearnScreen() {
     enabled: !!userId,
   });
 
-  // Initialiser la leçon 1 si aucune progression n'existe
+  // Initialiser la leçon 1 si elle n'a pas encore de progression
   useEffect(() => {
     const currentUserId = useAuthStore.getState().userId;
-    if (currentUserId && progress.length === 0 && module1Lessons && module1Lessons.length > 0) {
-      initFirstLesson.mutate(module1Lessons[0].id);
+    if (!currentUserId || !progressLoaded || !module1Lessons || module1Lessons.length === 0) return;
+    const firstLesson = module1Lessons[0];
+    const firstLessonProgress = progress.find(p => p.lesson_id === firstLesson.id);
+    if (!firstLessonProgress || firstLessonProgress.status === 'locked') {
+      initFirstLesson.mutate(firstLesson.id);
     }
-  }, [userId, progress.length, module1Lessons]);
+  }, [userId, progressLoaded, progress, module1Lessons]);
 
   // ── Calcul des structures pour isModuleUnlocked ────────────
 
@@ -308,6 +313,8 @@ export default function LearnScreen() {
     [modules?.[1]?.id ?? '']: module2Lessons ?? [],
     [modules?.[2]?.id ?? '']: module3Lessons ?? [],
     [modules?.[3]?.id ?? '']: module4Lessons ?? [],
+    [modules?.[4]?.id ?? '']: module5Lessons ?? [],
+    [modules?.[5]?.id ?? '']: module6Lessons ?? [],
   };
 
   const lessonCountByModule: Record<string, number> = {};
@@ -329,6 +336,8 @@ export default function LearnScreen() {
   const module2Unlocked = isModuleUnlocked(2, progressByModule, allModules, lessonCountByModule);
   const module3Unlocked = isModuleUnlocked(3, progressByModule, allModules, lessonCountByModule);
   const module4Unlocked = isModuleUnlocked(4, progressByModule, allModules, lessonCountByModule);
+  const module5Unlocked = isModuleUnlocked(5, progressByModule, allModules, lessonCountByModule);
+  const module6Unlocked = isModuleUnlocked(6, progressByModule, allModules, lessonCountByModule);
 
   // ── Détection déverrouillage Module 2 ─────────────────────
 
@@ -386,6 +395,44 @@ export default function LearnScreen() {
       }
     }
   }, [module4Unlocked]);
+
+  // ── Détection déverrouillage Module 5 ─────────────────────
+
+  useEffect(() => {
+    if (module5Unlocked && !prevUnlocked.current[5]) {
+      prevUnlocked.current[5] = true;
+      const mod5 = allModules.find(m => m.sort_order === 5);
+      const alreadyHadProgress = mod5 ? (progressByModule[mod5.id]?.length ?? 0) > 0 : false;
+      if (!alreadyHadProgress) {
+        if (module5Lessons && module5Lessons.length > 0) {
+          unlockModule.mutate(module5Lessons[0].id);
+        }
+        setNewlyUnlockedIndex(4);
+        setUnlockBannerMessage('🎉 Module 5 débloqué ! Découvre la grammaire essentielle.');
+        setTimeout(() => setUnlockBannerMessage(null), 4000);
+        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
+      }
+    }
+  }, [module5Unlocked]);
+
+  // ── Détection déverrouillage Module 6 ─────────────────────
+
+  useEffect(() => {
+    if (module6Unlocked && !prevUnlocked.current[6]) {
+      prevUnlocked.current[6] = true;
+      const mod6 = allModules.find(m => m.sort_order === 6);
+      const alreadyHadProgress = mod6 ? (progressByModule[mod6.id]?.length ?? 0) > 0 : false;
+      if (!alreadyHadProgress) {
+        if (module6Lessons && module6Lessons.length > 0) {
+          unlockModule.mutate(module6Lessons[0].id);
+        }
+        setNewlyUnlockedIndex(5);
+        setUnlockBannerMessage('🎉 Module 6 débloqué ! Conjugue tes premiers verbes.');
+        setTimeout(() => setUnlockBannerMessage(null), 4000);
+        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
+      }
+    }
+  }, [module6Unlocked]);
 
   if (isLoading) {
     return (

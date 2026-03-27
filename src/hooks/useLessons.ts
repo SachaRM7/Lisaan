@@ -12,6 +12,7 @@ export interface Lesson {
   sort_order: number;
   xp_reward: number;
   estimated_minutes: number;
+  content_refs?: string; // JSON string: string[]
 }
 
 export interface LessonWithModule extends Lesson {

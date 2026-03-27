@@ -15,6 +15,7 @@ import { useAuthStore } from '../../src/stores/useAuthStore';
 import { getLocalDB } from '../../src/db/local';
 import { devCompleteAllLessons, getCompletedLessonsCount } from '../../src/db/local-queries';
 import { runSync } from '../../src/engines/sync-manager';
+import { syncContentFromCloud } from '../../src/engines/content-sync';
 import { checkAndUnlockBadges } from '../../src/engines/badge-engine';
 import { useQueryClient } from '@tanstack/react-query';
 import { reset as posthogReset } from '../../src/analytics/posthog';
@@ -374,6 +375,25 @@ export default function ProfileScreen() {
                 }}
               >
                 <Text style={styles.accountRowText}>Compléter toutes les leçons</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.accountRow}
+                onPress={async () => {
+                  try {
+                    const db = getLocalDB();
+                    await db.runAsync('DELETE FROM sync_metadata');
+                    const result = await syncContentFromCloud();
+                    const lessonCount = result.tables.lessons?.synced ?? 0;
+                    const errors = result.errors.length > 0 ? `\nErreurs: ${result.errors.join(', ')}` : '';
+                    await queryClient.invalidateQueries();
+                    Alert.alert('✅ Sync forcé', `${lessonCount} leçons syncées${errors}`);
+                  } catch (e: any) {
+                    Alert.alert('Erreur sync', e?.message ?? String(e));
+                  }
+                }}
+              >
+                <Text style={styles.accountRowText}>Force re-sync contenu</Text>
               </Pressable>
             </View>
           </>

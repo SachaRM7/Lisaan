@@ -52,11 +52,11 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
   const triggerShake = useCallback(() => {
     shakeAnim.setValue(0);
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 8,  duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 6,  duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -6, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 0,  duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8,  duration: 60, useNativeDriver: false }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: false }),
+      Animated.timing(shakeAnim, { toValue: 6,  duration: 60, useNativeDriver: false }),
+      Animated.timing(shakeAnim, { toValue: -6, duration: 60, useNativeDriver: false }),
+      Animated.timing(shakeAnim, { toValue: 0,  duration: 60, useNativeDriver: false }),
     ]).start();
   }, [shakeAnim]);
 

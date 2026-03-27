@@ -6,6 +6,7 @@ import {
   upsertRoots, upsertWords, upsertWordVariants,
   upsertSentences, upsertDialogues, upsertDialogueTurns,
   upsertBadges,
+  upsertGrammarRules, upsertConjugationEntries,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
 import { prefetchAudio } from '../services/audio-cache-service';
@@ -206,6 +207,37 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
     result.errors.push(`badges: ${e.message}`);
   }
 
+  // --- Grammar Rules ---
+  try {
+    const { data, error } = await supabase
+      .from('grammar_rules')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertGrammarRules(data);
+      await updateSyncMetadata('grammar_rules', data.length);
+      result.tables.grammar_rules = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`grammar_rules: ${e.message}`);
+  }
+
+  // --- Conjugation Entries ---
+  try {
+    const { data, error } = await supabase
+      .from('conjugation_entries')
+      .select('*');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertConjugationEntries(data);
+      await updateSyncMetadata('conjugation_entries', data.length);
+      result.tables.conjugation_entries = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`conjugation_entries: ${e.message}`);
+  }
+
   // Pré-téléchargement audio en arrière-plan (fire-and-forget)
   prefetchAudio().catch(err => console.warn('[content-sync] prefetch audio failed:', err));
 
@@ -222,6 +254,7 @@ export async function needsContentSync(): Promise<boolean> {
     'roots', 'words', 'word_variants',
     'sentences', 'dialogues', 'dialogue_turns',
     'badges',
+    'grammar_rules', 'conjugation_entries',
   ];
   for (const table of tables) {
     const meta = await getSyncMetadata(table);

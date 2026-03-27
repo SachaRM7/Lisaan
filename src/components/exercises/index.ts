@@ -5,6 +5,8 @@ import type { ComponentType } from 'react';
 import { MCQExercise } from './MCQExercise';
 import { MatchExercise } from './MatchExercise';
 import { FillBlankExercise } from './FillBlankExercise';
+import { ReorderExercise } from './ReorderExercise';
+import { DialogueExercise } from './DialogueExercise';
 
 /** Registry des composants d'exercice par type */
 const exerciseRegistry = new Map<ExerciseType, ComponentType<ExerciseComponentProps>>();
@@ -12,6 +14,8 @@ const exerciseRegistry = new Map<ExerciseType, ComponentType<ExerciseComponentPr
 exerciseRegistry.set('mcq', MCQExercise);
 exerciseRegistry.set('match', MatchExercise);
 exerciseRegistry.set('fill_blank', FillBlankExercise);
+exerciseRegistry.set('reorder', ReorderExercise);
+exerciseRegistry.set('dialogue', DialogueExercise);
 // exerciseRegistry.set('trace', TraceExercise);    // TODO: Étape future
 
 export function getExerciseComponent(

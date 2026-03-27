@@ -127,6 +127,46 @@ export async function initLocalSchema(): Promise<void> {
     );
 
     -- ============================================================
+    -- TABLES CONTENU — Grammaire et conjugaison (É11)
+    -- ============================================================
+
+    CREATE TABLE IF NOT EXISTS grammar_rules (
+      id TEXT PRIMARY KEY,
+      module_id TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      title_fr TEXT NOT NULL,
+      title_ar TEXT,
+      concept_fr TEXT NOT NULL,
+      formula TEXT,
+      example_ar TEXT NOT NULL,
+      example_ar_vocalized TEXT NOT NULL,
+      example_transliteration TEXT NOT NULL,
+      example_translation_fr TEXT NOT NULL,
+      example_audio_url TEXT,
+      pedagogy_notes TEXT,
+      difficulty INTEGER NOT NULL DEFAULT 1,
+      synced_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS conjugation_entries (
+      id TEXT PRIMARY KEY,
+      word_id TEXT NOT NULL,
+      tense TEXT NOT NULL,
+      form INTEGER NOT NULL DEFAULT 1,
+      pronoun_code TEXT NOT NULL,
+      pronoun_ar TEXT NOT NULL,
+      pronoun_fr TEXT NOT NULL,
+      conjugated_ar TEXT NOT NULL,
+      conjugated_ar_vocalized TEXT NOT NULL,
+      conjugated_transliteration TEXT NOT NULL,
+      audio_url TEXT,
+      example_sentence_ar TEXT,
+      example_sentence_ar_vocalized TEXT,
+      example_sentence_translation_fr TEXT,
+      synced_at TEXT
+    );
+
+    -- ============================================================
     -- TABLES CONTENU — Phrases, dialogues (É7)
     -- ============================================================
 
@@ -294,6 +334,11 @@ export async function initLocalSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_dialogue_turns_dialogue ON dialogue_turns(dialogue_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_dialogues_sort ON dialogues(sort_order);
     CREATE INDEX IF NOT EXISTS idx_audio_cache_url ON audio_cache(remote_url);
+    CREATE INDEX IF NOT EXISTS idx_grammar_rules_module ON grammar_rules(module_id);
+    CREATE INDEX IF NOT EXISTS idx_grammar_rules_order ON grammar_rules(sort_order);
+    CREATE INDEX IF NOT EXISTS idx_conj_word ON conjugation_entries(word_id);
+    CREATE INDEX IF NOT EXISTS idx_conj_tense ON conjugation_entries(tense, form);
+    CREATE INDEX IF NOT EXISTS idx_conj_pronoun ON conjugation_entries(pronoun_code);
     CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id);
     CREATE INDEX IF NOT EXISTS idx_user_badges_seen ON user_badges(user_id, seen);
 
@@ -320,6 +365,7 @@ export async function initLocalSchema(): Promise<void> {
     `ALTER TABLE user_settings ADD COLUMN audio_enabled INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE words ADD COLUMN theme TEXT`,
     `CREATE INDEX IF NOT EXISTS idx_words_theme ON words(theme)`,
+    `ALTER TABLE lessons ADD COLUMN content_refs TEXT DEFAULT '[]'`,
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch (_) { /* colonne déjà présente */ }
