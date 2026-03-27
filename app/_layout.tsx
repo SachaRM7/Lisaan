@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { Colors } from '../src/constants/theme';
+import { ThemeProvider } from '../src/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOnboardingStore } from '../src/stores/useOnboardingStore';
 import { useSettingsStore } from '../src/stores/useSettingsStore';
@@ -50,7 +51,9 @@ export default function RootLayout() {
   const [fontsLoaded, _fontError] = useFonts({
     'Amiri': require('../assets/fonts/Amiri-Regular.ttf'),
     'Amiri-Bold': require('../assets/fonts/Amiri-Bold.ttf'),
-    'Inter': require('../assets/fonts/Inter-Variable.ttf'),
+    'Jost-Regular': require('../assets/fonts/Jost-Regular.ttf'),
+    'Jost-Medium': require('../assets/fonts/Jost-Medium.ttf'),
+    'Jost-SemiBold': require('../assets/fonts/Jost-SemiBold.ttf'),
     'NotoNaskhArabic': require('../assets/fonts/NotoNaskhArabic-Variable.ttf'),
   });
 
@@ -154,6 +157,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
         <ErrorBoundary>
         <StatusBar style="dark" backgroundColor={Colors.bg} />
         <Stack
@@ -186,6 +190,7 @@ export default function RootLayout() {
           />
         </Stack>
         </ErrorBoundary>
+        </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

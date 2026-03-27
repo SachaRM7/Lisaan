@@ -1,12 +1,12 @@
 // src/components/exercises/MCQExercise.tsx
 import { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import type { ExerciseComponentProps, ExerciseOption } from '../../types/exercise';
 import ArabicText from '../arabic/ArabicText';
 import { AudioButton } from '../AudioButton';
-import { Colors, Spacing, Radius, FontSizes, Layout } from '../../constants/theme';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ── Carte prompt (question) ────────────────────────────────────
 function PromptCard({
@@ -16,20 +16,27 @@ function PromptCard({
   audioUrl?: string; audioFallbackText?: string;
   defaultHarakats: boolean; defaultTranslation: boolean;
 }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const [showH, setShowH] = useState(defaultHarakats);
   const [showT, setShowT] = useState(defaultTranslation);
-
   const canToggleHarakats = !!ar && hasHarakats(ar);
 
   return (
-    <View style={styles.promptBox}>
+    <View style={{
+      alignItems: 'center',
+      backgroundColor: colors.background.group,
+      borderRadius: borderRadius.xl,
+      paddingVertical: spacing.hero,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
+    }}>
       {ar ? (
         canToggleHarakats ? (
           <TouchableOpacity onPress={() => setShowH(v => !v)} activeOpacity={0.8}>
-            <ArabicText harakatsMode={showH ? 'always' : 'never'}>{ar}</ArabicText>
+            <ArabicText size="xlarge" harakatsMode={showH ? 'always' : 'never'}>{ar}</ArabicText>
           </TouchableOpacity>
         ) : (
-          <ArabicText harakatsMode="never">{ar}</ArabicText>
+          <ArabicText size="xlarge" harakatsMode="never">{ar}</ArabicText>
         )
       ) : null}
       {(audioUrl || audioFallbackText) ? (
@@ -38,17 +45,21 @@ function PromptCard({
           fallbackText={audioFallbackText}
           autoPlay={true}
           size={36}
-          style={styles.bigAudioBtn}
+          style={{ alignSelf: 'center' }}
         />
       ) : null}
       {fr ? (
         showT ? (
           <TouchableOpacity onPress={() => setShowT(false)} activeOpacity={0.8}>
-            <Text style={styles.promptFr}>{fr}</Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center' }}>
+              {fr}
+            </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={() => setShowT(true)} activeOpacity={0.8}>
-            <Text style={styles.revealHint}>Afficher la traduction</Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, opacity: 0.5, textAlign: 'center', fontStyle: 'italic' }}>
+              Afficher la traduction
+            </Text>
           </TouchableOpacity>
         )
       ) : null}
@@ -61,26 +72,61 @@ function hasHarakats(text: string) { return HARAKAT_REGEX.test(text); }
 
 // ── Carte option (réponse) ─────────────────────────────────────
 function OptionCard({
-  option, answered,
-  defaultHarakats, defaultTranslation,
-  onSelect, getStyle, getTextStyle,
+  option, answered, defaultHarakats, defaultTranslation, onSelect,
+  exerciseState,
 }: {
   option: ExerciseOption;
-  answered: boolean; selected: string | null;
-  defaultHarakats: boolean; defaultTranslation: boolean;
+  answered: boolean;
+  selected: string | null;
+  defaultHarakats: boolean;
+  defaultTranslation: boolean;
   onSelect: (o: ExerciseOption) => void;
-  getStyle: (o: ExerciseOption) => any;
-  getTextStyle: (o: ExerciseOption) => any;
+  exerciseState: 'default' | 'selected' | 'correct' | 'incorrect' | 'dimmed';
 }) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const [showH, setShowH] = useState(defaultHarakats);
   const [showT, setShowT] = useState(defaultTranslation);
-
-  // Les lettres isolées n'ont pas de harakats → pas de toggle
   const canToggleHarakats = !!option.text.ar && hasHarakats(option.text.ar);
+
+  const cardStyle = (() => {
+    switch (exerciseState) {
+      case 'correct':
+        return { backgroundColor: colors.status.successLight, borderWidth: 2, borderColor: colors.status.success };
+      case 'incorrect':
+        return { backgroundColor: colors.status.errorLight, borderWidth: 2, borderColor: colors.status.error };
+      case 'selected':
+        return { backgroundColor: colors.brand.light, borderWidth: 2, borderColor: colors.brand.primary, ...shadows.medium };
+      case 'dimmed':
+        return { backgroundColor: colors.background.card, borderWidth: 1, borderColor: colors.border.subtle, opacity: 0.4 };
+      default:
+        return { backgroundColor: colors.background.card, borderWidth: 1, borderColor: colors.border.subtle, ...shadows.subtle };
+    }
+  })();
+
+  const textColor = (() => {
+    switch (exerciseState) {
+      case 'correct':   return colors.status.success;
+      case 'incorrect': return colors.status.error;
+      case 'selected':  return colors.brand.primary;
+      case 'dimmed':    return colors.text.secondary;
+      default:          return colors.text.primary;
+    }
+  })();
 
   return (
     <TouchableOpacity
-      style={getStyle(option)}
+      style={[
+        {
+          borderRadius: borderRadius.md,
+          paddingVertical: spacing.base,
+          paddingHorizontal: spacing.md,
+          alignItems: 'center',
+          minHeight: 64,
+          justifyContent: 'center',
+          gap: spacing.xs,
+        },
+        cardStyle,
+      ]}
       onPress={() => onSelect(option)}
       disabled={answered}
       activeOpacity={0.75}
@@ -98,23 +144,28 @@ function OptionCard({
         )
       ) : null}
       {option.text.fr ? (
-        // Si pas d'arabe, le français EST la réponse → toujours visible
         !option.text.ar || showT ? (
           <TouchableOpacity
             onPress={() => { if (!answered && option.text.ar) setShowT(false); }}
             activeOpacity={option.text.ar ? 0.8 : 1}
             disabled={answered || !option.text.ar}
           >
-            <Text style={getTextStyle(option)}>{option.text.fr}</Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: textColor, textAlign: 'center' }}>
+              {option.text.fr}
+            </Text>
           </TouchableOpacity>
         ) : (
           !answered ? (
             <TouchableOpacity onPress={() => setShowT(true)} activeOpacity={0.8}>
-              <Text style={styles.revealHint}>Afficher la traduction</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, opacity: 0.5, textAlign: 'center', fontStyle: 'italic' }}>
+                Afficher la traduction
+              </Text>
             </TouchableOpacity>
           ) : (
             option.correct ? (
-              <Text style={getTextStyle(option)}>{option.text.fr}</Text>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: textColor, textAlign: 'center' }}>
+                {option.text.fr}
+              </Text>
             ) : null
           )
         )
@@ -125,6 +176,7 @@ function OptionCard({
 
 // ── Composant principal ────────────────────────────────────────
 export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
+  const { colors, typography, spacing } = useTheme();
   const [selected, setSelected] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
   const startTime = useRef(Date.now());
@@ -161,30 +213,27 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
     }, isCorrect ? 800 : 1200);
   }
 
-  function getOptionStyle(option: ExerciseOption) {
-    if (!answered) return styles.option;
-    if (option.correct) return [styles.option, styles.optionCorrect];
-    if (option.id === selected && !option.correct) return [styles.option, styles.optionWrong];
-    return [styles.option, styles.optionDimmed];
-  }
-
-  function getOptionTextStyle(option: ExerciseOption) {
-    if (!answered) return styles.optionText;
-    if (option.correct) return [styles.optionText, styles.optionTextCorrect];
-    if (option.id === selected && !option.correct) return [styles.optionText, styles.optionTextWrong];
-    return [styles.optionText, styles.optionTextDimmed];
+  function getExerciseState(option: ExerciseOption): 'default' | 'selected' | 'correct' | 'incorrect' | 'dimmed' {
+    if (!answered) return selected === option.id ? 'selected' : 'default';
+    if (option.correct) return 'correct';
+    if (option.id === selected) return 'incorrect';
+    return 'dimmed';
   }
 
   const isCorrectAnswer = selected === correctOption?.id;
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg }}
+      showsVerticalScrollIndicator={false}
+    >
       {config.instruction_fr ? (
-        <Text style={styles.instruction}>{config.instruction_fr}</Text>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
+          {config.instruction_fr}
+        </Text>
       ) : null}
 
       {config.prompt.ar || config.prompt.fr ? (
-        // Prompt textuel (mots, phrases…) + bouton audio optionnel intégré
         <PromptCard
           ar={config.prompt.ar}
           fr={config.prompt.fr}
@@ -194,19 +243,18 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
           defaultTranslation={defaultTranslation}
         />
       ) : (config.audio_url || config.audio_fallback_text) ? (
-        // Pas de prompt texte → AudioButton seul (ex: exercice lettres)
-        <View style={styles.promptBox}>
+        <View style={{ alignItems: 'center', backgroundColor: colors.background.group, borderRadius: 32, paddingVertical: spacing.hero, paddingHorizontal: spacing.lg }}>
           <AudioButton
             audioUrl={config.audio_url}
             fallbackText={config.audio_fallback_text}
             autoPlay={true}
             size={40}
-            style={styles.bigAudioBtn}
+            style={{ alignSelf: 'center' }}
           />
         </View>
       ) : null}
 
-      <View style={styles.options}>
+      <View style={{ gap: spacing.base }}>
         {options.map((option) => (
           <OptionCard
             key={option.id}
@@ -216,15 +264,23 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
             defaultHarakats={defaultHarakats}
             defaultTranslation={defaultTranslation}
             onSelect={handleSelect}
-            getStyle={getOptionStyle}
-            getTextStyle={getOptionTextStyle}
+            exerciseState={getExerciseState(option)}
           />
         ))}
       </View>
 
       {answered ? (
-        <View style={[styles.feedback, isCorrectAnswer ? styles.feedbackCorrect : styles.feedbackWrong]}>
-          <Text style={[styles.feedbackText, isCorrectAnswer ? styles.feedbackTextCorrect : styles.feedbackTextWrong]}>
+        <View style={{
+          borderRadius: 16,
+          padding: spacing.base,
+          alignItems: 'center',
+          backgroundColor: isCorrectAnswer ? colors.status.successLight : colors.status.errorLight,
+        }}>
+          <Text style={{
+            fontFamily: typography.family.uiBold,
+            fontSize: typography.size.body,
+            color: isCorrectAnswer ? colors.status.success : colors.status.error,
+          }}>
             {isCorrectAnswer
               ? '✓ Bravo !'
               : `✗ La bonne réponse était : ${correctOption?.text.fr ?? correctOption?.text.ar ?? ''}`}
@@ -234,96 +290,3 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing['2xl'],
-    gap: Spacing['2xl'],
-  },
-
-  instruction: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-
-  promptBox: {
-    alignItems: 'center',
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing['3xl'],
-    paddingHorizontal: Spacing['2xl'],
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.md,
-  },
-  promptFr: {
-    fontSize: FontSizes.heading,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-
-  revealHint: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    opacity: 0.5,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-
-  options: {
-    gap: Spacing.md,
-  },
-  option: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
-    alignItems: 'center',
-    minHeight: 56,
-    justifyContent: 'center',
-    gap: Spacing.xs,
-  },
-  optionCorrect: {
-    borderColor: Colors.success,
-    backgroundColor: Colors.successLight,
-  },
-  optionWrong: {
-    borderColor: Colors.error,
-    backgroundColor: Colors.errorLight,
-  },
-  optionDimmed: {
-    opacity: 0.4,
-  },
-  optionText: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  optionTextCorrect: { color: Colors.success },
-  optionTextWrong: { color: Colors.error },
-  optionTextDimmed: { color: Colors.textMuted },
-
-  feedback: {
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  feedbackCorrect: { backgroundColor: Colors.successLight },
-  feedbackWrong: { backgroundColor: Colors.errorLight },
-  feedbackText: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-  },
-  feedbackTextCorrect: { color: Colors.success },
-  feedbackTextWrong: { color: Colors.error },
-
-  bigAudioBtn: {
-    alignSelf: 'center',
-  },
-});

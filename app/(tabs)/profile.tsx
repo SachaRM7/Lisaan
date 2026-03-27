@@ -1,10 +1,9 @@
 // app/(tabs)/profile.tsx
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/constants/theme';
 import { useSettingsStore } from '../../src/stores/useSettingsStore';
 import { SettingRow } from '../../src/components/settings/SettingRow';
 import ArabicText from '../../src/components/arabic/ArabicText';
@@ -19,6 +18,7 @@ import { syncContentFromCloud } from '../../src/engines/content-sync';
 import { checkAndUnlockBadges } from '../../src/engines/badge-engine';
 import { useQueryClient } from '@tanstack/react-query';
 import { reset as posthogReset } from '../../src/analytics/posthog';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 interface BadgeItem {
   id: string;
@@ -78,6 +78,7 @@ const GOAL_OPTIONS = [
 // ─── Screen ───────────────────────────────────────────────
 
 export default function ProfileScreen() {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const store = useSettingsStore();
   const router = useRouter();
   const userId = useAuthStore(s => s.userId);
@@ -97,7 +98,6 @@ export default function ProfileScreen() {
     ).then(setAllBadges);
   }, [userId, allUnlockedBadges]);
 
-  // Charger les données utilisateur
   const { data: userData, refetch } = useQuery({
     queryKey: ['user_profile'],
     queryFn: async () => {
@@ -128,11 +128,7 @@ export default function ProfileScreen() {
       'Tous les réglages reviendront aux valeurs par défaut.',
       [
         { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Réinitialiser',
-          style: 'destructive',
-          onPress: () => store.resetToDefaults(),
-        },
+        { text: 'Réinitialiser', style: 'destructive', onPress: () => store.resetToDefaults() },
       ],
     );
   }
@@ -158,61 +154,109 @@ export default function ProfileScreen() {
 
   const dailyGoalStr = String(userData?.daily_goal_minutes ?? 10);
 
+  const sectionTitleStyle = {
+    fontFamily: typography.family.uiBold,
+    fontSize: typography.size.tiny,
+    color: colors.text.secondary,
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+    marginTop: spacing.xl,
+    marginLeft: spacing.xs,
+    textTransform: 'uppercase' as const,
+  };
+
+  const sectionCardStyle = {
+    backgroundColor: colors.background.card,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden' as const,
+    ...shadows.subtle,
+  };
+
+  const separatorStyle = {
+    height: 1,
+    backgroundColor: colors.border.subtle,
+    marginLeft: spacing.base,
+  };
+
+  const accountRowStyle = {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.base,
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }} edges={['top']}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
         {/* Titre */}
-        <Text style={styles.screenTitle}>Profil</Text>
+        <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary, marginBottom: spacing.xl }}>
+          Profil
+        </Text>
 
-        {/* ── Stats utilisateur ── */}
-        <View style={styles.statsCard}>
-          <Text style={styles.displayName}>
+        {/* ── Carte stats ── */}
+        <View style={{
+          backgroundColor: colors.background.group,
+          borderRadius: borderRadius.xl,
+          padding: spacing.xl,
+          marginBottom: spacing.xl,
+          borderWidth: 1,
+          borderColor: colors.border.subtle,
+        }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, marginBottom: spacing.lg, textAlign: 'center' }}>
             {userData?.display_name ?? 'Apprenant'}
           </Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statEmoji}>🔥</Text>
-              <Text style={styles.statValue}>{userData?.streak_current ?? 0}</Text>
-              <Text style={styles.statLabel}>jours</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
+            <View style={{ alignItems: 'center', gap: 2 }}>
+              <Text style={{ fontSize: 24 }}>🔥</Text>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.brand.primary }}>{userData?.streak_current ?? 0}</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>jours</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statEmoji}>⭐</Text>
-              <Text style={styles.statValue}>{userData?.total_xp ?? 0}</Text>
-              <Text style={styles.statLabel}>XP</Text>
+            <View style={{ width: 1, height: 40, backgroundColor: colors.border.medium }} />
+            <View style={{ alignItems: 'center', gap: 2 }}>
+              <Text style={{ fontSize: 24 }}>⭐</Text>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.brand.primary }}>{userData?.total_xp ?? 0}</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>XP</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statEmoji}>🏆</Text>
-              <Text style={styles.statValue}>{userData?.streak_longest ?? 0}</Text>
-              <Text style={styles.statLabel}>record</Text>
+            <View style={{ width: 1, height: 40, backgroundColor: colors.border.medium }} />
+            <View style={{ alignItems: 'center', gap: 2 }}>
+              <Text style={{ fontSize: 24 }}>🏆</Text>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.brand.primary }}>{userData?.streak_longest ?? 0}</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>record</Text>
             </View>
           </View>
         </View>
 
         {/* ── Badges ── */}
-        <Text style={styles.sectionTitle}>
+        <Text style={sectionTitleStyle}>
           BADGES · {allUnlockedBadges.length}/{allBadges.length}
         </Text>
         {allBadges.length === 0 ? (
-          <View style={styles.badgesEmpty}>
-            <Text style={styles.badgesEmptyText}>
+          <View style={{ paddingVertical: spacing.lg, paddingHorizontal: spacing.base, backgroundColor: colors.background.card, borderRadius: borderRadius.lg, marginBottom: spacing.xs }}>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center', lineHeight: 22 }}>
               Complete ta première leçon pour débloquer des badges 🏅
             </Text>
           </View>
         ) : null}
-        <View style={styles.badgesGrid}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: spacing.xs }}>
           {allBadges.map(badge => (
             <View
               key={badge.id}
-              style={[styles.badgeItem, !badge.unlocked && styles.badgeLocked]}
+              style={{
+                width: '30%',
+                alignItems: 'center',
+                backgroundColor: badge.unlocked ? colors.background.card : colors.background.main,
+                borderRadius: borderRadius.md,
+                padding: 12,
+                borderWidth: 1,
+                borderColor: badge.unlocked ? colors.accent.gold : colors.border.subtle,
+                opacity: badge.unlocked ? 1 : 0.5,
+                ...shadows.subtle,
+              }}
             >
-              <Text style={[styles.badgeIcon, !badge.unlocked && styles.badgeIconLocked]}>
+              <Text style={{ fontSize: 36, marginBottom: 6, opacity: badge.unlocked ? 1 : 0.3 }}>
                 {badge.unlocked ? badge.icon : '🔒'}
               </Text>
               <Text
-                style={[styles.badgeTitle, !badge.unlocked && styles.badgeTitleLocked]}
+                style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.tiny, color: badge.unlocked ? colors.text.primary : colors.text.secondary, textAlign: 'center' }}
                 numberOfLines={2}
               >
                 {badge.unlocked ? badge.title_fr : '???'}
@@ -222,10 +266,21 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Affichage ── */}
-        <Text style={styles.sectionTitle}>AFFICHAGE</Text>
+        <Text style={sectionTitleStyle}>AFFICHAGE</Text>
 
-        {/* Preview live — lit le store automatiquement, aucune prop explicite */}
-        <View style={styles.previewBox}>
+        {/* Preview live */}
+        <View style={{
+          backgroundColor: colors.background.card,
+          borderRadius: borderRadius.lg,
+          paddingVertical: spacing.xl,
+          paddingHorizontal: spacing.lg,
+          alignItems: 'center',
+          marginBottom: spacing.xs,
+          borderWidth: 1,
+          borderColor: colors.border.medium,
+          borderStyle: 'dashed',
+          ...shadows.subtle,
+        }}>
           <ArabicText
             withoutHarakats="كتاب"
             transliteration="kitābun"
@@ -235,7 +290,7 @@ export default function ProfileScreen() {
           </ArabicText>
         </View>
 
-        <View style={styles.sectionCard}>
+        <View style={sectionCardStyle}>
           <SettingRow
             label="Harakats (تشكيل)"
             type="select"
@@ -243,7 +298,7 @@ export default function ProfileScreen() {
             selectedValue={store.harakats_mode}
             onSelect={(v) => store.updateSetting('harakats_mode', v as never)}
           />
-          <View style={styles.separator} />
+          <View style={separatorStyle} />
           <SettingRow
             label="Translittération"
             type="select"
@@ -251,7 +306,7 @@ export default function ProfileScreen() {
             selectedValue={store.transliteration_mode}
             onSelect={(v) => store.updateSetting('transliteration_mode', v as never)}
           />
-          <View style={styles.separator} />
+          <View style={separatorStyle} />
           <SettingRow
             label="Traduction"
             type="select"
@@ -259,7 +314,7 @@ export default function ProfileScreen() {
             selectedValue={store.translation_mode}
             onSelect={(v) => store.updateSetting('translation_mode', v as never)}
           />
-          <View style={styles.separator} />
+          <View style={separatorStyle} />
           <SettingRow
             label="Taille du texte"
             type="select"
@@ -270,8 +325,8 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Exercices ── */}
-        <Text style={styles.sectionTitle}>EXERCICES</Text>
-        <View style={styles.sectionCard}>
+        <Text style={sectionTitleStyle}>EXERCICES</Text>
+        <View style={sectionCardStyle}>
           <SettingRow
             label="Sens"
             type="select"
@@ -279,7 +334,7 @@ export default function ProfileScreen() {
             selectedValue={store.exercise_direction}
             onSelect={(v) => store.updateSetting('exercise_direction', v as never)}
           />
-          <View style={styles.separator} />
+          <View style={separatorStyle} />
           <SettingRow
             label="Vibrations"
             type="toggle"
@@ -289,22 +344,22 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Audio ── */}
-        <Text style={styles.sectionTitle}>AUDIO</Text>
-        <View style={styles.sectionCard}>
+        <Text style={sectionTitleStyle}>AUDIO</Text>
+        <View style={sectionCardStyle}>
           <SettingRow
             label="Son activé"
             type="toggle"
             isOn={store.audio_enabled}
             onToggle={(v) => store.updateSetting('audio_enabled', v)}
           />
-          <View style={styles.separator} />
+          <View style={separatorStyle} />
           <SettingRow
             label="Lecture auto"
             type="toggle"
             isOn={store.audio_autoplay}
             onToggle={(v) => store.updateSetting('audio_autoplay', v)}
           />
-          <View style={styles.separator} />
+          <View style={separatorStyle} />
           <SettingRow
             label="Vitesse"
             type="select"
@@ -312,9 +367,9 @@ export default function ProfileScreen() {
             selectedValue={store.audio_speed}
             onSelect={(v) => store.updateSetting('audio_speed', v as never)}
           />
-          <View style={styles.separator} />
+          <View style={separatorStyle} />
           <Pressable
-            style={styles.accountRow}
+            style={accountRowStyle}
             onPress={async () => {
               await clearAudioCache();
               if (Platform.OS === 'web') {
@@ -324,13 +379,15 @@ export default function ProfileScreen() {
               }
             }}
           >
-            <Text style={styles.accountRowText}>Vider le cache audio</Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary }}>
+              Vider le cache audio
+            </Text>
           </Pressable>
         </View>
 
         {/* ── Objectif ── */}
-        <Text style={styles.sectionTitle}>OBJECTIF</Text>
-        <View style={styles.sectionCard}>
+        <Text style={sectionTitleStyle}>OBJECTIF</Text>
+        <View style={sectionCardStyle}>
           <SettingRow
             label="Temps quotidien"
             type="select"
@@ -341,30 +398,33 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Compte ── */}
-        <Text style={styles.sectionTitle}>COMPTE</Text>
-        <View style={styles.sectionCard}>
-          <Pressable style={styles.accountRow} onPress={handleReset}>
-            <Text style={styles.accountRowText}>Réinitialiser les réglages</Text>
+        <Text style={sectionTitleStyle}>COMPTE</Text>
+        <View style={sectionCardStyle}>
+          <Pressable style={accountRowStyle} onPress={handleReset}>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary }}>
+              Réinitialiser les réglages
+            </Text>
           </Pressable>
-          <View style={styles.separator} />
-          <Pressable style={styles.accountRow} onPress={handleLogout}>
-            <Text style={[styles.accountRowText, styles.danger]}>Se déconnecter</Text>
+          <View style={separatorStyle} />
+          <Pressable style={accountRowStyle} onPress={handleLogout}>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.status.error }}>
+              Se déconnecter
+            </Text>
           </Pressable>
         </View>
 
         {/* ── DEV ONLY ── */}
         {__DEV__ && (
           <>
-            <Text style={styles.sectionTitle}>DEV</Text>
-            <View style={styles.sectionCard}>
+            <Text style={sectionTitleStyle}>DEV</Text>
+            <View style={sectionCardStyle}>
               <Pressable
-                style={styles.accountRow}
+                style={accountRowStyle}
                 onPress={async () => {
                   try {
                     if (!userId) { Alert.alert('Non connecté'); return; }
                     const count = await devCompleteAllLessons(userId);
                     const lessonCount = await getCompletedLessonsCount(userId);
-                    // Vérifier tous les badges débloquables (lesson_count + perfect_score)
                     await checkAndUnlockBadges({ userId, lessonCount, isPerfectScore: true, streakDays: 30 });
                     await queryClient.invalidateQueries({ queryKey: ['progress'] });
                     runSync().catch(() => {});
@@ -374,11 +434,13 @@ export default function ProfileScreen() {
                   }
                 }}
               >
-                <Text style={styles.accountRowText}>Compléter toutes les leçons</Text>
+                <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary }}>
+                  Compléter toutes les leçons
+                </Text>
               </Pressable>
 
               <Pressable
-                style={styles.accountRow}
+                style={accountRowStyle}
                 onPress={async () => {
                   try {
                     const db = getLocalDB();
@@ -393,7 +455,9 @@ export default function ProfileScreen() {
                   }
                 }}
               >
-                <Text style={styles.accountRowText}>Force re-sync contenu</Text>
+                <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary }}>
+                  Force re-sync contenu
+                </Text>
               </Pressable>
             </View>
           </>
@@ -403,155 +467,3 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-  },
-  scroll: {
-    padding: Layout.screenPaddingH,
-    paddingBottom: 120,
-  },
-  screenTitle: {
-    fontSize: FontSizes.title,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: Spacing['2xl'],
-  },
-
-  // Stats card
-  statsCard: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.xl,
-    padding: Spacing['2xl'],
-    marginBottom: Spacing['2xl'],
-    ...Shadows.card,
-  },
-  displayName: {
-    fontSize: FontSizes.heading,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xl,
-    textAlign: 'center',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  statItem: {
-    alignItems: 'center',
-    gap: 2,
-  },
-  statEmoji: {
-    fontSize: 24,
-  },
-  statValue: {
-    fontSize: FontSizes.heading,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  statLabel: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: Colors.border,
-  },
-
-  // Badges
-  badgesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: Spacing.sm,
-  },
-  badgeItem: {
-    width: '30%',
-    alignItems: 'center',
-    backgroundColor: Colors.bgCard,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.card,
-  },
-  badgeLocked: {
-    backgroundColor: '#F5F5F5',
-    borderColor: '#E0E0E0',
-  },
-  badgeIcon: { fontSize: 36, marginBottom: 6 },
-  badgeIconLocked: { opacity: 0.3 },
-  badgeTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  badgeTitleLocked: { color: '#AAA' },
-  badgesEmpty: {
-    paddingVertical: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    marginBottom: Spacing.sm,
-  },
-  badgesEmptyText: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-
-  // Preview live
-  previewBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing['2xl'],
-    paddingHorizontal: Spacing.xl,
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    ...Shadows.card,
-  },
-
-  // Sections
-  sectionTitle: {
-    fontSize: FontSizes.small,
-    fontWeight: '700',
-    color: Colors.textMuted,
-    letterSpacing: 0.8,
-    marginBottom: Spacing.sm,
-    marginTop: Spacing['2xl'],
-    marginLeft: Spacing.xs,
-  },
-  sectionCard: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    ...Shadows.card,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginLeft: Layout.cardPaddingH,
-  },
-
-  // Compte
-  accountRow: {
-    paddingHorizontal: Layout.cardPaddingH,
-    paddingVertical: Spacing.lg,
-  },
-  accountRowText: {
-    fontSize: FontSizes.body,
-    color: Colors.textPrimary,
-  },
-  danger: {
-    color: Colors.error,
-  },
-});

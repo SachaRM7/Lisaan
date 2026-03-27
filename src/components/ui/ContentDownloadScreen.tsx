@@ -1,47 +1,24 @@
 // src/components/ui/ContentDownloadScreen.tsx
 
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { Colors } from '../../constants/theme';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export function ContentDownloadScreen() {
+  const { colors, typography, spacing } = useTheme();
+  const arabicLH = Math.round(64 * 1.9);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.logo}>لسان</Text>
-      <ActivityIndicator size="large" color={Colors.primary} style={styles.spinner} />
-      <Text style={styles.title}>Préparation du contenu...</Text>
-      <Text style={styles.subtitle}>Première utilisation — nécessite une connexion</Text>
+    <View style={{ flex: 1, backgroundColor: colors.background.main, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl }}>
+      <Text style={{ fontFamily: typography.family.arabicBold, fontSize: 64, lineHeight: arabicLH, color: colors.brand.primary, marginBottom: spacing.xl }}>
+        لسان
+      </Text>
+      <ActivityIndicator size="large" color={colors.brand.primary} style={{ marginBottom: spacing.lg }} />
+      <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.h2, color: colors.text.primary, marginBottom: spacing.xs, textAlign: 'center' }}>
+        Préparation du contenu...
+      </Text>
+      <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center' }}>
+        Première utilisation — nécessite une connexion
+      </Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  logo: {
-    fontSize: 64,
-    fontFamily: 'Amiri-Bold',
-    color: Colors.primary,
-    marginBottom: 32,
-  },
-  spinner: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 18,
-    fontFamily: 'Inter',
-    color: Colors.textPrimary,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-});

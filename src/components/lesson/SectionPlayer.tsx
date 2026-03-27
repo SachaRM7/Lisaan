@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
@@ -22,8 +21,9 @@ import WordCard from '../arabic/WordCard';
 import SentenceCard from '../arabic/SentenceCard';
 import DialogueDisplay from '../arabic/DialogueDisplay';
 import { useDiacriticsForLesson } from '../../hooks/useDiacritics';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Button } from '../ui';
 
-import { Colors, Spacing, Radius, Layout, FontSizes } from '../../constants/theme';
 import type { Letter } from '../../hooks/useLetters';
 import type { Diacritic } from '../../hooks/useDiacritics';
 import type { Word } from '../../hooks/useWords';
@@ -93,6 +93,7 @@ export function SectionPlayer({
   onBack,
   replayMode,
 }: SectionPlayerProps) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const hasTeaching = section.teachingItemIds.length > 0;
 
   const initialPhase = useMemo<'teaching' | 'exercises'>(() => {
@@ -156,7 +157,6 @@ export function SectionPlayer({
       setTeachingIndex(teachingIndex + 1);
     } else {
       if (replayMode === 'teaching_only') {
-        // Mode relecture : pas d'exercices, on termine directement
         onSectionComplete({
           sectionId: section.id,
           teachingCompleted: true,
@@ -165,7 +165,6 @@ export function SectionPlayer({
           status: initialProgress.status,
         });
       } else {
-        // Passage aux exercices
         const progress: SectionProgress = {
           sectionId: section.id,
           teachingCompleted: true,
@@ -208,26 +207,61 @@ export function SectionPlayer({
     const item = teachingItems[teachingIndex];
 
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.base,
+        }}>
           {onBack ? (
-            <TouchableOpacity onPress={onBack} style={styles.backBtn} hitSlop={12}>
-              <Text style={styles.backArrow}>←</Text>
+            <TouchableOpacity onPress={onBack} style={{ width: 36, height: 36, justifyContent: 'center' }} hitSlop={12}>
+              <Text style={{ fontSize: 22, color: colors.text.secondary }}>×</Text>
             </TouchableOpacity>
-          ) : <View style={styles.backBtn} />}
-          <Text style={styles.sectionTitle}>{section.title_fr}</Text>
-          <Text style={styles.counter}>{teachingIndex + 1} / {totalTeaching}</Text>
+          ) : <View style={{ width: 36, height: 36 }} />}
+          <Text style={{
+            fontFamily: typography.family.uiMedium,
+            fontSize: typography.size.small,
+            color: colors.text.primary,
+            flex: 1,
+            textAlign: 'center',
+            marginHorizontal: spacing.xs,
+          }}>
+            {section.title_fr}
+          </Text>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary }}>
+            {teachingIndex + 1} / {totalTeaching}
+          </Text>
         </View>
 
         {/* Dots */}
-        <View style={styles.dotsRow}>
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          gap: spacing.xs,
+          paddingVertical: spacing.base,
+          paddingHorizontal: spacing.lg,
+        }}>
           {teachingItems.map((_, i) => (
-            <View key={i} style={[styles.dot, i <= teachingIndex && styles.dotFilled]} />
+            <View
+              key={i}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: i <= teachingIndex ? colors.brand.primary : colors.border.medium,
+              }}
+            />
           ))}
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, gap: spacing.lg }}
+          showsVerticalScrollIndicator={false}
+        >
           {contentType === 'letters' && (
             <LetterTeachingContent
               item={item as Letter | null}
@@ -255,14 +289,14 @@ export function SectionPlayer({
         </ScrollView>
 
         {/* Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.nextBtn} onPress={handleTeachingNext} activeOpacity={0.8}>
-            <Text style={styles.nextLabel}>
-              {isLastTeaching
-                ? (replayMode === 'teaching_only' ? 'Terminer ✓' : 'Commencer les exercices →')
-                : 'Suivant →'}
-            </Text>
-          </TouchableOpacity>
+        <View style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border.subtle, backgroundColor: colors.background.main }}>
+          <Button
+            label={isLastTeaching
+              ? (replayMode === 'teaching_only' ? 'Terminer ✓' : 'Commencer les exercices →')
+              : 'Suivant →'}
+            variant="primary"
+            onPress={handleTeachingNext}
+          />
         </View>
       </SafeAreaView>
     );
@@ -276,23 +310,38 @@ export function SectionPlayer({
   if (!currentExercise) return null;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
       {/* Header exercices */}
-      <View style={styles.header}>
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.base,
+      }}>
         {onBack ? (
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} hitSlop={12}>
-            <Text style={styles.backArrow}>←</Text>
+          <TouchableOpacity onPress={onBack} style={{ width: 36, height: 36, justifyContent: 'center' }} hitSlop={12}>
+            <Text style={{ fontSize: 22, color: colors.text.secondary }}>×</Text>
           </TouchableOpacity>
-        ) : <View style={styles.backBtn} />}
-        <Text style={styles.sectionTitle}>{section.title_fr}</Text>
-        <Text style={styles.counter}>
-          Exercice {exerciseIndex + 1} / {section.exercises.length}
+        ) : <View style={{ width: 36, height: 36 }} />}
+        <Text style={{
+          fontFamily: typography.family.uiMedium,
+          fontSize: typography.size.small,
+          color: colors.text.primary,
+          flex: 1,
+          textAlign: 'center',
+          marginHorizontal: spacing.xs,
+        }}>
+          {section.title_fr}
+        </Text>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary }}>
+          {exerciseIndex + 1} / {section.exercises.length}
         </Text>
       </View>
 
-      {/* Barre de progression */}
-      <View style={styles.progressBarTrack}>
-        <View style={[styles.progressBarFill, { width: `${exerciseProgress * 100}%` }]} />
+      {/* Barre de progression ultra-fine */}
+      <View style={{ height: 4, backgroundColor: colors.background.group }}>
+        <View style={{ height: 4, backgroundColor: colors.brand.primary, width: `${exerciseProgress * 100}%` as any }} />
       </View>
 
       <ExerciseRenderer
@@ -347,7 +396,6 @@ function buildSentenceItems(
   }
 
   if (sentenceConfigType === 'dialogue') {
-    // Trouver le dialogue dont les turns matchent les ids
     const dialogue = dialogues.find(d =>
       d.turns.some(t => ids.includes(t.id))
     );
@@ -380,14 +428,13 @@ function LetterTeachingContent({
   item,
   lessonSortOrder,
 }: { item: Letter | null; lessonSortOrder?: number }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   if (!item) return null;
   return (
     <>
       <LetterCard letter={item} mode="full" />
       {item.pedagogy_notes ? (
-        <View style={styles.pedagogyBox}>
-          <Text style={styles.pedagogyText}>{item.pedagogy_notes}</Text>
-        </View>
+        <PedagogyBox>{item.pedagogy_notes}</PedagogyBox>
       ) : null}
     </>
   );
@@ -402,9 +449,7 @@ function DiacriticTeachingContent({
     <>
       <DiacriticCard diacritic={item} mode="full" fontSize="xlarge" />
       {item.pedagogy_notes ? (
-        <View style={styles.pedagogyBox}>
-          <Text style={styles.pedagogyText}>{item.pedagogy_notes}</Text>
-        </View>
+        <PedagogyBox>{item.pedagogy_notes}</PedagogyBox>
       ) : null}
       <SyllableDisplay
         mode="single_diacritic"
@@ -419,43 +464,67 @@ function DiacriticTeachingContent({
 }
 
 function WordPresentationContent({ item }: { item: WordPresentationItem | null }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   if (!item) return null;
 
   if (item.kind === 'solar_intro') {
+    const arabicLH = Math.round(28 * 1.9);
     return (
-      <View style={styles.solarIntroBox}>
-        <Text style={styles.solarIntroTitle}>L'article en arabe : الـ</Text>
-        <Text style={styles.solarIntroText}>
+      <View style={{ gap: spacing.lg }}>
+        <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center' }}>
+          L'article en arabe : الـ
+        </Text>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, lineHeight: 24, textAlign: 'center' }}>
           En arabe, l'article "le / la" s'écrit الـ (al-). Mais sa prononciation change selon la lettre qui suit.
         </Text>
-        <View style={styles.solarRow}>
-          <View style={styles.solarCard}>
-            <Text style={styles.solarAr}>الْقَمَر</Text>
-            <Text style={styles.solarLabel}>Lettre lunaire</Text>
-            <Text style={styles.solarDesc}>Le ل se prononce{'\n'}al-qamar</Text>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <View style={{
+            flex: 1,
+            backgroundColor: colors.background.group,
+            borderRadius: borderRadius.md,
+            padding: spacing.base,
+            alignItems: 'center',
+            gap: spacing.sm,
+            borderWidth: 1,
+            borderColor: colors.border.medium,
+          }}>
+            <Text style={{ fontFamily: typography.family.arabic, fontSize: 28, lineHeight: arabicLH, color: colors.text.heroArabic, textAlign: 'center' }}>الْقَمَر</Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center' }}>Lettre lunaire</Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center', fontStyle: 'italic' }}>
+              Le ل se prononce{'\n'}al-qamar
+            </Text>
           </View>
-          <View style={[styles.solarCard, styles.solarCardSun]}>
-            <Text style={styles.solarAr}>الشَّمْس</Text>
-            <Text style={styles.solarLabel}>Lettre solaire</Text>
-            <Text style={styles.solarDesc}>Le ل s'assimile{'\n'}ash-shams</Text>
+          <View style={{
+            flex: 1,
+            backgroundColor: colors.background.group,
+            borderRadius: borderRadius.md,
+            padding: spacing.base,
+            alignItems: 'center',
+            gap: spacing.sm,
+            borderWidth: 1,
+            borderColor: colors.accent.gold,
+          }}>
+            <Text style={{ fontFamily: typography.family.arabic, fontSize: 28, lineHeight: arabicLH, color: colors.text.heroArabic, textAlign: 'center' }}>الشَّمْس</Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center' }}>Lettre solaire</Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center', fontStyle: 'italic' }}>
+              Le ل s'assimile{'\n'}ash-shams
+            </Text>
           </View>
         </View>
-        <View style={styles.pedagogyBox}>
-          <Text style={styles.pedagogyText}>
-            💡 Les lettres solaires "absorbent" le ل de l'article. Les lettres lunaires le laissent sonner clairement.
-          </Text>
-        </View>
+        <PedagogyBox>
+          💡 Les lettres solaires "absorbent" le ل de l'article. Les lettres lunaires le laissent sonner clairement.
+        </PedagogyBox>
       </View>
     );
   }
 
-  // kind === 'word'
   return (
     <WordCard word={item.word} root={item.root} mode="full" />
   );
 }
 
 function SentencePresentationContent({ item }: { item: SentencePresentationItem | null }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   if (!item) return null;
 
   if (item.kind === 'sentence') {
@@ -467,9 +536,10 @@ function SentencePresentationContent({ item }: { item: SentencePresentationItem 
   }
 
   if (item.kind === 'suffix_table') {
+    const arabicLH = Math.round(20 * 1.9);
     return (
-      <View style={styles.pedagogyBox}>
-        <Text style={styles.pedagogyText}>
+      <View style={{ backgroundColor: colors.background.card, borderRadius: borderRadius.md, padding: spacing.base, borderLeftWidth: 3, borderLeftColor: colors.brand.primary, gap: spacing.xs }}>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary, lineHeight: 24, marginBottom: spacing.xs }}>
           Les suffixes possessifs s'attachent au nom :
         </Text>
         {[
@@ -478,11 +548,11 @@ function SentencePresentationContent({ item }: { item: SentencePresentationItem 
           { suffix: '-هُ', label: '(lui)',   example: 'كِتَابُهُ',  meaning: 'son livre' },
           { suffix: '-نَا', label: '(nous)', example: 'كِتَابُنَا', meaning: 'notre livre' },
         ].map(row => (
-          <View key={row.suffix} style={styles.suffixRow}>
-            <Text style={styles.suffixCode}>{row.suffix}</Text>
-            <Text style={styles.suffixLabel}>{row.label}</Text>
-            <Text style={styles.suffixExample}>{row.example}</Text>
-            <Text style={styles.suffixMeaning}>{row.meaning}</Text>
+          <View key={row.suffix} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.border.subtle }}>
+            <Text style={{ fontFamily: typography.family.arabic, fontSize: 20, lineHeight: arabicLH, color: colors.brand.primary, width: 40, textAlign: 'right' }}>{row.suffix}</Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, width: 56 }}>{row.label}</Text>
+            <Text style={{ fontFamily: typography.family.arabic, fontSize: 18, lineHeight: Math.round(18 * 1.9), color: colors.text.heroArabic, flex: 1, textAlign: 'right' }}>{row.example}</Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic', width: 80 }}>{row.meaning}</Text>
           </View>
         ))}
       </View>
@@ -490,16 +560,18 @@ function SentencePresentationContent({ item }: { item: SentencePresentationItem 
   }
 
   if (item.kind === 'nominal_rule') {
+    const arabicLH20 = Math.round(20 * 1.9);
+    const arabicLH18 = Math.round(18 * 1.9);
     return (
-      <View style={styles.pedagogyBox}>
-        <Text style={styles.pedagogyText}>
+      <View style={{ backgroundColor: colors.background.card, borderRadius: borderRadius.md, padding: spacing.base, borderLeftWidth: 3, borderLeftColor: colors.brand.primary }}>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary, lineHeight: 24 }}>
           {'La phrase nominale :\n\nSujet défini (avec الـ) + adjectif indéfini\n= "X est [adj]"\n\n'}
-          <Text style={{ fontFamily: 'Amiri', fontSize: 20 }}>الْبَيْتُ كَبِيرٌ</Text>
+          <Text style={{ fontFamily: typography.family.arabic, fontSize: 20, lineHeight: arabicLH20 }}>الْبَيْتُ كَبِيرٌ</Text>
           {'\n→ La maison est grande.\n\n'}
           {'L\'adjectif s\'accorde en genre :\n'}
-          <Text style={{ fontFamily: 'Amiri', fontSize: 18 }}>جَمِيل</Text>
+          <Text style={{ fontFamily: typography.family.arabic, fontSize: 18, lineHeight: arabicLH18 }}>جَمِيل</Text>
           {' (m) → '}
-          <Text style={{ fontFamily: 'Amiri', fontSize: 18 }}>جَمِيلَة</Text>
+          <Text style={{ fontFamily: typography.family.arabic, fontSize: 18, lineHeight: arabicLH18 }}>جَمِيلَة</Text>
           {' (f)'}
         </Text>
       </View>
@@ -510,53 +582,123 @@ function SentencePresentationContent({ item }: { item: SentencePresentationItem 
 }
 
 function GrammarRuleContent({ rule }: { rule: GrammarRule | null }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   if (!rule) return null;
+  const arabicLH36 = Math.round(36 * 1.9);
+  const arabicLH22 = Math.round(22 * 1.9);
   return (
-    <View style={styles.grammarCard}>
-      <Text style={styles.grammarTitle}>{rule.title_fr}</Text>
-      {rule.title_ar ? <Text style={styles.grammarTitleAr}>{rule.title_ar}</Text> : null}
-      <Text style={styles.grammarConcept}>{rule.concept_fr}</Text>
+    <View style={{ gap: spacing.base }}>
+      <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center' }}>
+        {rule.title_fr}
+      </Text>
+      {rule.title_ar ? (
+        <Text style={{ fontFamily: typography.family.arabic, fontSize: 22, lineHeight: arabicLH22, color: colors.text.secondary, textAlign: 'center' }}>
+          {rule.title_ar}
+        </Text>
+      ) : null}
+      <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, lineHeight: 24, textAlign: 'center' }}>
+        {rule.concept_fr}
+      </Text>
       {rule.formula ? (
-        <View style={styles.formulaBox}>
-          <Text style={styles.formulaText}>{rule.formula}</Text>
+        <View style={{ backgroundColor: colors.brand.light, borderRadius: borderRadius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl, alignSelf: 'center' }}>
+          <Text style={{ fontFamily: typography.family.arabic, fontSize: 22, lineHeight: arabicLH22, color: colors.brand.primary, textAlign: 'center' }}>
+            {rule.formula}
+          </Text>
         </View>
       ) : null}
-      <View style={styles.grammarExampleBox}>
-        <Text style={styles.grammarExampleAr}>{rule.example_ar_vocalized}</Text>
-        <Text style={styles.grammarTranslit}>{rule.example_transliteration}</Text>
-        <Text style={styles.grammarTranslation}>« {rule.example_translation_fr} »</Text>
+      <View style={{
+        backgroundColor: colors.background.group,
+        borderRadius: borderRadius.xl,
+        paddingVertical: spacing.xl,
+        paddingHorizontal: spacing.lg,
+        alignItems: 'center',
+        gap: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.border.subtle,
+      }}>
+        <Text style={{ fontFamily: typography.family.arabic, fontSize: 36, lineHeight: arabicLH36, color: colors.text.heroArabic, textAlign: 'center' }}>
+          {rule.example_ar_vocalized}
+        </Text>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, fontStyle: 'italic', textAlign: 'center' }}>
+          {rule.example_transliteration}
+        </Text>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.primary, textAlign: 'center' }}>
+          « {rule.example_translation_fr} »
+        </Text>
       </View>
       {rule.pedagogy_notes ? (
-        <View style={styles.pedagogyBox}>
-          <Text style={styles.pedagogyText}>💡 {rule.pedagogy_notes}</Text>
-        </View>
+        <PedagogyBox>💡 {rule.pedagogy_notes}</PedagogyBox>
       ) : null}
     </View>
   );
 }
 
 function ConjugationContent({ item }: { item: ConjugationTeachingItem | null }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   if (!item || item.entries.length === 0) return null;
   const firstEntry = item.entries[0];
+  const arabicLH48 = Math.round(48 * 1.9);
+  const arabicLH22 = Math.round(22 * 1.9);
+  const arabicLH16 = Math.round(16 * 1.9);
   return (
-    <View style={styles.conjCard}>
-      <Text style={styles.conjVerbAr}>{firstEntry.conjugated_ar_vocalized}</Text>
-      <Text style={styles.conjTitle}>Conjugaison au passé</Text>
-      <View style={styles.conjTable}>
+    <View style={{ gap: spacing.base, alignItems: 'center' }}>
+      <Text style={{ fontFamily: typography.family.arabic, fontSize: 48, lineHeight: arabicLH48, color: colors.brand.primary, textAlign: 'center' }}>
+        {firstEntry.conjugated_ar_vocalized}
+      </Text>
+      <Text style={{
+        fontFamily: typography.family.uiBold,
+        fontSize: typography.size.small,
+        color: colors.text.secondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+      }}>
+        Conjugaison au passé
+      </Text>
+      <View style={{ width: '100%', gap: 2 }}>
         {item.entries.map(entry => (
-          <View key={entry.id} style={styles.conjRow}>
-            <Text style={styles.conjPronounFr}>{entry.pronoun_fr}</Text>
-            <Text style={styles.conjPronounAr}>{entry.pronoun_ar}</Text>
-            <Text style={styles.conjForm}>{entry.conjugated_ar_vocalized}</Text>
-            <Text style={styles.conjTranslit}>{entry.conjugated_transliteration}</Text>
+          <View key={entry.id} style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: spacing.xs,
+            paddingHorizontal: spacing.sm,
+            backgroundColor: colors.background.group,
+            borderRadius: borderRadius.sm,
+            gap: spacing.sm,
+          }}>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, width: 36 }}>
+              {entry.pronoun_fr}
+            </Text>
+            <Text style={{ fontFamily: typography.family.arabic, fontSize: 16, lineHeight: arabicLH16, color: colors.text.secondary, width: 48, textAlign: 'right' }}>
+              {entry.pronoun_ar}
+            </Text>
+            <Text style={{ fontFamily: typography.family.arabic, fontSize: 22, lineHeight: arabicLH22, color: colors.text.heroArabic, flex: 1, textAlign: 'right' }}>
+              {entry.conjugated_ar_vocalized}
+            </Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic', width: 90, textAlign: 'right' }}>
+              {entry.conjugated_transliteration}
+            </Text>
           </View>
         ))}
       </View>
       {firstEntry.example_sentence_ar_vocalized ? (
-        <View style={styles.pedagogyBox}>
-          <Text style={styles.grammarExampleAr}>{firstEntry.example_sentence_ar_vocalized}</Text>
+        <View style={{
+          backgroundColor: colors.background.group,
+          borderRadius: borderRadius.xl,
+          paddingVertical: spacing.xl,
+          paddingHorizontal: spacing.lg,
+          alignItems: 'center',
+          gap: spacing.sm,
+          width: '100%',
+          borderWidth: 1,
+          borderColor: colors.border.subtle,
+        }}>
+          <Text style={{ fontFamily: typography.family.arabic, fontSize: 36, lineHeight: Math.round(36 * 1.9), color: colors.text.heroArabic, textAlign: 'center' }}>
+            {firstEntry.example_sentence_ar_vocalized}
+          </Text>
           {firstEntry.example_sentence_translation_fr ? (
-            <Text style={styles.grammarTranslation}>« {firstEntry.example_sentence_translation_fr} »</Text>
+            <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.primary, textAlign: 'center' }}>
+              « {firstEntry.example_sentence_translation_fr} »
+            </Text>
           ) : null}
         </View>
       ) : null}
@@ -565,6 +707,7 @@ function ConjugationContent({ item }: { item: ConjugationTeachingItem | null }) 
 }
 
 function CompareDiacriticsSection({ lessonSortOrder }: { lessonSortOrder: number }) {
+  const { colors, typography, spacing } = useTheme();
   const compareSortOrders: number[] = [];
   if (lessonSortOrder === 2) {
     compareSortOrders.push(1, 3);
@@ -575,8 +718,10 @@ function CompareDiacriticsSection({ lessonSortOrder }: { lessonSortOrder: number
   if (!compareDiacritics || compareDiacritics.length < 2) return null;
 
   return (
-    <View style={styles.compareSection}>
-      <Text style={styles.compareSectionTitle}>Comparaison :</Text>
+    <View style={{ gap: spacing.sm }}>
+      <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.secondary }}>
+        Comparaison :
+      </Text>
       <SyllableDisplay
         mode="compare_diacritics"
         diacritics={compareDiacritics}
@@ -586,293 +731,21 @@ function CompareDiacriticsSection({ lessonSortOrder }: { lessonSortOrder: number
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────
+// ── Composant partagé ─────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: { width: 36, height: 36, justifyContent: 'center' },
-  backArrow: { fontSize: 22, color: Colors.textSecondary },
-  sectionTitle: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: Spacing.xs,
-  },
-  counter: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-  },
-
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Layout.screenPaddingH,
-  },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
-  dotFilled: { backgroundColor: Colors.primary },
-
-  scroll: { paddingHorizontal: Layout.screenPaddingH, paddingBottom: Spacing['2xl'], gap: Spacing.xl },
-
-  footer: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.bg,
-  },
-  nextBtn: {
-    height: Layout.buttonHeight,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextLabel: { fontSize: FontSizes.body, fontWeight: '700', color: Colors.textOnPrimary },
-
-  progressBarTrack: {
-    height: 4,
-    backgroundColor: Colors.border,
-  },
-  progressBarFill: {
-    height: 4,
-    backgroundColor: Colors.primary,
-  },
-
-  pedagogyBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
-  },
-  pedagogyText: { fontSize: FontSizes.body, color: Colors.textPrimary, lineHeight: 24 },
-
-  compareSection: { gap: Spacing.sm },
-  compareSectionTitle: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-
-  // Solar/Lunar intro
-  solarIntroBox: { gap: Spacing.xl },
-  solarIntroTitle: {
-    fontSize: FontSizes.heading,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  solarIntroText: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    lineHeight: 24,
-    textAlign: 'center',
-  },
-  solarRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  solarCard: {
-    flex: 1,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  solarCardSun: {
-    borderColor: '#D4A843',
-    backgroundColor: '#FFF8E1',
-  },
-  solarAr: {
-    fontSize: 28,
-    fontFamily: 'Amiri',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  solarLabel: {
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  solarDesc: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-
-  suffixRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8E2D9',
-  },
-  suffixCode: {
-    fontFamily: 'Amiri',
-    fontSize: 20,
-    color: Colors.primary,
-    width: 40,
-    textAlign: 'right',
-  },
-  suffixLabel: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    width: 56,
-  },
-  suffixExample: {
-    fontFamily: 'Amiri',
-    fontSize: 18,
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'right',
-  },
-  suffixMeaning: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-    width: 80,
-  },
-
-  // Grammar rule teaching
-  grammarCard: {
-    gap: Spacing.lg,
-  },
-  grammarTitle: {
-    fontSize: FontSizes.heading,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  grammarTitleAr: {
-    fontFamily: 'Amiri',
-    fontSize: 22,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  grammarConcept: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    lineHeight: 24,
-    textAlign: 'center',
-  },
-  formulaBox: {
-    backgroundColor: Colors.primaryLight,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    alignSelf: 'center',
-  },
-  formulaText: {
-    fontFamily: 'Amiri',
-    fontSize: 22,
-    color: Colors.primary,
-    textAlign: 'center',
-  },
-  grammarExampleBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing['2xl'],
-    paddingHorizontal: Spacing.xl,
-    alignItems: 'center',
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  grammarExampleAr: {
-    fontFamily: 'Amiri',
-    fontSize: 36,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  grammarTranslit: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  grammarTranslation: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-
-  // Conjugation teaching
-  conjCard: {
-    gap: Spacing.lg,
-    alignItems: 'center',
-  },
-  conjVerbAr: {
-    fontFamily: 'Amiri',
-    fontSize: 48,
-    color: Colors.primary,
-    textAlign: 'center',
-  },
-  conjTitle: {
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  conjTable: {
-    width: '100%',
-    gap: 2,
-  },
-  conjRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.sm,
-    gap: Spacing.sm,
-  },
-  conjPronounFr: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    width: 36,
-  },
-  conjPronounAr: {
-    fontFamily: 'Amiri',
-    fontSize: 16,
-    color: Colors.textSecondary,
-    width: 48,
-    textAlign: 'right',
-  },
-  conjForm: {
-    fontFamily: 'Amiri',
-    fontSize: 22,
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'right',
-  },
-  conjTranslit: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-    width: 90,
-    textAlign: 'right',
-  },
-});
+function PedagogyBox({ children }: { children: React.ReactNode }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
+  return (
+    <View style={{
+      backgroundColor: colors.background.card,
+      borderRadius: borderRadius.md,
+      padding: spacing.base,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.brand.primary,
+    }}>
+      <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary, lineHeight: 24 }}>
+        {children}
+      </Text>
+    </View>
+  );
+}

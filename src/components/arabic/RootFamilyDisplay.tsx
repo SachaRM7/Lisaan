@@ -1,11 +1,11 @@
 // src/components/arabic/RootFamilyDisplay.tsx
 
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
-import { Colors, Spacing, Radius, Shadows, FontSizes } from '../../constants/theme';
+import { View, Text, Pressable, Animated } from 'react-native';
 import ArabicText from './ArabicText';
 import type { Root } from '../../hooks/useRoots';
 import type { Word } from '../../hooks/useWords';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface RootFamilyDisplayProps {
   root: Root;
@@ -24,18 +24,40 @@ export default function RootFamilyDisplay({
   highlightWordId,
   onWordTap,
 }: RootFamilyDisplayProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const arabicLineHeight = Math.round(48 * 1.9);
+
   return (
-    <View style={styles.container}>
+    <View style={{
+      backgroundColor: colors.background.group,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      ...shadows.subtle,
+    }}>
       {/* En-tête : consonnes de la racine */}
-      <View style={styles.header}>
-        <Text style={styles.consonants}>
+      <View style={{ alignItems: 'center', marginBottom: spacing.lg, gap: spacing.xs }}>
+        <Text style={{
+          fontFamily: typography.family.arabic,
+          fontSize: typography.size.arabicHero,
+          lineHeight: arabicLineHeight,
+          color: colors.brand.primary,
+          textAlign: 'center',
+        }}>
           {root.consonants.join(' - ')}
         </Text>
-        <Text style={styles.meaning}>{root.core_meaning_fr}</Text>
+        <Text style={{
+          fontFamily: typography.family.ui,
+          fontSize: typography.size.body,
+          color: colors.text.secondary,
+          fontStyle: 'italic',
+          textAlign: 'center',
+        }}>
+          {root.core_meaning_fr}
+        </Text>
       </View>
 
       {/* Grille 2 colonnes des mots dérivés */}
-      <View style={styles.grid}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         {words.map((word, index) => (
           <WordCell
             key={word.id}
@@ -52,8 +74,6 @@ export default function RootFamilyDisplay({
   );
 }
 
-// ── Cellule de mot animée ────────────────────────────────────
-
 function WordCell({
   word,
   index,
@@ -69,121 +89,53 @@ function WordCell({
   showTranslation: boolean;
   onTap?: (word: Word) => void;
 }) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(12)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 250,
-        delay: index * 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 250,
-        delay: index * 100,
-        useNativeDriver: true,
-      }),
+      Animated.timing(opacity, { toValue: 1, duration: 250, delay: index * 100, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 250, delay: index * 100, useNativeDriver: true }),
     ]).start();
   }, [index]);
 
   return (
-    <Animated.View style={[styles.cellWrapper, { opacity, transform: [{ translateY }] }]}>
+    <Animated.View style={[{ width: '47%' }, { opacity, transform: [{ translateY }] }]}>
       <Pressable
-        style={[styles.cell, highlighted && styles.cellHighlighted]}
+        style={[
+          {
+            backgroundColor: highlighted ? colors.accent.gold + '20' : colors.background.card,
+            borderRadius: borderRadius.md,
+            borderWidth: highlighted ? 2 : 1,
+            borderColor: highlighted ? colors.accent.gold : colors.border.subtle,
+            padding: spacing.sm,
+            alignItems: 'center',
+            gap: spacing.xs,
+            ...shadows.subtle,
+          },
+        ]}
         onPress={() => onTap?.(word)}
       >
         <ArabicText size="medium" showTransliteration={false}>
           {word.arabic_vocalized}
         </ArabicText>
         {showTranslation && (
-          <Text style={styles.cellTranslation} numberOfLines={1}>
+          <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.primary, textAlign: 'center' }} numberOfLines={1}>
             {word.translation_fr}
           </Text>
         )}
         {word.pattern && (
-          <Text style={styles.cellPattern}>{word.pattern}</Text>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic', textAlign: 'center' }}>
+            {word.pattern}
+          </Text>
         )}
         {showTransliteration && (
-          <Text style={styles.cellTranslit}>{word.transliteration}</Text>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center' }}>
+            {word.transliteration}
+          </Text>
         )}
       </Pressable>
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#FAFAF5',
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: '#E8E2D9',
-    padding: Spacing['2xl'],
-    ...Shadows.card,
-  },
-
-  header: {
-    alignItems: 'center',
-    marginBottom: Spacing['2xl'],
-    gap: Spacing.sm,
-  },
-  consonants: {
-    fontSize: FontSizes.arabicLG,
-    fontFamily: 'Amiri',
-    color: '#2A9D8F',
-    textAlign: 'center',
-    lineHeight: FontSizes.arabicLG * 1.4,
-  },
-  meaning: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    fontFamily: 'Inter',
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  cellWrapper: {
-    width: '47%',
-  },
-  cell: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#E8E2D9',
-    padding: Spacing.md,
-    alignItems: 'center',
-    gap: Spacing.xs,
-    ...Shadows.card,
-  },
-  cellHighlighted: {
-    borderColor: '#D4A843',
-    backgroundColor: '#FFF8E1',
-  },
-  cellTranslation: {
-    fontSize: FontSizes.small,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    fontFamily: 'Inter',
-  },
-  cellPattern: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    fontFamily: 'Inter',
-    textAlign: 'center',
-  },
-  cellTranslit: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    fontFamily: 'Inter',
-    textAlign: 'center',
-  },
-});

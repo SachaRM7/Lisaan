@@ -2,14 +2,13 @@
 
 import { View, Text, StyleSheet, ScrollView, Pressable, Animated } from 'react-native';
 import { useEffect, useRef } from 'react';
-import { Colors, Spacing, Radius, FontSizes } from '../../constants/theme';
 import ArabicText from './ArabicText';
 import type { Diacritic } from '../../hooks/useDiacritics';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface SyllableDisplayProps {
   mode: 'single_diacritic' | 'compare_diacritics';
   diacritics: Diacritic[];
-  /** Syllabes à afficher (mode single) ou lettres de base (mode compare) */
   letterForms: string[];
   transliterations?: string[];
   showTransliteration?: boolean;
@@ -61,20 +60,25 @@ function SingleDiacriticView({
   showTransliteration?: boolean;
   onSyllableTap?: (syllable: string, diacriticId: string) => void;
 }) {
+  const { colors, typography, spacing } = useTheme();
   if (!diacritic) return null;
 
   const syllables = letterForms.length > 0 ? letterForms : diacritic.example_letters;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>
+    <View style={{ gap: spacing.sm }}>
+      <Text style={{
+        fontFamily: typography.family.uiMedium,
+        fontSize: typography.size.small,
+        color: colors.brand.primary,
+      }}>
         {diacritic.name_fr}
         {diacritic.transliteration ? ` (son "${diacritic.transliteration}")` : ''}
       </Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.syllablesRow}
+        contentContainerStyle={{ gap: spacing.sm, paddingVertical: spacing.xs }}
       >
         {syllables.map((syllable, index) => (
           <AnimatedSyllable
@@ -104,17 +108,18 @@ function CompareDiacriticsView({
   showTransliteration?: boolean;
   onSyllableTap?: (syllable: string, diacriticId: string) => void;
 }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const letters = baseLetters.length > 0 ? baseLetters : ['ب', 'ت', 'س', 'ن'];
 
   return (
-    <View style={styles.container}>
+    <View style={{ gap: spacing.sm }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View>
           {/* En-tête : lettres de base */}
-          <View style={styles.compareHeader}>
-            <View style={styles.compareLabel} />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 80 }} />
             {letters.map((letter, i) => (
-              <View key={i} style={styles.compareHeaderCell}>
+              <View key={i} style={{ width: 72, alignItems: 'center', padding: spacing.xs }}>
                 <ArabicText size="medium" showTransliteration={false}>
                   {letter}
                 </ArabicText>
@@ -123,14 +128,20 @@ function CompareDiacriticsView({
           </View>
 
           {/* Séparateur */}
-          <View style={styles.compareDivider} />
+          <View style={{ height: 1, backgroundColor: colors.border.medium, marginVertical: spacing.xs }} />
 
           {/* Lignes : diacritique × lettres */}
           {diacritics.map((diacritic) => (
-            <View key={diacritic.id} style={styles.compareRow}>
+            <View key={diacritic.id} style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}>
               {/* Label diacritique */}
-              <View style={styles.compareLabel}>
-                <Text style={styles.compareLabelText}>{diacritic.name_fr}</Text>
+              <View style={{ width: 80, justifyContent: 'center', paddingRight: spacing.xs }}>
+                <Text style={{
+                  fontFamily: typography.family.uiMedium,
+                  fontSize: typography.size.small,
+                  color: colors.brand.primary,
+                }}>
+                  {diacritic.name_fr}
+                </Text>
               </View>
               {/* Syllabes */}
               {letters.map((baseLetter, i) => {
@@ -140,14 +151,22 @@ function CompareDiacriticsView({
                 return (
                   <Pressable
                     key={i}
-                    style={styles.compareCell}
+                    style={{
+                      width: 72,
+                      alignItems: 'center',
+                      backgroundColor: colors.background.group,
+                      borderRadius: borderRadius.sm,
+                      padding: spacing.xs,
+                      margin: 2,
+                      gap: 2,
+                    }}
                     onPress={onSyllableTap ? () => onSyllableTap(syllable, diacritic.id) : undefined}
                   >
                     <ArabicText size="large" showTransliteration={false}>
                       {syllable}
                     </ArabicText>
                     {showTransliteration && diacritic.transliteration ? (
-                      <Text style={styles.compareTranslit}>
+                      <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny - 2, color: colors.text.secondary }}>
                         {baseLetter[0]?.toLowerCase()}{diacritic.transliteration}
                       </Text>
                     ) : null}
@@ -177,6 +196,7 @@ function AnimatedSyllable({
   showTransliteration?: boolean;
   onTap?: () => void;
 }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
 
@@ -200,92 +220,32 @@ function AnimatedSyllable({
   return (
     <Animated.View style={{ opacity, transform: [{ translateY }] }}>
       <Pressable
-        style={styles.syllableCell}
+        style={{
+          alignItems: 'center',
+          backgroundColor: colors.background.group,
+          borderRadius: borderRadius.sm,
+          padding: spacing.sm,
+          minWidth: 64,
+          gap: 4,
+        }}
         onPress={onTap}
       >
         <ArabicText size="large" showTransliteration={false}>
           {syllable}
         </ArabicText>
         {showTransliteration !== false && transliteration ? (
-          <Text style={styles.syllableTranslit}>{transliteration}</Text>
+          <Text style={{
+            fontFamily: typography.family.ui,
+            fontSize: typography.size.small,
+            color: colors.text.secondary,
+            textAlign: 'center',
+          }}>
+            {transliteration}
+          </Text>
         ) : null}
       </Pressable>
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: Spacing.md,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: '#2A9D8F',
-    fontFamily: 'Inter',
-  },
-  syllablesRow: {
-    gap: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  syllableCell: {
-    alignItems: 'center',
-    backgroundColor: '#FFF8F0',
-    borderRadius: Radius.sm,
-    padding: Spacing.md,
-    minWidth: 64,
-    gap: 4,
-  },
-  syllableTranslit: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    fontFamily: 'Inter',
-    textAlign: 'center',
-  },
-
-  // Compare mode
-  compareHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  compareHeaderCell: {
-    width: 72,
-    alignItems: 'center',
-    padding: Spacing.sm,
-  },
-  compareDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: Spacing.xs,
-  },
-  compareRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 2,
-  },
-  compareLabel: {
-    width: 80,
-    justifyContent: 'center',
-    paddingRight: Spacing.sm,
-  },
-  compareLabelText: {
-    fontSize: FontSizes.small,
-    color: '#2A9D8F',
-    fontFamily: 'Inter',
-    fontWeight: '600',
-  },
-  compareCell: {
-    width: 72,
-    alignItems: 'center',
-    backgroundColor: '#FFF8F0',
-    borderRadius: Radius.sm,
-    padding: Spacing.sm,
-    margin: 2,
-    gap: 2,
-  },
-  compareTranslit: {
-    fontSize: FontSizes.small - 2,
-    color: Colors.textMuted,
-    fontFamily: 'Inter',
-  },
-});
+const styles = StyleSheet.create({});

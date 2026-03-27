@@ -1,7 +1,7 @@
 // src/components/BadgeUnlockModal.tsx
 
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { BadgeUnlock } from '../engines/badge-engine';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface BadgeUnlockModalProps {
   badge: BadgeUnlock | null;
@@ -17,6 +18,7 @@ interface BadgeUnlockModalProps {
 }
 
 export function BadgeUnlockModal({ badge, onDismiss }: BadgeUnlockModalProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const scale = useSharedValue(0.5);
   const opacity = useSharedValue(0);
   const confettiRef = useRef<ConfettiCannon>(null);
@@ -25,7 +27,6 @@ export function BadgeUnlockModal({ badge, onDismiss }: BadgeUnlockModalProps) {
     if (badge) {
       scale.value = withSpring(1, { damping: 12, stiffness: 150 });
       opacity.value = withTiming(1, { duration: 300 });
-      // Déclencher les confettis après un court délai
       setTimeout(() => confettiRef.current?.start(), 400);
     } else {
       scale.value = 0.5;
@@ -42,105 +43,89 @@ export function BadgeUnlockModal({ badge, onDismiss }: BadgeUnlockModalProps) {
 
   return (
     <Modal transparent animationType="none" visible={!!badge} onRequestClose={onDismiss}>
-      <View style={styles.overlay}>
-        {/* Confetti centré en haut */}
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' }}>
         <ConfettiCannon
           ref={confettiRef}
           count={60}
           origin={{ x: 200, y: -10 }}
           autoStart={false}
           fadeOut
-          colors={['#F4C430', '#3CB371', '#4682B4', '#DC143C', '#9370DB']}
+          colors={[colors.accent.gold, colors.brand.primary, '#4682B4', '#DC143C', '#9370DB']}
           explosionSpeed={350}
           fallSpeed={3000}
         />
 
-        <Animated.View style={[styles.card, cardStyle]}>
-          {/* Badge icon */}
-          <Text style={styles.icon}>{badge.icon}</Text>
+        <Animated.View style={[{
+          backgroundColor: colors.background.card,
+          borderRadius: borderRadius.xl,
+          padding: spacing.xl,
+          alignItems: 'center',
+          width: 300,
+          ...shadows.prominent,
+        }, cardStyle]}>
+          <Text style={{ fontSize: 72, marginBottom: spacing.sm }}>
+            {badge.icon}
+          </Text>
 
-          {/* Titre */}
-          <Text style={styles.newBadgeLabel}>NOUVEAU BADGE</Text>
-          <Text style={styles.title}>{badge.title_fr}</Text>
-          <Text style={styles.description}>{badge.description_fr}</Text>
+          <Text style={{
+            fontFamily: typography.family.uiBold,
+            fontSize: typography.size.tiny,
+            letterSpacing: 2,
+            color: colors.accent.gold,
+            marginBottom: spacing.xs,
+            textTransform: 'uppercase',
+          }}>
+            Nouveau badge
+          </Text>
+          <Text style={{
+            fontFamily: typography.family.uiBold,
+            fontSize: typography.size.h2,
+            color: colors.text.primary,
+            marginBottom: spacing.xs,
+            textAlign: 'center',
+          }}>
+            {badge.title_fr}
+          </Text>
+          <Text style={{
+            fontFamily: typography.family.ui,
+            fontSize: typography.size.small,
+            color: colors.text.secondary,
+            textAlign: 'center',
+            lineHeight: 20,
+            marginBottom: spacing.base,
+          }}>
+            {badge.description_fr}
+          </Text>
 
-          {/* XP reward */}
-          <View style={styles.xpRow}>
-            <Text style={styles.xpText}>+{badge.xp_reward} XP</Text>
+          <View style={{
+            backgroundColor: colors.background.group,
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+            borderRadius: borderRadius.pill,
+            marginBottom: spacing.lg,
+            borderWidth: 1,
+            borderColor: colors.accent.gold,
+          }}>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.accent.gold }}>
+              +{badge.xp_reward} XP
+            </Text>
           </View>
 
-          {/* CTA */}
-          <TouchableOpacity style={styles.button} onPress={onDismiss}>
-            <Text style={styles.buttonText}>Super !</Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.brand.primary,
+              paddingHorizontal: spacing.xxl,
+              paddingVertical: spacing.sm,
+              borderRadius: borderRadius.md,
+            }}
+            onPress={onDismiss}
+          >
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.inverse }}>
+              Super !
+            </Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  card: {
-    backgroundColor: '#FFFDF7',
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    width: 300,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  icon: { fontSize: 72, marginBottom: 12 },
-  newBadgeLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 2,
-    color: '#B8860B',
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: 14,
-    color: '#555',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  xpRow: {
-    backgroundColor: '#FFF3CD',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 24,
-  },
-  xpText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#856404',
-  },
-  button: {
-    backgroundColor: '#2D6A4F',
-    paddingHorizontal: 40,
-    paddingVertical: 14,
-    borderRadius: 16,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-});

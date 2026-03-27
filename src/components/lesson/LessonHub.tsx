@@ -1,9 +1,10 @@
 // src/components/lesson/LessonHub.tsx
 
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import type { Lesson } from '../../types';
 import type { LessonSection, SectionProgress } from '../../types/section';
-import { Colors, Spacing, Radius, Layout, FontSizes } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Button } from '../ui';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -32,7 +33,8 @@ export function LessonHub({
   onReplayExercises,
   onBack,
 }: LessonHubProps) {
-  // Trouver la section en cours (première non-complétée)
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+
   const currentSectionIndex = sectionProgress.findIndex(p => p.status !== 'completed');
   const resumeIndex = currentSectionIndex >= 0 ? currentSectionIndex : 0;
 
@@ -53,22 +55,37 @@ export function LessonHub({
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} hitSlop={12}>
-          <Text style={styles.backArrow}>←</Text>
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.base,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border.subtle,
+      }}>
+        <TouchableOpacity onPress={onBack} style={{ width: 36, height: 36, justifyContent: 'center' }} hitSlop={12}>
+          <Text style={{ fontSize: 22, color: colors.text.secondary }}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.lessonTitle} numberOfLines={1}>{lesson.title_fr}</Text>
-        <View style={styles.backBtn} />
+        <Text
+          style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.h2, color: colors.text.primary, flex: 1, textAlign: 'center', marginHorizontal: spacing.sm }}
+          numberOfLines={1}
+        >
+          {lesson.title_fr}
+        </Text>
+        <View style={{ width: 36, height: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xl, gap: spacing.sm }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Mode EN COURS */}
         {lessonStatus === 'in_progress' && (
           <>
-            <Text style={styles.resumeLabel}>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center', marginBottom: spacing.xs }}>
               Tu en étais à la section {resumeIndex + 1} / {sections.length}
             </Text>
 
@@ -79,25 +96,33 @@ export function LessonHub({
               return (
                 <View
                   key={section.id}
-                  style={[
-                    styles.sectionCard,
-                    status === 'in_progress' && styles.sectionCardActive,
-                    status === 'locked' && styles.sectionCardLocked,
-                  ]}
+                  style={{
+                    backgroundColor: status === 'locked' ? colors.background.main : colors.background.card,
+                    borderRadius: borderRadius.md,
+                    padding: spacing.base,
+                    borderWidth: status === 'in_progress' ? 2 : 1,
+                    borderColor: status === 'in_progress' ? colors.brand.primary : colors.border.subtle,
+                    gap: spacing.xs,
+                    opacity: status === 'locked' ? 0.5 : 1,
+                    ...shadows.subtle,
+                  }}
                 >
-                  <View style={styles.sectionCardRow}>
-                    <Text style={styles.sectionIcon}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <Text style={{ fontSize: 20 }}>
                       {status === 'completed' ? '✅' : status === 'in_progress' ? '◐' : '🔒'}
                     </Text>
-                    <View style={styles.sectionCardInfo}>
-                      <Text style={[
-                        styles.sectionCardTitle,
-                        status === 'locked' && styles.sectionCardTitleLocked,
-                      ]}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={{
+                        fontFamily: typography.family.uiMedium,
+                        fontSize: typography.size.body,
+                        color: status === 'locked' ? colors.text.secondary : colors.text.primary,
+                      }}>
                         {section.title_fr}
                       </Text>
                       {exerciseInfo && (
-                        <Text style={styles.sectionCardSub}>{exerciseInfo}</Text>
+                        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+                          {exerciseInfo}
+                        </Text>
                       )}
                     </View>
                   </View>
@@ -105,197 +130,63 @@ export function LessonHub({
               );
             })}
 
-            <TouchableOpacity
-              style={styles.ctaPrimary}
+            <Button
+              label="Reprendre où j'en étais"
+              variant="primary"
               onPress={() => onResumeAtSection(resumeIndex)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.ctaPrimaryLabel}>Reprendre où j'en étais</Text>
-            </TouchableOpacity>
+              style={{ marginTop: spacing.sm }}
+            />
           </>
         )}
 
         {/* Mode COMPLÉTÉE */}
         {lessonStatus === 'completed' && (
           <>
-            <View style={styles.completedHeader}>
-              <Text style={styles.completedTitle}>Leçon complétée !</Text>
+            <View style={{ alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs }}>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.brand.primary }}>
+                Leçon complétée !
+              </Text>
             </View>
 
             {sections.map((section, index) => (
-              <View key={section.id} style={styles.sectionCard}>
-                <Text style={styles.sectionCardTitle}>{section.title_fr}</Text>
-                <View style={styles.replayRow}>
-                  <TouchableOpacity
-                    style={styles.replayBtn}
+              <View key={section.id} style={{
+                backgroundColor: colors.background.card,
+                borderRadius: borderRadius.md,
+                padding: spacing.base,
+                borderWidth: 1,
+                borderColor: colors.border.subtle,
+                gap: spacing.sm,
+                ...shadows.subtle,
+              }}>
+                <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.primary }}>
+                  {section.title_fr}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <Button
+                    label="Relire"
+                    variant="secondary"
                     onPress={() => onReplayTeaching(index)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.replayBtnLabel}>Relire</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.replayBtn}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label="S'exercer"
+                    variant="primary"
                     onPress={() => onReplayExercises(index)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.replayBtnLabel}>S'exercer</Text>
-                  </TouchableOpacity>
+                    style={{ flex: 1 }}
+                  />
                 </View>
               </View>
             ))}
 
-            <TouchableOpacity
-              style={styles.ctaSecondary}
+            <Button
+              label="Tout refaire depuis le début"
+              variant="secondary"
               onPress={onStartFromBeginning}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.ctaSecondaryLabel}>Tout refaire depuis le début</Text>
-            </TouchableOpacity>
+              style={{ marginTop: spacing.sm }}
+            />
           </>
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────
-
-const PRIMARY = '#2D6A4F';
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FAFAF5' },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: '#FAFAF5',
-  },
-  backBtn: { width: 36, height: 36, justifyContent: 'center' },
-  backArrow: { fontSize: 22, color: Colors.textSecondary },
-  lessonTitle: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: Spacing.sm,
-  },
-
-  scroll: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing['2xl'],
-    gap: Spacing.md,
-  },
-
-  // Mode en cours
-  resumeLabel: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
-  },
-
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.sm,
-  },
-  sectionCardActive: {
-    borderColor: PRIMARY,
-    borderWidth: 2,
-  },
-  sectionCardLocked: {
-    backgroundColor: '#F0F0F0',
-  },
-  sectionCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  sectionIcon: {
-    fontSize: 20,
-  },
-  sectionCardInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  sectionCardTitle: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  sectionCardTitleLocked: {
-    color: Colors.textMuted,
-  },
-  sectionCardSub: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-  },
-
-  // Mode complétée
-  completedHeader: {
-    alignItems: 'center',
-    paddingVertical: Spacing.lg,
-    gap: Spacing.xs,
-  },
-  completedTitle: {
-    fontSize: FontSizes.heading,
-    fontWeight: '700',
-    color: PRIMARY,
-  },
-
-  replayRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  replayBtn: {
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-    borderWidth: 1.5,
-    borderColor: PRIMARY,
-    alignItems: 'center',
-  },
-  replayBtnLabel: {
-    fontSize: FontSizes.small,
-    fontWeight: '600',
-    color: PRIMARY,
-  },
-
-  // CTAs
-  ctaPrimary: {
-    marginTop: Spacing.md,
-    height: Layout.buttonHeight,
-    backgroundColor: PRIMARY,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaPrimaryLabel: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  ctaSecondary: {
-    marginTop: Spacing.sm,
-    height: Layout.buttonHeight,
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaSecondaryLabel: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-  },
-});

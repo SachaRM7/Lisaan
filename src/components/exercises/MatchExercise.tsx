@@ -2,21 +2,16 @@
 
 import { useState, useRef, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Animated,
-  ScrollView,
+  View, Text, Pressable, Animated, ScrollView,
 } from 'react-native';
-import { Colors, Spacing, Radius, FontSizes } from '../../constants/theme';
 import type { ExerciseComponentProps, MatchPair } from '../../types/exercise';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface MatchState {
   selectedLeft: string | null;
   selectedRight: string | null;
-  matchedPairs: Set<string>;   // ids des paires correctement associées
-  incorrectPair: [string, string] | null;  // [leftId, rightId]
+  matchedPairs: Set<string>;
+  incorrectPair: [string, string] | null;
   totalAttempts: number;
   wrongAttempts: number;
 }
@@ -31,10 +26,11 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const pairs: MatchPair[] = config.matchPairs ?? [];
   const startTime = useRef(Date.now());
+  const arabicLineHeight = Math.round(36 * 1.9);
 
-  // Colonne droite mélangée (une seule fois à la création)
   const [shuffledRight] = useState(() => shuffleArray(pairs));
 
   const [state, setState] = useState<MatchState>({
@@ -46,7 +42,6 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
     wrongAttempts: 0,
   });
 
-  // Animations de shake pour les erreurs
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const triggerShake = useCallback(() => {
@@ -72,13 +67,11 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
 
     const { selectedLeft } = state;
 
-    // Si rien à gauche : sélectionner à droite d'abord
     if (!selectedLeft) {
       setState(prev => ({ ...prev, selectedRight: pairId }));
       return;
     }
 
-    // Tester la correspondance
     const isCorrect = selectedLeft === pairId;
     const newAttempts = state.totalAttempts + 1;
 
@@ -87,14 +80,7 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
       newMatched.add(pairId);
 
       if (newMatched.size === pairs.length) {
-        // Toutes les paires trouvées
-        setState(prev => ({
-          ...prev,
-          matchedPairs: newMatched,
-          selectedLeft: null,
-          selectedRight: null,
-          totalAttempts: newAttempts,
-        }));
+        setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
         setTimeout(() => {
           onComplete({
             exercise_id: config.id,
@@ -105,41 +91,22 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
           });
         }, 800);
       } else {
-        setState(prev => ({
-          ...prev,
-          matchedPairs: newMatched,
-          selectedLeft: null,
-          selectedRight: null,
-          totalAttempts: newAttempts,
-        }));
+        setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
       }
     } else {
-      // Mauvaise association : flash rouge + shake
       triggerShake();
-      setState(prev => ({
-        ...prev,
-        incorrectPair: [selectedLeft, pairId],
-        totalAttempts: newAttempts,
-        wrongAttempts: prev.wrongAttempts + 1,
-      }));
+      setState(prev => ({ ...prev, incorrectPair: [selectedLeft, pairId], totalAttempts: newAttempts, wrongAttempts: prev.wrongAttempts + 1 }));
       setTimeout(() => {
-        setState(prev => ({
-          ...prev,
-          incorrectPair: null,
-          selectedLeft: null,
-          selectedRight: null,
-        }));
+        setState(prev => ({ ...prev, incorrectPair: null, selectedLeft: null, selectedRight: null }));
       }, 600);
     }
   }
 
-  // Si on a sélectionné à droite en premier, gérer la sélection gauche ensuite
   function handleLeftTapWithRightFirst(pairId: string) {
     if (state.matchedPairs.has(pairId)) return;
     if (state.incorrectPair) return;
 
     if (state.selectedRight !== null) {
-      // On a déjà quelque chose à droite, tester la correspondance
       const rightId = state.selectedRight;
       const isCorrect = pairId === rightId;
       const newAttempts = state.totalAttempts + 1;
@@ -149,13 +116,7 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
         newMatched.add(pairId);
 
         if (newMatched.size === pairs.length) {
-          setState(prev => ({
-            ...prev,
-            matchedPairs: newMatched,
-            selectedLeft: null,
-            selectedRight: null,
-            totalAttempts: newAttempts,
-          }));
+          setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
           setTimeout(() => {
             onComplete({
               exercise_id: config.id,
@@ -166,29 +127,13 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
             });
           }, 800);
         } else {
-          setState(prev => ({
-            ...prev,
-            matchedPairs: newMatched,
-            selectedLeft: null,
-            selectedRight: null,
-            totalAttempts: newAttempts,
-          }));
+          setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
         }
       } else {
         triggerShake();
-        setState(prev => ({
-          ...prev,
-          incorrectPair: [pairId, rightId],
-          totalAttempts: newAttempts,
-          wrongAttempts: prev.wrongAttempts + 1,
-        }));
+        setState(prev => ({ ...prev, incorrectPair: [pairId, rightId], totalAttempts: newAttempts, wrongAttempts: prev.wrongAttempts + 1 }));
         setTimeout(() => {
-          setState(prev => ({
-            ...prev,
-            incorrectPair: null,
-            selectedLeft: null,
-            selectedRight: null,
-          }));
+          setState(prev => ({ ...prev, incorrectPair: null, selectedLeft: null, selectedRight: null }));
         }, 600);
       }
     } else {
@@ -198,172 +143,92 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
 
   const matchedCount = state.matchedPairs.size;
 
+  // Styles dynamiques pour un item
+  function getItemStyle(side: 'left' | 'right', pairId: string) {
+    const isMatched = state.matchedPairs.has(pairId);
+    const isSelected = side === 'left' ? state.selectedLeft === pairId : state.selectedRight === pairId;
+    const isIncorrect = side === 'left' ? state.incorrectPair?.[0] === pairId : state.incorrectPair?.[1] === pairId;
+
+    const base = {
+      borderRadius: borderRadius.md,
+      padding: spacing.base,
+      alignItems: 'center' as const,
+      borderWidth: 2,
+      minHeight: 72,
+      justifyContent: 'center' as const,
+    };
+
+    if (isMatched) return { ...base, backgroundColor: colors.status.successLight, borderColor: colors.status.success };
+    if (isIncorrect) return { ...base, backgroundColor: colors.status.errorLight, borderColor: colors.status.error };
+    if (isSelected) return { ...base, backgroundColor: colors.brand.light, borderColor: colors.brand.primary, ...shadows.medium };
+
+    const bg = side === 'left' ? colors.background.group : colors.background.card;
+    return { ...base, backgroundColor: bg, borderColor: 'transparent', ...shadows.subtle };
+  }
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Instruction */}
+    <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, flexGrow: 1 }}>
       {config.instruction_fr ? (
-        <Text style={styles.instruction}>{config.instruction_fr}</Text>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center' }}>
+          {config.instruction_fr}
+        </Text>
       ) : null}
 
-      {/* Compteur */}
-      <Text style={styles.counter}>
+      <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center' }}>
         {matchedCount}/{pairs.length} paires trouvées
       </Text>
 
-      {/* Deux colonnes */}
-      <Animated.View
-        style={[styles.columnsRow, { transform: [{ translateX: shakeAnim }] }]}
-      >
-        {/* Colonne gauche : syllabes arabes */}
-        <View style={styles.column}>
-          {pairs.map((pair) => {
-            const isMatched = state.matchedPairs.has(pair.id);
-            const isSelected = state.selectedLeft === pair.id;
-            const isIncorrect = state.incorrectPair?.[0] === pair.id;
-            return (
-              <Pressable
-                key={`left-${pair.id}`}
-                style={[
-                  styles.itemLeft,
-                  isMatched && styles.itemMatched,
-                  isSelected && styles.itemSelected,
-                  isIncorrect && styles.itemIncorrect,
-                ]}
-                onPress={() =>
-                  state.selectedRight
-                    ? handleLeftTapWithRightFirst(pair.id)
-                    : handleLeftTap(pair.id)
-                }
-                disabled={isMatched}
-              >
-                <Text style={[styles.itemTextAr, isMatched && styles.itemTextMatched]}>
-                  {pair.left.ar ?? pair.left.fr ?? ''}
-                </Text>
-              </Pressable>
-            );
-          })}
+      <Animated.View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start', transform: [{ translateX: shakeAnim }] }}>
+        {/* Colonne gauche : arabes */}
+        <View style={{ flex: 1, gap: spacing.sm }}>
+          {pairs.map((pair) => (
+            <Pressable
+              key={`left-${pair.id}`}
+              style={getItemStyle('left', pair.id)}
+              onPress={() =>
+                state.selectedRight
+                  ? handleLeftTapWithRightFirst(pair.id)
+                  : handleLeftTap(pair.id)
+              }
+              disabled={state.matchedPairs.has(pair.id)}
+            >
+              <Text style={{
+                fontFamily: typography.family.arabic,
+                fontSize: typography.size.arabicTitle,
+                lineHeight: arabicLineHeight,
+                color: state.matchedPairs.has(pair.id) ? colors.status.success : colors.text.heroArabic,
+                textAlign: 'center',
+              }}>
+                {pair.left.ar ?? pair.left.fr ?? ''}
+              </Text>
+            </Pressable>
+          ))}
         </View>
 
         {/* Séparateur */}
-        <View style={styles.columnSeparator} />
+        <View style={{ width: 1, backgroundColor: colors.border.medium, alignSelf: 'stretch', marginVertical: spacing.xs }} />
 
-        {/* Colonne droite : noms français (mélangés) */}
-        <View style={styles.column}>
-          {shuffledRight.map((pair) => {
-            const isMatched = state.matchedPairs.has(pair.id);
-            const isSelected = state.selectedRight === pair.id;
-            const isIncorrect = state.incorrectPair?.[1] === pair.id;
-            return (
-              <Pressable
-                key={`right-${pair.id}`}
-                style={[
-                  styles.itemRight,
-                  isMatched && styles.itemMatched,
-                  isSelected && styles.itemSelected,
-                  isIncorrect && styles.itemIncorrect,
-                ]}
-                onPress={() => handleRightTap(pair.id)}
-                disabled={isMatched}
-              >
-                <Text style={[styles.itemTextFr, isMatched && styles.itemTextMatched]}>
-                  {pair.right.fr ?? pair.right.ar ?? ''}
-                </Text>
-              </Pressable>
-            );
-          })}
+        {/* Colonne droite : français */}
+        <View style={{ flex: 1, gap: spacing.sm }}>
+          {shuffledRight.map((pair) => (
+            <Pressable
+              key={`right-${pair.id}`}
+              style={getItemStyle('right', pair.id)}
+              onPress={() => handleRightTap(pair.id)}
+              disabled={state.matchedPairs.has(pair.id)}
+            >
+              <Text style={{
+                fontFamily: typography.family.uiBold,
+                fontSize: typography.size.body,
+                color: state.matchedPairs.has(pair.id) ? colors.status.success : colors.text.primary,
+                textAlign: 'center',
+              }}>
+                {pair.right.fr ?? pair.right.ar ?? ''}
+              </Text>
+            </Pressable>
+          ))}
         </View>
       </Animated.View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: Spacing['2xl'],
-    gap: Spacing.xl,
-    flexGrow: 1,
-  },
-  instruction: {
-    fontSize: FontSizes.heading,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: 28,
-  },
-  counter: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    fontFamily: 'Inter',
-  },
-
-  columnsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    alignItems: 'flex-start',
-  },
-  column: {
-    flex: 1,
-    gap: Spacing.md,
-  },
-  columnSeparator: {
-    width: 1,
-    backgroundColor: Colors.border,
-    alignSelf: 'stretch',
-    marginVertical: Spacing.sm,
-  },
-
-  // Éléments gauche (arabes)
-  itemLeft: {
-    backgroundColor: '#FFF8F0',
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    minHeight: 72,
-    justifyContent: 'center',
-  },
-  itemTextAr: {
-    fontFamily: 'Amiri',
-    fontSize: 36,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-
-  // Éléments droite (français)
-  itemRight: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    minHeight: 72,
-    justifyContent: 'center',
-  },
-  itemTextFr: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-
-  // États
-  itemSelected: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#EFF6FF',
-  },
-  itemMatched: {
-    backgroundColor: '#D1FAE5',
-    borderColor: '#2A9D8F',
-  },
-  itemTextMatched: {
-    color: '#065F46',
-  },
-  itemIncorrect: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#E76F51',
-  },
-});

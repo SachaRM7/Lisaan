@@ -7,9 +7,8 @@ import {
   Switch,
   Modal,
   TouchableOpacity,
-  StyleSheet,
 } from 'react-native';
-import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface SelectOption {
   value: string;
@@ -37,19 +36,30 @@ export function SettingRow({
   isOn,
   onToggle,
 }: SettingRowProps) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const selectedLabel = options.find((o) => o.value === selectedValue)?.label ?? selectedValue ?? '';
 
+  const rowStyle = {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.base,
+  };
+
   if (type === 'toggle') {
     return (
-      <View style={styles.row}>
-        <Text style={styles.label}>{label}</Text>
+      <View style={rowStyle}>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.primary, flex: 1 }}>
+          {label}
+        </Text>
         <Switch
           value={isOn ?? false}
           onValueChange={onToggle}
-          trackColor={{ false: Colors.border, true: Colors.primary }}
-          thumbColor={Colors.bgCard}
+          trackColor={{ false: colors.border.medium, true: colors.brand.primary }}
+          thumbColor={colors.background.card}
         />
       </View>
     );
@@ -57,11 +67,23 @@ export function SettingRow({
 
   return (
     <>
-      <Pressable style={styles.row} onPress={() => setPickerVisible(true)}>
-        <Text style={styles.label}>{label}</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{selectedLabel}</Text>
-          <Text style={styles.chevron}>›</Text>
+      <Pressable style={rowStyle} onPress={() => setPickerVisible(true)}>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.primary, flex: 1 }}>
+          {label}
+        </Text>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: colors.brand.light,
+          paddingHorizontal: spacing.sm,
+          paddingVertical: spacing.xs,
+          borderRadius: borderRadius.sm,
+          gap: spacing.xs,
+        }}>
+          <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.brand.primary }}>
+            {selectedLabel}
+          </Text>
+          <Text style={{ fontSize: 16, color: colors.brand.primary, lineHeight: 18 }}>›</Text>
         </View>
       </Pressable>
 
@@ -71,41 +93,73 @@ export function SettingRow({
         animationType="slide"
         onRequestClose={() => setPickerVisible(false)}
       >
-        <Pressable style={styles.overlay} onPress={() => setPickerVisible(false)}>
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>{label}</Text>
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+          onPress={() => setPickerVisible(false)}
+        >
+          <View style={{
+            backgroundColor: colors.background.card,
+            borderTopLeftRadius: borderRadius.xl,
+            borderTopRightRadius: borderRadius.xl,
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.xxxl,
+            paddingTop: spacing.base,
+          }}>
+            {/* Handle */}
+            <View style={{
+              width: 36,
+              height: 4,
+              backgroundColor: colors.border.medium,
+              borderRadius: 2,
+              alignSelf: 'center',
+              marginBottom: spacing.base,
+            }} />
+
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, marginBottom: spacing.xl, textAlign: 'center' }}>
+              {label}
+            </Text>
+
             {options.map((option) => (
               <TouchableOpacity
                 key={option.value}
-                style={[
-                  styles.sheetOption,
-                  option.value === selectedValue && styles.sheetOptionSelected,
-                ]}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingVertical: spacing.base,
+                  paddingHorizontal: spacing.sm,
+                  borderRadius: borderRadius.md,
+                  marginBottom: spacing.xs,
+                  backgroundColor: option.value === selectedValue ? colors.brand.light : 'transparent',
+                }}
                 onPress={() => {
                   onSelect?.(option.value);
                   setPickerVisible(false);
                 }}
                 activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.sheetOptionText,
-                    option.value === selectedValue && styles.sheetOptionTextSelected,
-                  ]}
-                >
+                <Text style={{
+                  fontFamily: option.value === selectedValue ? typography.family.uiMedium : typography.family.ui,
+                  fontSize: typography.size.body,
+                  color: option.value === selectedValue ? colors.brand.primary : colors.text.primary,
+                }}>
                   {option.label}
                 </Text>
                 {option.value === selectedValue && (
-                  <Text style={styles.checkmark}>✓</Text>
+                  <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.brand.primary }}>
+                    ✓
+                  </Text>
                 )}
               </TouchableOpacity>
             ))}
+
             <TouchableOpacity
-              style={styles.cancelBtn}
+              style={{ marginTop: spacing.base, paddingVertical: spacing.base, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border.subtle }}
               onPress={() => setPickerVisible(false)}
             >
-              <Text style={styles.cancelText}>Annuler</Text>
+              <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.secondary }}>
+                Annuler
+              </Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -113,106 +167,3 @@ export function SettingRow({
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.cardPaddingH,
-    paddingVertical: Spacing.lg,
-  },
-  label: {
-    fontSize: FontSizes.body,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-    flex: 1,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.sm,
-    gap: Spacing.xs,
-  },
-  badgeText: {
-    fontSize: FontSizes.caption,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  chevron: {
-    fontSize: 16,
-    color: Colors.primary,
-    lineHeight: 18,
-  },
-
-  // Modal bottom sheet
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingBottom: Spacing['4xl'],
-    paddingTop: Spacing.lg,
-    ...Shadows.card,
-  },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    backgroundColor: Colors.border,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: Spacing.lg,
-  },
-  sheetTitle: {
-    fontSize: FontSizes.heading,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xl,
-    textAlign: 'center',
-  },
-  sheetOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.md,
-    marginBottom: Spacing.xs,
-  },
-  sheetOptionSelected: {
-    backgroundColor: Colors.primaryLight,
-  },
-  sheetOptionText: {
-    fontSize: FontSizes.body,
-    color: Colors.textPrimary,
-  },
-  sheetOptionTextSelected: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  checkmark: {
-    fontSize: FontSizes.body,
-    color: Colors.primary,
-    fontWeight: '700',
-  },
-  cancelBtn: {
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  cancelText: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-});

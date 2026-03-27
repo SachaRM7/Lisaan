@@ -2,16 +2,16 @@
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, Layout, FontSizes } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Button } from '../ui';
 
 interface OnboardingShellProps {
-  step: number;         // 1–5 (utilisé pour la barre de progression)
+  step: number;
   totalSteps?: number;
   title: string;
   subtitle?: string;
@@ -31,137 +31,73 @@ export default function OnboardingShell({
   nextLabel = 'Suivant',
   children,
 }: OnboardingShellProps) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const router = useRouter();
   const progress = step / totalSteps;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.base,
+        paddingBottom: spacing.sm,
+      }}>
         {step > 1 ? (
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-            <Text style={styles.backArrow}>←</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, justifyContent: 'center' }} hitSlop={12}>
+            <Text style={{ fontSize: 22, color: colors.text.secondary }}>←</Text>
           </TouchableOpacity>
         ) : (
-          <View style={styles.backBtn} />
+          <View style={{ width: 36, height: 36 }} />
         )}
-        <Text style={styles.stepLabel}>{step} / {totalSteps}</Text>
-        <View style={styles.backBtn} />
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.secondary }}>
+          {step} / {totalSteps}
+        </Text>
+        <View style={{ width: 36, height: 36 }} />
       </View>
 
       {/* Barre de progression */}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+      <View style={{ height: 4, backgroundColor: colors.background.group, marginHorizontal: spacing.lg, borderRadius: borderRadius.pill, overflow: 'hidden' }}>
+        <View style={{ height: '100%', backgroundColor: colors.brand.primary, borderRadius: borderRadius.pill, width: `${progress * 100}%` as any }} />
       </View>
 
       {/* Contenu scrollable */}
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xxxl, paddingBottom: spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-        <View style={styles.options}>{children}</View>
+        <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary, marginBottom: spacing.sm }}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, marginBottom: spacing.xl }}>
+            {subtitle}
+          </Text>
+        ) : null}
+        <View style={{ gap: spacing.sm, marginTop: spacing.base }}>
+          {children}
+        </View>
       </ScrollView>
 
-      {/* Bouton Suivant */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.nextBtn, nextDisabled && styles.nextBtnDisabled]}
+      {/* Footer */}
+      <View style={{
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
+        borderTopWidth: 1,
+        borderTopColor: colors.border.subtle,
+        backgroundColor: colors.background.main,
+      }}>
+        <Button
+          label={nextLabel}
+          variant="primary"
           onPress={onNext}
           disabled={nextDisabled}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.nextLabel}>{nextLabel}</Text>
-        </TouchableOpacity>
+        />
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-  },
-  backArrow: {
-    fontSize: 22,
-    color: Colors.textSecondary,
-  },
-  stepLabel: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  progressTrack: {
-    height: Layout.progressBarHeight,
-    backgroundColor: Colors.border,
-    marginHorizontal: Layout.screenPaddingH,
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.full,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingTop: Spacing['3xl'],
-    paddingBottom: Spacing.xl,
-  },
-  title: {
-    fontSize: FontSizes.title,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    marginBottom: Spacing['2xl'],
-  },
-  options: {
-    gap: Spacing.md,
-    marginTop: Spacing.lg,
-  },
-  footer: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.bg,
-  },
-  nextBtn: {
-    height: Layout.buttonHeight,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextBtnDisabled: {
-    opacity: 0.4,
-  },
-  nextLabel: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: Colors.textOnPrimary,
-  },
-});

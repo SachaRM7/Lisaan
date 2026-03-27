@@ -4,7 +4,6 @@ import {
   View,
   Text,
   ScrollView,
-  StyleSheet,
   Pressable,
   ActivityIndicator,
   Animated,
@@ -12,24 +11,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Colors, FontSizes, Spacing, Radius, Shadows, Layout } from '../../src/constants/theme';
 import { useModules } from '../../src/hooks/useModules';
 import { useLessons } from '../../src/hooks/useLessons';
 import { useProgress, useInitFirstLesson } from '../../src/hooks/useProgress';
 import { useAuthStore } from '../../src/stores/useAuthStore';
 import { supabase } from '../../src/db/remote';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import type { Module } from '../../src/hooks/useModules';
 import type { Lesson } from '../../src/hooks/useLessons';
 import type { LessonProgress } from '../../src/hooks/useProgress';
 
 const PROGRESS_QUERY_KEY = ['user_progress'];
 
-// ── Logique de déverrouillage générique ────────────────────
+// ── Logique déverrouillage ──────────────────────────────────
 
-/**
- * Module N est déverrouillé quand Module N-1 est 100% complété.
- * Module 1 est toujours déverrouillé.
- */
 function isModuleUnlocked(
   moduleSortOrder: number,
   progressByModule: Record<string, LessonProgress[]>,
@@ -45,73 +41,155 @@ function isModuleUnlocked(
   return previousTotal > 0 && previousCompleted >= previousTotal;
 }
 
-// ── Composant leçon ─────────────────────────────────────────
-
-function lessonStatusIcon(status: LessonProgress['status'] | undefined): string {
-  if (status === 'completed') return '✅';
-  if (status === 'available') return '🔓';
-  return '🔒';
-}
+// ── Ligne de leçon ──────────────────────────────────────────
 
 function LessonRow({
-  lesson,
-  progress,
-  onPress,
+  lesson, progress, onPress,
 }: {
   lesson: Lesson;
   progress: LessonProgress | undefined;
   onPress: () => void;
 }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const status = progress?.status;
   const isLocked = !status || status === 'locked';
+  const isCompleted = status === 'completed';
+  const arabicLineHeight = Math.round(22 * 1.9);
 
   return (
     <Pressable
-      style={[styles.lessonRow, isLocked && styles.lessonRowLocked]}
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.sm,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border.subtle,
+        },
+        isLocked && { opacity: 0.4 },
+      ]}
       onPress={isLocked ? undefined : onPress}
     >
-      <View style={styles.lessonLeft}>
-        <Text style={styles.lessonOrder}>{lesson.sort_order}.</Text>
-        <View style={styles.lessonTitles}>
-          <Text style={[styles.lessonTitleAr, isLocked && styles.lessonTextLocked]}>{lesson.title_ar}</Text>
-          <Text style={[styles.lessonTitleFr, isLocked && styles.lessonTextLocked]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary, width: 20 }}>
+          {lesson.sort_order}.
+        </Text>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ fontFamily: typography.family.arabic, fontSize: typography.size.arabicSmall, lineHeight: arabicLineHeight, color: colors.text.heroArabic }}>
+            {lesson.title_ar}
+          </Text>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
             {lesson.title_fr}
-            {status === 'completed' && progress?.score != null ? `  ${progress.score}%` : ''}
           </Text>
         </View>
       </View>
-      <Text style={styles.lessonStatus}>{lessonStatusIcon(status)}</Text>
+      <View style={{
+        width: 20,
+        height: 20,
+        borderRadius: borderRadius.pill,
+        backgroundColor: isCompleted ? colors.status.success : isLocked ? colors.background.group : colors.background.group,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <Text style={{ fontSize: 10 }}>
+          {isCompleted ? '✓' : isLocked ? '🔒' : '→'}
+        </Text>
+      </View>
     </Pressable>
   );
 }
 
-// ── Module 1 (toujours déverrouillé) ───────────────────────
+// ── Card Module Déverrouillé ────────────────────────────────
 
-function Module1Card({ module, progressList }: { module: Module; progressList: LessonProgress[] }) {
+function ModuleCard({
+  module,
+  number,
+  progressList,
+  isNewlyUnlocked,
+}: {
+  module: Module;
+  number: number;
+  progressList: LessonProgress[];
+  isNewlyUnlocked: boolean;
+}) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const router = useRouter();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(number === 1 || isNewlyUnlocked);
   const { data: lessons, isLoading } = useLessons(module.id);
+
   const completedCount = progressList.filter(p => p.status === 'completed').length;
+  const totalCount = lessons?.length ?? 0;
+  const progressRatio = totalCount > 0 ? completedCount / totalCount : 0;
+  const arabicLineHeight = Math.round(36 * 1.9);
+
+  const glowAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (isNewlyUnlocked) {
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 0.7, duration: 300, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.7, duration: 300, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [isNewlyUnlocked]);
 
   return (
-    <View style={[styles.moduleCard, styles.moduleCardActive]}>
-      <Pressable style={styles.moduleHeader} onPress={() => setExpanded(!expanded)}>
-        <View style={styles.moduleHeaderLeft}>
-          <Text style={styles.moduleLabel}>MODULE 1</Text>
-          <Text style={styles.moduleTitleAr}>{module.title_ar}</Text>
-          <Text style={styles.moduleTitleFr}>{module.title_fr}</Text>
+    <Animated.View style={[
+      {
+        backgroundColor: colors.background.card,
+        borderRadius: borderRadius.md,
+        overflow: 'hidden',
+        ...shadows.subtle,
+      },
+      isNewlyUnlocked && { opacity: glowAnim },
+    ]}>
+      <Pressable onPress={() => setExpanded(e => !e)}>
+        {/* Header de la card */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: spacing.lg }}>
+          {/* Gauche : module label + titre fr */}
+          <View style={{ flex: 1, gap: spacing.micro }}>
+            <Text style={{
+              fontFamily: typography.family.uiBold,
+              fontSize: typography.size.tiny,
+              color: colors.text.secondary,
+              letterSpacing: typography.letterSpacing.caps,
+              textTransform: 'uppercase',
+            }}>
+              MODULE {number}
+            </Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.primary }}>
+              {module.title_fr}
+            </Text>
+          </View>
+          {/* Droite : titre arabe massif */}
+          <Text style={{
+            fontFamily: typography.family.arabic,
+            fontSize: typography.size.arabicTitle,
+            lineHeight: arabicLineHeight,
+            color: colors.text.heroArabic,
+            textAlign: 'right',
+          }}>
+            {module.title_ar}
+          </Text>
         </View>
-        <View style={styles.moduleHeaderRight}>
-          <Text style={styles.moduleLessonCount}>{completedCount}/{lessons?.length ?? 0}</Text>
-          <Text style={styles.moduleChevron}>{expanded ? '▲' : '▼'}</Text>
-        </View>
+
+        {/* Barre de progression fine */}
+        <ProgressBar
+          progress={progressRatio}
+          variant="thin"
+          style={{ marginHorizontal: spacing.lg, marginBottom: spacing.sm }}
+        />
       </Pressable>
 
+      {/* Liste de leçons dépliable */}
       {expanded && (
-        <View style={styles.lessonsList}>
-          <View style={styles.lessonsDivider} />
+        <View style={{ paddingBottom: spacing.xs }}>
+          <View style={{ height: 1, backgroundColor: colors.border.subtle }} />
           {isLoading ? (
-            <ActivityIndicator size="small" color={Colors.primary} style={{ padding: Spacing.lg }} />
+            <ActivityIndicator size="small" color={colors.brand.primary} style={{ padding: spacing.base }} />
           ) : (
             lessons?.map((lesson) => {
               const progress = progressList.find(p => p.lesson_id === lesson.id);
@@ -127,116 +205,52 @@ function Module1Card({ module, progressList }: { module: Module; progressList: L
           )}
         </View>
       )}
-    </View>
-  );
-}
-
-// ── Module déverrouillé générique ──────────────────────────
-
-function UnlockedModuleCard({
-  module,
-  number,
-  progressList,
-  isNewlyUnlocked,
-}: {
-  module: Module;
-  number: number;
-  progressList: LessonProgress[];
-  isNewlyUnlocked: boolean;
-}) {
-  const router = useRouter();
-  const [expanded, setExpanded] = useState(isNewlyUnlocked);
-  const { data: lessons, isLoading } = useLessons(module.id);
-  const completedCount = progressList.filter(p => p.status === 'completed').length;
-
-  const glowAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (isNewlyUnlocked) {
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
-        Animated.timing(glowAnim, { toValue: 0.6, duration: 300, useNativeDriver: false }),
-        Animated.timing(glowAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
-      ]).start();
-    }
-  }, [isNewlyUnlocked]);
-
-  const cardStyle = isNewlyUnlocked
-    ? [styles.moduleCard, styles.moduleCardActive, styles.moduleCardUnlocked]
-    : [styles.moduleCard, styles.moduleCardActive];
-
-  return (
-    <Animated.View style={[...cardStyle, isNewlyUnlocked ? { opacity: glowAnim } : {}]}>
-      <View style={[...cardStyle, { opacity: 1 }]}>
-        <Pressable style={styles.moduleHeader} onPress={() => setExpanded(!expanded)}>
-          <View style={styles.moduleHeaderLeft}>
-            <Text style={styles.moduleLabel}>MODULE {number}</Text>
-            <Text style={styles.moduleTitleAr}>{module.title_ar}</Text>
-            <Text style={styles.moduleTitleFr}>{module.title_fr}</Text>
-          </View>
-          <View style={styles.moduleHeaderRight}>
-            <Text style={styles.moduleLessonCount}>{completedCount}/{lessons?.length ?? 0}</Text>
-            <Text style={styles.moduleChevron}>{expanded ? '▲' : '▼'}</Text>
-          </View>
-        </Pressable>
-
-        {expanded && (
-          <View style={styles.lessonsList}>
-            <View style={styles.lessonsDivider} />
-            {isLoading ? (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ padding: Spacing.lg }} />
-            ) : (
-              lessons?.map((lesson) => {
-                const progress = progressList.find(p => p.lesson_id === lesson.id);
-                return (
-                  <LessonRow
-                    key={lesson.id}
-                    lesson={lesson}
-                    progress={progress}
-                    onPress={() => router.push(`/lesson/${lesson.id}`)}
-                  />
-                );
-              })
-            )}
-          </View>
-        )}
-      </View>
     </Animated.View>
   );
 }
 
-// ── Module verrouillé générique ────────────────────────────
+// ── Card Module Verrouillé ──────────────────────────────────
 
-function LockedModuleCard({
-  module,
-  number,
-  lockMessage,
-}: {
-  module: Module;
-  number: number;
-  lockMessage?: string;
-}) {
+function LockedModuleCard({ module, number, lockMessage }: { module: Module; number: number; lockMessage?: string }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
+  const arabicLineHeight = Math.round(36 * 1.9);
+
   return (
-    <View style={[styles.moduleCard, styles.moduleCardLocked]}>
-      <View style={styles.moduleHeader}>
-        <View style={styles.moduleHeaderLeft}>
-          <Text style={styles.moduleLabel}>MODULE {number}</Text>
-          <Text style={styles.moduleTitleAr}>{module.title_ar}</Text>
-          <Text style={styles.moduleTitleFr}>{module.title_fr}</Text>
-          {lockMessage ? (
-            <Text style={styles.lockMessage}>{lockMessage}</Text>
-          ) : null}
+    <View style={{
+      backgroundColor: colors.background.main,
+      borderRadius: borderRadius.md,
+      overflow: 'hidden',
+      opacity: 0.5,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: spacing.lg }}>
+        <View style={{ flex: 1, gap: spacing.micro }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.tiny, color: colors.text.secondary, letterSpacing: typography.letterSpacing.caps, textTransform: 'uppercase' }}>
+            MODULE {number}
+          </Text>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.secondary }}>
+            {module.title_fr}
+          </Text>
+          {lockMessage && (
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic', marginTop: spacing.micro }}>
+              {lockMessage}
+            </Text>
+          )}
         </View>
-        <Text style={styles.lockIcon}>🔒</Text>
+        <View style={{ alignItems: 'flex-end', gap: spacing.micro }}>
+          <Text style={{ fontFamily: typography.family.arabic, fontSize: typography.size.arabicTitle, lineHeight: arabicLineHeight, color: colors.text.secondary, textAlign: 'right' }}>
+            {module.title_ar}
+          </Text>
+          <Text style={{ fontSize: 16 }}>🔒</Text>
+        </View>
       </View>
     </View>
   );
 }
 
-// ── Mutation : déverrouiller la première leçon d'un module ─
+// ── Mutation déverrouillage ─────────────────────────────────
 
 function useUnlockModule() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (firstLessonId: string) => {
       const userId = useAuthStore.getState().userId;
@@ -255,15 +269,14 @@ function useUnlockModule() {
       });
       runSync().catch(console.warn);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PROGRESS_QUERY_KEY });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: PROGRESS_QUERY_KEY }); },
   });
 }
 
 // ── Écran principal ────────────────────────────────────────
 
 export default function LearnScreen() {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const { data: modules, isLoading } = useModules();
   const { data: progress = [], isSuccess: progressLoaded } = useProgress();
   const { data: module1Lessons } = useLessons(modules?.[0]?.id ?? '');
@@ -283,17 +296,12 @@ export default function LearnScreen() {
     queryKey: ['user_stats_learn', userId],
     queryFn: async () => {
       if (!userId) return null;
-      const { data } = await supabase
-        .from('users')
-        .select('streak_current, total_xp')
-        .eq('id', userId)
-        .single();
+      const { data } = await supabase.from('users').select('streak_current, total_xp').eq('id', userId).single();
       return data;
     },
     enabled: !!userId,
   });
 
-  // Initialiser la leçon 1 si elle n'a pas encore de progression
   useEffect(() => {
     const currentUserId = useAuthStore.getState().userId;
     if (!currentUserId || !progressLoaded || !module1Lessons || module1Lessons.length === 0) return;
@@ -304,10 +312,7 @@ export default function LearnScreen() {
     }
   }, [userId, progressLoaded, progress, module1Lessons]);
 
-  // ── Calcul des structures pour isModuleUnlocked ────────────
-
   const allModules = modules ?? [];
-
   const lessonsByModule: Record<string, { id: string }[]> = {
     [modules?.[0]?.id ?? '']: module1Lessons ?? [],
     [modules?.[1]?.id ?? '']: module2Lessons ?? [],
@@ -329,175 +334,97 @@ export default function LearnScreen() {
     );
   }
 
-  // ── Booléens réactifs de déverrouillage ───────────────────
-  // Déclarés ici, après progressByModule/lessonCountByModule, pour être réactifs
-  // aux changements de progress (status completed) même sans ajout de nouvelles lignes.
-
   const module2Unlocked = isModuleUnlocked(2, progressByModule, allModules, lessonCountByModule);
   const module3Unlocked = isModuleUnlocked(3, progressByModule, allModules, lessonCountByModule);
   const module4Unlocked = isModuleUnlocked(4, progressByModule, allModules, lessonCountByModule);
   const module5Unlocked = isModuleUnlocked(5, progressByModule, allModules, lessonCountByModule);
   const module6Unlocked = isModuleUnlocked(6, progressByModule, allModules, lessonCountByModule);
 
-  // ── Détection déverrouillage Module 2 ─────────────────────
-
-  useEffect(() => {
-    if (module2Unlocked && !prevUnlocked.current[2]) {
-      prevUnlocked.current[2] = true;
-      const mod2 = allModules.find(m => m.sort_order === 2);
-      const alreadyHadProgress = mod2 ? (progressByModule[mod2.id]?.length ?? 0) > 0 : false;
-      if (!alreadyHadProgress) {
-        setNewlyUnlockedIndex(1);
-        setUnlockBannerMessage('🎉 Module 2 débloqué ! Découvre les harakats.');
-        if (module2Lessons && module2Lessons.length > 0) {
-          unlockModule.mutate(module2Lessons[0].id);
+  function handleModuleUnlock(index: number, lessons: typeof module2Lessons, message: string) {
+    return (unlocked: boolean) => {
+      if (unlocked && !prevUnlocked.current[index + 2]) {
+        prevUnlocked.current[index + 2] = true;
+        const mod = allModules.find(m => m.sort_order === index + 2);
+        const alreadyHadProgress = mod ? (progressByModule[mod.id]?.length ?? 0) > 0 : false;
+        if (!alreadyHadProgress) {
+          setNewlyUnlockedIndex(index + 1);
+          setUnlockBannerMessage(message);
+          if (lessons && lessons.length > 0) unlockModule.mutate(lessons[0].id);
+          setTimeout(() => setUnlockBannerMessage(null), 4000);
+          setTimeout(() => setNewlyUnlockedIndex(null), 6000);
         }
-        setTimeout(() => setUnlockBannerMessage(null), 4000);
-        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
       }
-    }
-  }, [module2Unlocked]);
+    };
+  }
 
-  // ── Détection déverrouillage Module 3 ─────────────────────
-
-  useEffect(() => {
-    if (module3Unlocked && !prevUnlocked.current[3]) {
-      prevUnlocked.current[3] = true;
-      const mod3 = allModules.find(m => m.sort_order === 3);
-      const alreadyHadProgress = mod3 ? (progressByModule[mod3.id]?.length ?? 0) > 0 : false;
-      if (!alreadyHadProgress) {
-        setNewlyUnlockedIndex(2);
-        setUnlockBannerMessage('🎉 Module 3 débloqué ! Lis tes premiers mots arabes.');
-        if (module3Lessons && module3Lessons.length > 0) {
-          unlockModule.mutate(module3Lessons[0].id);
-        }
-        setTimeout(() => setUnlockBannerMessage(null), 4000);
-        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
-      }
-    }
-  }, [module3Unlocked]);
-
-  // ── Détection déverrouillage Module 4 ─────────────────────
-
-  useEffect(() => {
-    if (module4Unlocked && !prevUnlocked.current[4]) {
-      prevUnlocked.current[4] = true;
-      const mod4 = allModules.find(m => m.sort_order === 4);
-      const alreadyHadProgress = mod4 ? (progressByModule[mod4.id]?.length ?? 0) > 0 : false;
-      if (!alreadyHadProgress) {
-        if (module4Lessons && module4Lessons.length > 0) {
-          unlockModule.mutate(module4Lessons[0].id);
-        }
-        setNewlyUnlockedIndex(3);
-        setUnlockBannerMessage('🎉 Module 4 débloqué ! Construis du sens en arabe.');
-        setTimeout(() => setUnlockBannerMessage(null), 4000);
-        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
-      }
-    }
-  }, [module4Unlocked]);
-
-  // ── Détection déverrouillage Module 5 ─────────────────────
-
-  useEffect(() => {
-    if (module5Unlocked && !prevUnlocked.current[5]) {
-      prevUnlocked.current[5] = true;
-      const mod5 = allModules.find(m => m.sort_order === 5);
-      const alreadyHadProgress = mod5 ? (progressByModule[mod5.id]?.length ?? 0) > 0 : false;
-      if (!alreadyHadProgress) {
-        if (module5Lessons && module5Lessons.length > 0) {
-          unlockModule.mutate(module5Lessons[0].id);
-        }
-        setNewlyUnlockedIndex(4);
-        setUnlockBannerMessage('🎉 Module 5 débloqué ! Découvre la grammaire essentielle.');
-        setTimeout(() => setUnlockBannerMessage(null), 4000);
-        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
-      }
-    }
-  }, [module5Unlocked]);
-
-  // ── Détection déverrouillage Module 6 ─────────────────────
-
-  useEffect(() => {
-    if (module6Unlocked && !prevUnlocked.current[6]) {
-      prevUnlocked.current[6] = true;
-      const mod6 = allModules.find(m => m.sort_order === 6);
-      const alreadyHadProgress = mod6 ? (progressByModule[mod6.id]?.length ?? 0) > 0 : false;
-      if (!alreadyHadProgress) {
-        if (module6Lessons && module6Lessons.length > 0) {
-          unlockModule.mutate(module6Lessons[0].id);
-        }
-        setNewlyUnlockedIndex(5);
-        setUnlockBannerMessage('🎉 Module 6 débloqué ! Conjugue tes premiers verbes.');
-        setTimeout(() => setUnlockBannerMessage(null), 4000);
-        setTimeout(() => setNewlyUnlockedIndex(null), 6000);
-      }
-    }
-  }, [module6Unlocked]);
+  // Déclencher les effets de déverrouillage
+  useEffect(() => { handleModuleUnlock(0, module2Lessons, '🎉 Module 2 débloqué ! Découvre les harakats.')(module2Unlocked); }, [module2Unlocked]);
+  useEffect(() => { handleModuleUnlock(1, module3Lessons, '🎉 Module 3 débloqué ! Lis tes premiers mots arabes.')(module3Unlocked); }, [module3Unlocked]);
+  useEffect(() => { handleModuleUnlock(2, module4Lessons, '🎉 Module 4 débloqué ! Construis du sens en arabe.')(module4Unlocked); }, [module4Unlocked]);
+  useEffect(() => { handleModuleUnlock(3, module5Lessons, '🎉 Module 5 débloqué ! Découvre la grammaire essentielle.')(module5Unlocked); }, [module5Unlocked]);
+  useEffect(() => { handleModuleUnlock(4, module6Lessons, '🎉 Module 6 débloqué ! Conjugue tes premiers verbes.')(module6Unlocked); }, [module6Unlocked]);
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }} edges={['top']}>
+        <ActivityIndicator size="large" color={colors.brand.primary} style={{ flex: 1 }} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Banner de déverrouillage */}
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }} edges={['top']}>
+      {/* Banner déverrouillage */}
       {unlockBannerMessage && (
-        <View style={styles.unlockBanner}>
-          <Text style={styles.unlockBannerText}>{unlockBannerMessage}</Text>
+        <View style={{ backgroundColor: colors.brand.primary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, alignItems: 'center' }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.inverse, textAlign: 'center' }}>
+            {unlockBannerMessage}
+          </Text>
         </View>
       )}
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.base, paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Apprendre</Text>
-          <View style={styles.statsChips}>
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>🔥 {userStats?.streak_current ?? 0}</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>⭐ {userStats?.total_xp ?? 0}</Text>
-            </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary }}>
+            Lisaan
+          </Text>
+          {/* Chip streak */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.xs,
+            backgroundColor: colors.background.card,
+            borderRadius: borderRadius.md,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: spacing.micro,
+            ...shadows.subtle,
+          }}>
+            <Text style={{ fontSize: 14 }}>🔥</Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.small, color: colors.accent.gold }}>
+              {userStats?.streak_current ?? 0}
+            </Text>
           </View>
         </View>
 
         {/* Modules */}
-        <View style={styles.modulesList}>
+        <View style={{ gap: spacing.base }}>
           {allModules.map((module, index) => {
             const number = index + 1;
             const progressList = progressByModule[module.id] ?? [];
 
-            // Module 1 : toujours déverrouillé
-            if (index === 0) {
-              return (
-                <Module1Card
-                  key={module.id}
-                  module={module}
-                  progressList={progressList}
-                />
-              );
-            }
-
-            // Modules 2+ : logique générique
-            const unlocked = isModuleUnlocked(
-              module.sort_order,
-              progressByModule,
-              allModules,
-              lessonCountByModule,
-            );
+            const unlocked = isModuleUnlocked(module.sort_order, progressByModule, allModules, lessonCountByModule);
             const hasProgress = progress.some(p =>
               lessonsByModule[module.id]?.some((l: { id: string }) => l.id === p.lesson_id)
             );
-            const isPlayable = unlocked && (hasProgress || lessonsByModule[module.id]?.length === 0);
+            const isPlayable = index === 0 || (unlocked && (hasProgress || lessonsByModule[module.id]?.length === 0));
 
             if (isPlayable) {
               return (
-                <UnlockedModuleCard
+                <ModuleCard
                   key={module.id}
                   module={module}
                   number={number}
@@ -508,9 +435,7 @@ export default function LearnScreen() {
             }
 
             const prevModule = allModules.find(m => m.sort_order === module.sort_order - 1);
-            const lockMessage = prevModule
-              ? `Termine le Module ${number - 1} pour débloquer`
-              : undefined;
+            const lockMessage = prevModule ? `Termine le Module ${number - 1} pour débloquer` : undefined;
 
             return (
               <LockedModuleCard
@@ -522,189 +447,7 @@ export default function LearnScreen() {
             );
           })}
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-  },
-  loader: {
-    flex: 1,
-  },
-  scroll: {
-    padding: Layout.screenPaddingH,
-    paddingBottom: 100,
-  },
-
-  // Banner déverrouillage
-  unlockBanner: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-  },
-  unlockBannerText: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing['2xl'],
-  },
-  title: {
-    fontSize: FontSizes.title,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  statsChips: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  chip: {
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.full,
-  },
-  chipText: {
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-
-  // Modules
-  modulesList: {
-    gap: Spacing.lg,
-  },
-  moduleCard: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    ...Shadows.card,
-  },
-  moduleCardActive: {
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
-  },
-  moduleCardUnlocked: {
-    borderLeftColor: '#F4A261',
-    borderLeftWidth: 4,
-  },
-  moduleCardLocked: {
-    opacity: 0.5,
-  },
-  moduleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: Spacing.lg,
-  },
-  moduleHeaderLeft: {
-    flex: 1,
-    gap: 2,
-  },
-  moduleHeaderRight: {
-    alignItems: 'flex-end',
-    gap: Spacing.xs,
-  },
-  moduleLabel: {
-    fontSize: FontSizes.small,
-    fontWeight: '700',
-    color: Colors.primary,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: Spacing.xs,
-  },
-  moduleTitleAr: {
-    fontFamily: 'Amiri',
-    fontSize: FontSizes.arabicXS,
-    color: Colors.textPrimary,
-    textAlign: 'left',
-  },
-  moduleTitleFr: {
-    fontSize: FontSizes.body,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  moduleLessonCount: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  moduleChevron: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-  },
-  lockIcon: {
-    fontSize: 18,
-  },
-  lockMessage: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    marginTop: Spacing.xs,
-    fontStyle: 'italic',
-  },
-
-  // Leçons
-  lessonsDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginHorizontal: Spacing.lg,
-  },
-  lessonsList: {
-    paddingBottom: Spacing.sm,
-  },
-  lessonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  lessonLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    flex: 1,
-  },
-  lessonOrder: {
-    fontSize: FontSizes.caption,
-    color: Colors.textMuted,
-    fontWeight: '700',
-    width: 20,
-  },
-  lessonTitles: {
-    flex: 1,
-    gap: 2,
-  },
-  lessonTitleAr: {
-    fontFamily: 'Amiri',
-    fontSize: FontSizes.arabicXS,
-    color: Colors.textPrimary,
-  },
-  lessonTitleFr: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-  },
-  lessonStatus: {
-    fontSize: 16,
-  },
-  lessonRowLocked: {
-    opacity: 0.4,
-  },
-  lessonTextLocked: {
-    color: Colors.textMuted,
-  },
-});

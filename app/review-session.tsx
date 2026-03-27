@@ -3,7 +3,6 @@ import { useState, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
@@ -24,7 +23,8 @@ import type { ExerciseResult } from '../src/types/exercise';
 import type { SRSCard } from '../src/engines/srs';
 import { updateStreak } from '../src/engines/streak';
 import { addXP, calculateReviewXP } from '../src/engines/xp';
-import { Colors, Spacing, Radius, Layout, FontSizes } from '../src/constants/theme';
+import { useTheme } from '../src/contexts/ThemeContext';
+import { Button } from '../src/components/ui';
 
 function formatTime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -32,6 +32,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function ReviewSession() {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const router = useRouter();
   const { data: allCards = [] } = useSRSCards();
   const { data: allLetters = [] } = useLetters();
@@ -52,7 +53,6 @@ export default function ReviewSession() {
   const [succeededCount, setSucceededCount] = useState(0);
   const [phase, setPhase] = useState<'session' | 'results'>('session');
 
-  // Gelé au démarrage de la session — ne doit pas changer quand le cache se met à jour
   const [totalCards] = useState(initialQueue.length);
 
   function handleComplete(result: ExerciseResult) {
@@ -91,46 +91,74 @@ export default function ReviewSession() {
     const earnedXP = calculateReviewXP(totalCards);
 
     return (
-      <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.resultsScroll}>
-          <Text style={styles.resultsTitle}>Session terminée ! 🎉</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xxxl, paddingBottom: spacing.xl, alignItems: 'center', gap: spacing.xl }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary, textAlign: 'center' }}>
+            Session terminée ! 🎉
+          </Text>
 
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreNumber}>{totalCards}</Text>
-            <Text style={styles.scoreLabel}>cartes révisées</Text>
-            <Text style={styles.xpText}>+{earnedXP} XP</Text>
+          <View style={{
+            backgroundColor: colors.background.group,
+            borderRadius: borderRadius.xl,
+            paddingVertical: spacing.xl,
+            paddingHorizontal: spacing.lg,
+            alignItems: 'center',
+            width: '100%',
+            borderWidth: 1,
+            borderColor: colors.border.subtle,
+            gap: spacing.sm,
+          }}>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: 56, color: colors.brand.primary, lineHeight: 64 }}>
+              {totalCards}
+            </Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary }}>
+              cartes révisées
+            </Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.brand.primary, marginTop: spacing.xs }}>
+              +{earnedXP} XP
+            </Text>
           </View>
 
-          <View style={styles.detailBox}>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>✓</Text>
-              <Text style={[styles.detailText, { color: Colors.success }]}>
+          <View style={{
+            width: '100%',
+            backgroundColor: colors.background.card,
+            borderRadius: borderRadius.md,
+            padding: spacing.base,
+            borderWidth: 1,
+            borderColor: colors.border.subtle,
+            gap: spacing.sm,
+            ...shadows.subtle,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body }}>✓</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.status.success }}>
                 {correct} correctes du premier coup
               </Text>
             </View>
             {wrong > 0 && (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailIcon}>↻</Text>
-                <Text style={[styles.detailText, { color: Colors.warning }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body }}>↻</Text>
+                <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.accent.gold }}>
                   {wrong} à revoir bientôt
                 </Text>
               </View>
             )}
           </View>
 
-          <Text style={styles.timeText}>Temps : {formatTime(totalTime)}</Text>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+            Temps : {formatTime(totalTime)}
+          </Text>
 
-          <TouchableOpacity
-            style={styles.ctaBtn}
+          <Button
+            label="Continuer →"
+            variant="primary"
             onPress={() => {
               addXP(earnedXP);
               updateStreak();
               router.replace('/(tabs)/review' as never);
             }}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.ctaLabel}>Continuer →</Text>
-          </TouchableOpacity>
+            style={{ width: '100%' }}
+          />
         </ScrollView>
       </SafeAreaView>
     );
@@ -142,9 +170,11 @@ export default function ReviewSession() {
   const dataReady = allLetters.length > 0 || allDiacritics.length > 0 || allWords.length > 0 || allSentences.length > 0;
   if (!currentCard || !dataReady) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.loader}>
-          <Text style={styles.loadingText}>Chargement…</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary }}>
+            Chargement…
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -204,7 +234,6 @@ export default function ReviewSession() {
   }
 
   if (!exercise) {
-    // Item introuvable ou type inconnu — compter comme réussi pour ne pas bloquer
     const newSucceeded = succeededCount + 1;
     setSucceededCount(newSucceeded);
     if (newSucceeded >= totalCards) {
@@ -218,21 +247,27 @@ export default function ReviewSession() {
   const progress = succeededCount / totalCards;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-          <Text style={styles.backArrow}>←</Text>
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.base,
+      }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, justifyContent: 'center' }} hitSlop={12}>
+          <Text style={{ fontSize: 22, color: colors.text.secondary }}>×</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.primary }}>
           Révision {succeededCount + 1} / {totalCards}
         </Text>
-        <View style={styles.backBtn} />
+        <View style={{ width: 36, height: 36 }} />
       </View>
 
-      {/* Barre de progression */}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+      {/* Barre de progression ultra-fine */}
+      <View style={{ height: 4, backgroundColor: colors.background.group }}>
+        <View style={{ height: 4, backgroundColor: colors.brand.primary, width: `${progress * 100}%` as any }} />
       </View>
 
       <ExerciseRenderer
@@ -243,90 +278,3 @@ export default function ReviewSession() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontSize: FontSizes.body, color: Colors.textSecondary },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: { width: 36, height: 36, justifyContent: 'center' },
-  backArrow: { fontSize: 22, color: Colors.textSecondary },
-  headerTitle: { fontSize: FontSizes.caption, fontWeight: '600', color: Colors.textPrimary },
-
-  progressTrack: {
-    height: 4,
-    backgroundColor: Colors.border,
-    marginHorizontal: Layout.screenPaddingH,
-    marginTop: Spacing.sm,
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.full,
-  },
-
-  resultsScroll: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingTop: Spacing['4xl'],
-    paddingBottom: Spacing['3xl'],
-    alignItems: 'center',
-    gap: Spacing.xl,
-  },
-  resultsTitle: {
-    fontSize: FontSizes.title,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  scoreBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.xl,
-    padding: Spacing['3xl'],
-    alignItems: 'center',
-    width: '100%',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.sm,
-  },
-  scoreNumber: {
-    fontSize: 56,
-    fontWeight: '700',
-    color: Colors.primary,
-    lineHeight: 64,
-  },
-  scoreLabel: { fontSize: FontSizes.body, color: Colors.textSecondary },
-  xpText: { fontSize: FontSizes.heading, fontWeight: '700', color: Colors.primary, marginTop: 4 },
-  detailBox: {
-    width: '100%',
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.sm,
-  },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  detailIcon: { fontSize: FontSizes.body, fontWeight: '700' },
-  detailText: { fontSize: FontSizes.body },
-  timeText: { fontSize: FontSizes.caption, color: Colors.textMuted },
-  ctaBtn: {
-    width: '100%',
-    height: Layout.buttonHeight,
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ctaLabel: { fontSize: FontSizes.body, fontWeight: '700', color: Colors.textOnPrimary },
-});

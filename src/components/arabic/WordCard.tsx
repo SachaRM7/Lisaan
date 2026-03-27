@@ -1,11 +1,11 @@
 // src/components/arabic/WordCard.tsx
 
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors, Spacing, Radius, Shadows, FontSizes } from '../../constants/theme';
+import { View, Text } from 'react-native';
 import ArabicText from './ArabicText';
 import { AudioButton } from '../AudioButton';
 import type { Word } from '../../hooks/useWords';
 import type { Root } from '../../hooks/useRoots';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface WordCardProps {
   word: Word;
@@ -29,22 +29,36 @@ export default function WordCard({
   showTranslation = true,
   fontSize = 'xlarge',
 }: WordCardProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+
+  const cardBase = {
+    backgroundColor: colors.background.card,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    ...shadows.subtle,
+    alignItems: 'center' as const,
+  };
 
   // ── Mode COMPACT ────────────────────────────────────────────
   if (mode === 'compact') {
     return (
-      <View style={[styles.card, styles.cardCompact]}>
-        <View style={styles.wordRow}>
+      <View style={[cardBase, { padding: spacing.base, minWidth: 110, gap: spacing.xs }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.micro }}>
           <ArabicText size="large" showTransliteration={false}>
             {word.arabic_vocalized}
           </ArabicText>
           <AudioButton audioUrl={word.audio_url} fallbackText={word.arabic} size={20} />
         </View>
         {showTransliteration && (
-          <Text style={styles.transliteration}>{word.transliteration}</Text>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center' }}>
+            {word.transliteration}
+          </Text>
         )}
         {showTranslation && (
-          <Text style={styles.translation}>{word.translation_fr}</Text>
+          <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.primary, textAlign: 'center' }}>
+            {word.translation_fr}
+          </Text>
         )}
       </View>
     );
@@ -52,10 +66,17 @@ export default function WordCard({
 
   // ── Mode FULL ───────────────────────────────────────────────
   return (
-    <View style={styles.card}>
-      {/* Hero : mot vocalisé */}
-      <View style={styles.heroContainer}>
-        <View style={styles.wordRow}>
+    <View style={[cardBase, { padding: spacing.lg }]}>
+      {/* Hero : mot vocalisé — dans un carré adouci */}
+      <View style={{
+        backgroundColor: colors.background.group,
+        borderRadius: borderRadius.xl,
+        padding: spacing.lg,
+        marginBottom: spacing.md,
+        alignItems: 'center',
+        gap: spacing.xs,
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.micro }}>
           <ArabicText
             size={fontSize}
             transliteration={showTransliteration ? word.transliteration : undefined}
@@ -66,30 +87,45 @@ export default function WordCard({
           <AudioButton audioUrl={word.audio_url} fallbackText={word.arabic} size={24} />
         </View>
         {showTranslation && (
-          <Text style={styles.translationHero}>{word.translation_fr}</Text>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.primary, textAlign: 'center', marginTop: spacing.xs }}>
+            {word.translation_fr}
+          </Text>
         )}
       </View>
 
-      {/* Section racine (uniquement si la racine est fournie) */}
+      {/* Section racine */}
       {root && (
-        <View style={styles.rootBox}>
-          <View style={styles.rootRow}>
-            <Text style={styles.rootLabel}>Racine :</Text>
-            <Text style={styles.rootConsonants}>
+        <View style={{
+          alignSelf: 'stretch',
+          backgroundColor: colors.background.group,
+          borderRadius: borderRadius.md,
+          padding: spacing.base,
+          marginBottom: spacing.base,
+          gap: spacing.xs,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs }}>
+            <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.secondary }}>Racine :</Text>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.small, color: colors.brand.primary }}>
               {root.consonants.join('-')}
             </Text>
-            <Text style={styles.rootMeaning}>({root.core_meaning_fr})</Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic' }}>
+              ({root.core_meaning_fr})
+            </Text>
           </View>
           {word.pattern && (
-            <View style={styles.rootRow}>
-              <Text style={styles.rootLabel}>Pattern :</Text>
-              <Text style={styles.rootPattern}>{word.pattern}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.secondary }}>Pattern :</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.primary, fontStyle: 'italic' }}>
+                {word.pattern}
+              </Text>
             </View>
           )}
           {word.gender && GENDER_LABEL[word.gender] && (
-            <View style={styles.rootRow}>
-              <Text style={styles.rootLabel}>Genre :</Text>
-              <Text style={styles.rootValue}>{GENDER_LABEL[word.gender]}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.text.secondary }}>Genre :</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.primary }}>
+                {GENDER_LABEL[word.gender]}
+              </Text>
             </View>
           )}
         </View>
@@ -97,104 +133,17 @@ export default function WordCard({
 
       {/* Notes pédagogiques */}
       {word.pedagogy_notes && (
-        <Text style={styles.pedagogyNotes}>{word.pedagogy_notes}</Text>
+        <Text style={{
+          fontFamily: typography.family.ui,
+          fontSize: typography.size.small,
+          color: colors.text.secondary,
+          textAlign: 'center',
+          lineHeight: typography.size.small * typography.lineHeight.ui,
+          alignSelf: 'stretch',
+        }}>
+          {word.pedagogy_notes}
+        </Text>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: '#E8E2D9',
-    padding: Spacing['2xl'],
-    alignItems: 'center',
-    ...Shadows.card,
-  },
-  cardCompact: {
-    padding: Spacing.lg,
-    minWidth: 110,
-    gap: Spacing.xs,
-  },
-
-  heroContainer: {
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-    paddingVertical: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  wordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  transliteration: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    fontFamily: 'Inter',
-    textAlign: 'center',
-  },
-  translation: {
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  translationHero: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
-  },
-
-  rootBox: {
-    alignSelf: 'stretch',
-    backgroundColor: '#F5F3EE',
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    gap: Spacing.xs,
-  },
-  rootRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-  },
-  rootLabel: {
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  rootConsonants: {
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    color: '#2A9D8F',
-    fontFamily: 'Inter',
-  },
-  rootMeaning: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  rootPattern: {
-    fontSize: FontSizes.caption,
-    color: Colors.textPrimary,
-    fontStyle: 'italic',
-  },
-  rootValue: {
-    fontSize: FontSizes.caption,
-    color: Colors.textPrimary,
-  },
-
-  pedagogyNotes: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    alignSelf: 'stretch',
-  },
-});

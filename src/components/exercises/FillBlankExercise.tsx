@@ -1,29 +1,29 @@
 // src/components/exercises/FillBlankExercise.tsx
 
-import { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView } from 'react-native';
+import { useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, Animated, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import type { ExerciseComponentProps, ExerciseOption } from '../../types/exercise';
-import { Colors, Spacing, Radius, FontSizes, Layout } from '../../constants/theme';
 import { useSettingsStore } from '../../stores/useSettingsStore';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [solved, setSolved] = useState(false);
   const startTime = useRef(Date.now());
   const attempts = useRef(0);
   const hapticFeedback = useSettingsStore((s) => s.haptic_feedback);
 
-  // Animation de remplissage (scale + opacity)
   const fillAnim = useRef(new Animated.Value(0)).current;
-  // Animation flash rouge par option
   const flashAnims = useRef<Record<string, Animated.Value>>({});
 
   const options = config.options ?? [];
   const sentence = config.sentence;
   const blankWord = config.blank_word;
 
-  // Initialiser les anims de flash pour chaque option
+  const arabicLineHeight = Math.round(36 * 1.9);
+
   options.forEach(o => {
     if (!flashAnims.current[o.id]) {
       flashAnims.current[o.id] = new Animated.Value(0);
@@ -73,50 +73,52 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
       if (hapticFeedback) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
-      // Mauvaise réponse → on ne termine pas, l'utilisateur peut réessayer
       setTimeout(() => setSelectedId(null), 500);
     }
   }
 
-  // Construit la phrase avec le trou ou le mot rempli
   function renderSentence() {
     if (!sentence || !blankWord) {
-      return <Text style={styles.sentenceText}>{config.prompt.ar ?? ''}</Text>;
+      return <Text style={{ fontFamily: typography.family.arabic, fontSize: typography.size.arabicTitle, lineHeight: arabicLineHeight, color: colors.text.heroArabic, textAlign: 'center' }}>
+        {config.prompt.ar ?? ''}
+      </Text>;
     }
 
     const words = sentence.ar.split(' ');
     const pos = blankWord.position;
 
     return (
-      <View style={styles.sentenceRow}>
+      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.xs } as any}>
         {words.map((word, i) => {
           if (i !== pos) {
             return (
-              <Text key={i} style={styles.sentenceWord}>{word}</Text>
+              <Text key={i} style={{ fontFamily: typography.family.arabic, fontSize: typography.size.arabicTitle, lineHeight: arabicLineHeight, color: colors.text.heroArabic, textAlign: 'right' }}>
+                {word}
+              </Text>
             );
           }
           if (solved) {
             return (
               <Animated.Text
                 key={i}
-                style={[
-                  styles.sentenceWord,
-                  styles.filledWord,
-                  {
-                    opacity: fillAnim,
-                    transform: [{ scale: fillAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.6, 1],
-                    }) }],
-                  },
-                ]}
+                style={{
+                  fontFamily: typography.family.arabic,
+                  fontSize: typography.size.arabicTitle,
+                  lineHeight: arabicLineHeight,
+                  color: colors.status.success,
+                  textAlign: 'right',
+                  opacity: fillAnim,
+                  transform: [{ scale: fillAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
+                }}
               >
                 {blankWord.ar}
               </Animated.Text>
             );
           }
           return (
-            <Text key={i} style={[styles.sentenceWord, styles.blankSlot]}>_____</Text>
+            <Text key={i} style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.arabicTitle, lineHeight: arabicLineHeight, color: colors.brand.primary, textDecorationLine: 'underline', textDecorationStyle: 'dotted' }}>
+              _____
+            </Text>
           );
         })}
       </View>
@@ -124,47 +126,70 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Instruction */}
+    <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg }} showsVerticalScrollIndicator={false}>
       {config.instruction_fr && (
-        <Text style={styles.instruction}>{config.instruction_fr}</Text>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
+          {config.instruction_fr}
+        </Text>
       )}
 
       {/* Phrase avec trou */}
-      <View style={styles.sentenceBox}>
+      <View style={{
+        backgroundColor: colors.background.card,
+        borderRadius: borderRadius.lg,
+        padding: spacing.lg,
+        alignItems: 'center',
+        gap: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.border.subtle,
+        ...shadows.subtle,
+      }}>
         {renderSentence()}
         {sentence && (
-          <Text style={styles.translation}>{sentence.fr}</Text>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
+            {sentence.fr}
+          </Text>
         )}
       </View>
 
       {/* Feedback correct */}
       {solved && (
-        <View style={styles.feedbackCorrect}>
-          <Text style={styles.feedbackText}>✓ Bravo !</Text>
+        <View style={{ backgroundColor: colors.status.successLight, borderRadius: borderRadius.md, padding: spacing.base, alignItems: 'center' }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.status.success }}>
+            ✓ Bravo !
+          </Text>
         </View>
       )}
 
       {/* Options */}
       {!solved && (
-        <View style={styles.options}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm }}>
           {options.map(option => {
             const flashAnim = flashAnims.current[option.id];
             const bgColor = flashAnim
               ? flashAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [Colors.bgCard, Colors.errorLight],
+                  outputRange: [colors.background.card, colors.status.errorLight],
                 })
-              : Colors.bgCard;
+              : colors.background.card;
 
             return (
-              <Animated.View key={option.id} style={[styles.option, { backgroundColor: bgColor }]}>
+              <Animated.View key={option.id} style={{
+                borderRadius: borderRadius.md,
+                borderWidth: 1,
+                borderColor: colors.border.subtle,
+                minWidth: 100,
+                backgroundColor: bgColor,
+                ...shadows.subtle,
+              }}>
                 <TouchableOpacity
-                  style={styles.optionInner}
+                  style={{ paddingVertical: spacing.base, paddingHorizontal: spacing.md, alignItems: 'center' }}
                   onPress={() => handleSelect(option)}
                   activeOpacity={0.75}
                 >
-                  <Text style={styles.optionText}>{option.text.ar}</Text>
+                  <Text style={{ fontFamily: typography.family.arabic, fontSize: typography.size.arabicBody, lineHeight: Math.round(typography.size.arabicBody * 1.9), color: colors.text.heroArabic, textAlign: 'center' }}>
+                    {option.text.ar}
+                  </Text>
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -174,94 +199,3 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: Layout.screenPaddingH,
-    paddingVertical: Spacing['2xl'],
-    gap: Spacing['2xl'],
-  },
-
-  instruction: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-
-  sentenceBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    padding: Spacing['2xl'],
-    alignItems: 'center',
-    gap: Spacing.md,
-    borderWidth: 1,
-    borderColor: '#E8E2D9',
-  },
-  sentenceRow: {
-    flexDirection: 'row-reverse',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-  } as any,
-  sentenceWord: {
-    fontFamily: 'Amiri',
-    fontSize: 36,
-    lineHeight: 70,
-    color: Colors.textPrimary,
-    textAlign: 'right',
-  },
-  blankSlot: {
-    color: '#F4A261',
-    fontFamily: 'Inter',
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  filledWord: {
-    color: Colors.success,
-  },
-  translation: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-
-  options: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: Spacing.md,
-  },
-  option: {
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: '#E8E2D9',
-    minWidth: 100,
-  },
-  optionInner: {
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
-    alignItems: 'center',
-  },
-  optionText: {
-    fontFamily: 'Amiri',
-    fontSize: 28,
-    lineHeight: 52,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-
-  feedbackCorrect: {
-    backgroundColor: Colors.successLight,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  feedbackText: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: Colors.success,
-  },
-});

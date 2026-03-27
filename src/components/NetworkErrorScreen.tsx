@@ -1,35 +1,27 @@
 // src/components/NetworkErrorScreen.tsx
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
+import { useTheme } from '../contexts/ThemeContext';
+import { Button } from './ui';
 
 interface Props {
   onRetry: () => void;
 }
 
 export function NetworkErrorScreen({ onRetry }: Props) {
+  const { colors, typography, spacing } = useTheme();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.emoji}>📶</Text>
-      <Text style={styles.title}>Connexion requise</Text>
-      <Text style={styles.subtitle}>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background.main, padding: spacing.xl }}>
+      <Text style={{ fontSize: 64, marginBottom: spacing.lg }}>📶</Text>
+      <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center', marginBottom: spacing.sm }}>
+        Connexion requise
+      </Text>
+      <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, textAlign: 'center', lineHeight: 20, marginBottom: spacing.xl }}>
         La première ouverture nécessite une connexion internet pour télécharger les leçons.
       </Text>
-      <TouchableOpacity style={styles.button} onPress={onRetry}>
-        <Text style={styles.buttonText}>Réessayer</Text>
-      </TouchableOpacity>
+      <Button label="Réessayer" variant="primary" onPress={onRetry} style={{ width: '100%' }} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#FFFDF7', padding: 32,
-  },
-  emoji: { fontSize: 64, marginBottom: 24 },
-  title: { fontSize: 20, fontWeight: '700', color: '#1A1A1A', textAlign: 'center', marginBottom: 12 },
-  subtitle: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20, marginBottom: 32 },
-  button: { backgroundColor: '#2D6A4F', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 16 },
-  buttonText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-});

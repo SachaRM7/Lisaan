@@ -1,10 +1,10 @@
 // src/components/arabic/LetterCard.tsx
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Colors, Spacing, Radius, Shadows, FontSizes } from '../../constants/theme';
 import ArabicText from './ArabicText';
 import { AudioButton } from '../AudioButton';
 import { useAudio } from '../../hooks/useAudio';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface LetterCardProps {
   letter: {
@@ -39,6 +39,7 @@ export default function LetterCard({
   highlightedForm,
   onPress,
 }: LetterCardProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const { play, shouldAutoPlay } = useAudio({
     audioUrl: letter.audio_url,
     fallbackText: letter.name_fr,
@@ -49,12 +50,33 @@ export default function LetterCard({
     if (shouldAutoPlay) { play(); }
   }, []);
 
+  const cardBase = {
+    backgroundColor: colors.background.card,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    ...shadows.subtle,
+  };
+
   // ── Mode QUIZ ──────────────────────────────────────────────
   if (mode === 'quiz') {
     const form = highlightedForm ?? 'isolated';
     const formValue = getForm(letter, form);
     return (
-      <Pressable style={[styles.card, styles.cardQuiz]} onPress={onPress}>
+      <Pressable
+        style={[
+          cardBase,
+          {
+            // Zone Hero : carré adouci avec fond sable
+            backgroundColor: colors.background.group,
+            borderRadius: borderRadius.xl,
+            padding: spacing.hero,
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+        ]}
+        onPress={onPress}
+      >
         <ArabicText size="xlarge">{formValue}</ArabicText>
       </Pressable>
     );
@@ -63,12 +85,27 @@ export default function LetterCard({
   // ── Mode COMPACT ───────────────────────────────────────────
   if (mode === 'compact') {
     return (
-      <Pressable style={[styles.card, styles.cardCompact]} onPress={onPress}>
-        <View style={styles.compactRow}>
+      <Pressable
+        style={[cardBase, { padding: spacing.base, alignItems: 'center' }]}
+        onPress={onPress}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
           <ArabicText size="medium">{letter.form_isolated}</ArabicText>
-          <View style={styles.compactInfo}>
-            <Text style={styles.nameFr}>{letter.name_fr}</Text>
-            <Text style={styles.ipa}>{letter.ipa}</Text>
+          <View style={{ gap: 2 }}>
+            <Text style={{
+              fontFamily: typography.family.uiBold,
+              fontSize: typography.size.body,
+              color: colors.text.primary,
+            }}>
+              {letter.name_fr}
+            </Text>
+            <Text style={{
+              fontFamily: typography.family.ui,
+              fontSize: typography.size.tiny,
+              color: colors.text.secondary,
+            }}>
+              {letter.ipa}
+            </Text>
           </View>
         </View>
       </Pressable>
@@ -77,11 +114,23 @@ export default function LetterCard({
 
   // ── Mode FULL (défaut) ─────────────────────────────────────
   return (
-    <Pressable style={styles.card} onPress={onPress}>
-      {/* Forme isolée — hero */}
+    <Pressable
+      style={[cardBase, { padding: spacing.lg, alignItems: 'center' }]}
+      onPress={onPress}
+    >
+      {/* Forme isolée — Hero Arabe */}
       <View style={[
         styles.heroContainer,
-        highlightedForm === 'isolated' && styles.formHighlighted,
+        {
+          backgroundColor: colors.background.group,
+          borderRadius: borderRadius.xl,
+          padding: spacing.lg,
+          marginBottom: spacing.md,
+        },
+        highlightedForm === 'isolated' && {
+          borderWidth: 2,
+          borderColor: colors.brand.primary,
+        },
       ]}>
         <ArabicText size="xlarge">{letter.form_isolated}</ArabicText>
         <AudioButton
@@ -89,54 +138,87 @@ export default function LetterCard({
           fallbackText={letter.name_fr}
           fallbackLanguage="fr"
           size={28}
-          style={styles.audioBtn}
+          style={{ marginTop: spacing.xs }}
         />
       </View>
 
       {/* 3 autres formes — ordre RTL : Finale → Médiane → Initiale */}
-      <View style={styles.formsRow}>
+      <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
         {SECONDARY_FORMS.map(({ key, label }) => {
           const formKey = key.replace('form_', '') as 'final' | 'medial' | 'initial';
           const isHighlighted = highlightedForm === formKey;
           return (
             <View
               key={key}
-              style={[styles.formCell, isHighlighted && styles.formHighlighted]}
+              style={[
+                {
+                  alignItems: 'center',
+                  borderRadius: borderRadius.sm,
+                  padding: spacing.xs,
+                  minWidth: 64,
+                  backgroundColor: isHighlighted ? colors.brand.light : 'transparent',
+                },
+              ]}
             >
               <ArabicText size="medium">{letter[key]}</ArabicText>
-              <Text style={styles.formLabel}>{label}</Text>
+              <Text style={{
+                fontFamily: typography.family.ui,
+                fontSize: typography.size.tiny,
+                color: colors.text.secondary,
+                marginTop: spacing.micro,
+              }}>
+                {label}
+              </Text>
             </View>
           );
         })}
       </View>
 
       {/* Nom + translittération */}
-      <View style={styles.nameRow}>
-        <Text style={styles.nameFr}>{letter.name_fr}</Text>
-        <Text style={styles.translitParen}> ({letter.transliteration})</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: spacing.micro }}>
+        <Text style={{
+          fontFamily: typography.family.uiBold,
+          fontSize: typography.size.body,
+          color: colors.text.primary,
+        }}>
+          {letter.name_fr}
+        </Text>
+        <Text style={{
+          fontFamily: typography.family.ui,
+          fontSize: typography.size.body,
+          color: colors.text.secondary,
+        }}>
+          {' '}({letter.transliteration})
+        </Text>
       </View>
 
       {/* IPA + articulation */}
-      <Text style={styles.articulation}>
+      <Text style={{
+        fontFamily: typography.family.ui,
+        fontSize: typography.size.small,
+        color: colors.text.secondary,
+        marginBottom: spacing.base,
+        textAlign: 'center',
+      }}>
         {letter.ipa} — {letter.articulation_fr}
       </Text>
 
       {/* Connexions */}
-      <View style={styles.connectionsRow}>
+      <View style={{ gap: spacing.micro, alignSelf: 'stretch' }}>
         {letter.connects_left && (
-          <View style={styles.connectionBadge}>
-            <Text style={styles.connectionText}>● Se connecte à gauche</Text>
-          </View>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+            ● Se connecte à gauche
+          </Text>
         )}
         {letter.connects_right && (
-          <View style={styles.connectionBadge}>
-            <Text style={styles.connectionText}>● Se connecte à droite</Text>
-          </View>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+            ● Se connecte à droite
+          </Text>
         )}
         {!letter.connects_left && !letter.connects_right && (
-          <View style={styles.connectionBadge}>
-            <Text style={styles.connectionText}>● Ne se connecte pas</Text>
-          </View>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+            ● Ne se connecte pas
+          </Text>
         )}
       </View>
     </Pressable>
@@ -156,103 +238,7 @@ function getForm(
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: '#E8E2D9',
-    padding: Spacing['2xl'],
-    alignItems: 'center',
-    ...Shadows.card,
-  },
-  cardQuiz: {
-    padding: Spacing['3xl'],
-    minWidth: 120,
-  },
-  cardCompact: {
-    padding: Spacing.lg,
-  },
-
-  // Hero (forme isolée)
   heroContainer: {
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
     alignItems: 'center',
-  },
-  audioBtn: {
-    marginTop: Spacing.sm,
-  },
-
-  // 3 formes secondaires
-  formsRow: {
-    flexDirection: 'row',
-    gap: Spacing.xl,
-    marginBottom: Spacing.xl,
-  },
-  formCell: {
-    alignItems: 'center',
-    borderRadius: Radius.sm,
-    padding: Spacing.sm,
-    minWidth: 64,
-  },
-  formHighlighted: {
-    backgroundColor: Colors.primaryLight,
-  },
-  formLabel: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    marginTop: Spacing.xs,
-  },
-
-  // Nom
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: Spacing.xs,
-  },
-  nameFr: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  translitParen: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-  },
-
-  // IPA
-  articulation: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.lg,
-    textAlign: 'center',
-  },
-  ipa: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-  },
-
-  // Connexions
-  connectionsRow: {
-    gap: Spacing.xs,
-    alignSelf: 'stretch',
-  },
-  connectionBadge: {
-    paddingVertical: 2,
-  },
-  connectionText: {
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-  },
-
-  // Compact
-  compactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.lg,
-  },
-  compactInfo: {
-    gap: 2,
   },
 });

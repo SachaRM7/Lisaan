@@ -1,10 +1,10 @@
 // src/components/arabic/DialogueDisplay.tsx
 
 import { useEffect, useRef } from 'react';
-import { View, Text, Pressable, Animated, StyleSheet } from 'react-native';
-import { Colors, Spacing, Radius, FontSizes } from '../../constants/theme';
+import { View, Text, Pressable, Animated } from 'react-native';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import type { DialogueWithTurns, DialogueTurn } from '../../hooks/useDialogues';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface DialogueDisplayProps {
   dialogue: DialogueWithTurns;
@@ -24,6 +24,7 @@ export default function DialogueDisplay({
   onTurnTap,
 }: DialogueDisplayProps) {
   const settings = useSettingsStore();
+  const { colors, typography, spacing, borderRadius } = useTheme();
 
   const shouldShowTranslit = showTransliteration !== undefined
     ? showTransliteration
@@ -38,15 +39,19 @@ export default function DialogueDisplay({
     : dialogue.turns;
 
   return (
-    <View style={styles.container}>
+    <View style={{ backgroundColor: colors.background.group, borderRadius: borderRadius.lg, padding: spacing.base, gap: spacing.xs }}>
       {/* En-tête */}
-      <Text style={styles.title}>💬 {dialogue.title_fr}</Text>
+      <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.primary }}>
+        💬 {dialogue.title_fr}
+      </Text>
       {dialogue.context_fr && (
-        <Text style={styles.context}>"{dialogue.context_fr}"</Text>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic', marginBottom: spacing.xs }}>
+          &ldquo;{dialogue.context_fr}&rdquo;
+        </Text>
       )}
 
       {/* Répliques */}
-      <View style={styles.turns}>
+      <View style={{ gap: spacing.xs }}>
         {visibleTurns.map(turn => (
           <TurnBubble
             key={turn.id}
@@ -62,8 +67,6 @@ export default function DialogueDisplay({
   );
 }
 
-// ── Bulle individuelle ────────────────────────────────────────────────────────
-
 interface TurnBubbleProps {
   turn: DialogueTurn;
   isHighlighted: boolean;
@@ -72,164 +75,76 @@ interface TurnBubbleProps {
   onTap?: () => void;
 }
 
-function TurnBubble({
-  turn,
-  isHighlighted,
-  showTransliteration,
-  showTranslation,
-  onTap,
-}: TurnBubbleProps) {
+function TurnBubble({ turn, isHighlighted, showTransliteration, showTranslation, onTap }: TurnBubbleProps) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const isA = turn.speaker === 'A';
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const arabicLineHeight = Math.round(28 * 1.9);
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: false }).start();
   }, []);
 
+  const bubbleBg = isA ? colors.background.card : colors.brand.light;
+
   const bubble = (
-    <Animated.View
-      style={[
-        styles.bubble,
-        isA ? styles.bubbleA : styles.bubbleB,
-        isHighlighted && styles.bubbleHighlighted,
-        { opacity: fadeAnim },
-      ]}
-    >
+    <Animated.View style={[
+      {
+        backgroundColor: bubbleBg,
+        borderRadius: borderRadius.md,
+        borderTopLeftRadius: isA ? 4 : borderRadius.md,
+        borderTopRightRadius: isA ? borderRadius.md : 4,
+        padding: spacing.sm,
+        gap: 2,
+        borderWidth: isHighlighted ? 2 : 0,
+        borderColor: isHighlighted ? colors.accent.gold : 'transparent',
+      },
+      { opacity: fadeAnim },
+    ]}>
       {/* Label locuteur */}
-      <Text style={[styles.speaker, isA ? styles.speakerA : styles.speakerB]}>
+      <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.tiny, color: isA ? colors.brand.primary : colors.accent.gold, marginBottom: 2 }}>
         {turn.speaker}
       </Text>
 
       {/* Texte arabe */}
-      <Text style={styles.arabicText}>{turn.arabic_vocalized}</Text>
+      <Text style={{
+        fontFamily: typography.family.arabic,
+        fontSize: typography.size.arabicBody,
+        lineHeight: arabicLineHeight,
+        color: colors.text.heroArabic,
+        textAlign: 'right',
+        writingDirection: 'rtl',
+      }}>
+        {turn.arabic_vocalized}
+      </Text>
 
       {/* Translittération */}
       {showTransliteration && (
-        <Text style={styles.transliteration}>{turn.transliteration}</Text>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+          {turn.transliteration}
+        </Text>
       )}
 
       {/* Traduction */}
       {showTranslation && (
-        <Text style={styles.translation}>{turn.translation_fr}</Text>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic' }}>
+          {turn.translation_fr}
+        </Text>
       )}
     </Animated.View>
   );
 
   return (
-    <View style={[styles.turnRow, isA ? styles.turnRowA : styles.turnRowB]}>
+    <View style={{ flexDirection: 'row', justifyContent: isA ? 'flex-start' : 'flex-end' }}>
       {onTap ? (
-        <Pressable onPress={onTap} style={isA ? styles.bubbleWrapA : styles.bubbleWrapB}>
+        <Pressable onPress={onTap} style={{ maxWidth: '80%', alignItems: isA ? 'flex-start' : 'flex-end' }}>
           {bubble}
         </Pressable>
       ) : (
-        <View style={isA ? styles.bubbleWrapA : styles.bubbleWrapB}>
+        <View style={{ maxWidth: '80%', alignItems: isA ? 'flex-start' : 'flex-end' }}>
           {bubble}
         </View>
       )}
     </View>
   );
 }
-
-// ── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#FAFAF5',
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-  },
-
-  title: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  context: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    marginBottom: Spacing.xs,
-  },
-
-  turns: {
-    gap: Spacing.sm,
-  },
-
-  turnRow: {
-    flexDirection: 'row',
-  },
-  turnRowA: {
-    justifyContent: 'flex-start',
-  },
-  turnRowB: {
-    justifyContent: 'flex-end',
-  },
-
-  bubbleWrapA: {
-    maxWidth: '80%',
-    alignItems: 'flex-start',
-  },
-  bubbleWrapB: {
-    maxWidth: '80%',
-    alignItems: 'flex-end',
-  },
-
-  bubble: {
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    gap: 2,
-  },
-  bubbleA: {
-    backgroundColor: '#F5F5F0',
-    borderTopLeftRadius: 4,
-  },
-  bubbleB: {
-    backgroundColor: '#E8F5E9',
-    borderTopRightRadius: 4,
-    alignItems: 'flex-end',
-  },
-  bubbleHighlighted: {
-    borderWidth: 2,
-    borderColor: Colors.gold,
-  },
-
-  speaker: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.caption,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  speakerA: {
-    color: Colors.primary,
-  },
-  speakerB: {
-    color: Colors.gold,
-  },
-
-  arabicText: {
-    fontFamily: 'Amiri',
-    fontSize: 28,
-    lineHeight: 52,
-    color: Colors.textPrimary,
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-  transliteration: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.caption,
-    color: Colors.textSecondary,
-  },
-  translation: {
-    fontFamily: 'Inter',
-    fontSize: FontSizes.caption,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-  },
-});

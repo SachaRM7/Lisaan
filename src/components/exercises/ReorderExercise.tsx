@@ -1,12 +1,14 @@
 // src/components/exercises/ReorderExercise.tsx
 
 import { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import type { ExerciseComponentProps, ReorderExerciseConfig, ReorderWord } from '../../types/exercise';
 import ArabicText from '../arabic/ArabicText';
-import { Colors, Spacing, Radius, FontSizes } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Button } from '../ui';
 
 export function ReorderExercise({ config: rawConfig, onComplete }: ExerciseComponentProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const config = rawConfig as ReorderExerciseConfig;
 
   const [selectedOrder, setSelectedOrder] = useState<string[]>([]);
@@ -45,28 +47,62 @@ export function ReorderExercise({ config: rawConfig, onComplete }: ExerciseCompo
   const selectedWords = selectedOrder.map(id => config.words_shuffled.find(w => w.id === id)!);
 
   return (
-    <View style={styles.container}>
-      {/* Instruction de tâche */}
+    <View style={{ flex: 1, padding: spacing.lg, gap: spacing.sm }}>
       {(rawConfig as any).instruction_fr && (
-        <Text style={styles.instruction}>{(rawConfig as any).instruction_fr}</Text>
+        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
+          {(rawConfig as any).instruction_fr}
+        </Text>
       )}
 
-      {/* Traduction = objectif à atteindre */}
       {(rawConfig as any).prompt?.fr && (
-        <View style={styles.goalBox}>
-          <Text style={styles.goalLabel}>À traduire</Text>
-          <Text style={styles.goalText}>« {(rawConfig as any).prompt.fr} »</Text>
+        <View style={{
+          backgroundColor: colors.background.card,
+          borderRadius: borderRadius.md,
+          paddingVertical: spacing.sm,
+          paddingHorizontal: spacing.base,
+          alignItems: 'center',
+          borderWidth: 1,
+          borderColor: colors.border.subtle,
+          gap: 2,
+          ...shadows.subtle,
+        }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.tiny, color: colors.text.secondary, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            À traduire
+          </Text>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.primary, textAlign: 'center' }}>
+            « {(rawConfig as any).prompt.fr} »
+          </Text>
         </View>
       )}
 
       {/* Zone de réponse */}
-      <View style={styles.answerZone}>
-        <Text style={styles.zoneLabel}>Ta réponse</Text>
-        <View style={styles.wordRow}>
+      <View style={{
+        minHeight: 80,
+        borderRadius: borderRadius.lg,
+        borderWidth: 1.5,
+        borderColor: colors.border.medium,
+        borderStyle: 'dashed',
+        padding: spacing.sm,
+        marginBottom: spacing.lg,
+        backgroundColor: colors.background.main,
+      }}>
+        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary, marginBottom: spacing.xs, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Ta réponse
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center' }}>
           {selectedWords.map(word => (
             <TouchableOpacity
               key={word.id}
-              style={[styles.wordChip, styles.wordChipSelected]}
+              style={{
+                backgroundColor: colors.brand.light,
+                borderRadius: borderRadius.md,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.xs,
+                borderWidth: 1.5,
+                borderColor: colors.brand.primary,
+                alignItems: 'center',
+                ...shadows.subtle,
+              }}
               onPress={() => handleWordTap(word.id, 'selected')}
               accessibilityRole="button"
               accessibilityLabel={word.transliteration ?? word.arabic_vocalized}
@@ -74,51 +110,68 @@ export function ReorderExercise({ config: rawConfig, onComplete }: ExerciseCompo
             >
               <ArabicText size="small">{word.arabic_vocalized}</ArabicText>
               {config.show_transliteration && word.transliteration && (
-                <Text style={styles.wordTranslit}>{word.transliteration}</Text>
+                <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary, marginTop: 2 }}>
+                  {word.transliteration}
+                </Text>
               )}
             </TouchableOpacity>
           ))}
           {selectedWords.length === 0 && (
-            <Text style={styles.placeholder}>Appuie sur les mots ci-dessous</Text>
+            <Text style={{ fontFamily: typography.family.ui, color: colors.text.secondary, fontSize: typography.size.body, alignSelf: 'center', paddingVertical: spacing.sm }}>
+              Appuie sur les mots ci-dessous
+            </Text>
           )}
         </View>
       </View>
 
       {/* Mots disponibles */}
-      <View style={styles.availableZone}>
-        <View style={styles.wordRow}>
+      <View style={{ marginBottom: spacing.lg }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center' }}>
           {availableWords.map(word => (
             <TouchableOpacity
               key={word.id}
-              style={styles.wordChip}
+              style={{
+                backgroundColor: colors.background.card,
+                borderRadius: borderRadius.md,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.xs,
+                borderWidth: 1.5,
+                borderColor: colors.border.medium,
+                alignItems: 'center',
+                ...shadows.subtle,
+              }}
               onPress={() => handleWordTap(word.id, 'available')}
               accessibilityRole="button"
               accessibilityLabel={word.transliteration ?? word.arabic_vocalized}
             >
               <ArabicText size="small">{word.arabic_vocalized}</ArabicText>
               {config.show_transliteration && word.transliteration && (
-                <Text style={styles.wordTranslit}>{word.transliteration}</Text>
+                <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary, marginTop: 2 }}>
+                  {word.transliteration}
+                </Text>
               )}
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Bouton Valider */}
       {selectedOrder.length === config.correct_order.length && !isValidated && (
-        <TouchableOpacity style={styles.validateButton} onPress={handleValidate}>
-          <Text style={styles.validateText}>Valider →</Text>
-        </TouchableOpacity>
+        <Button label="Valider →" variant="primary" onPress={handleValidate} />
       )}
 
-      {/* Feedback */}
       {isValidated && (
-        <View style={[styles.feedback, isCorrect ? styles.feedbackCorrect : styles.feedbackWrong]}>
-          <Text style={styles.feedbackText}>
+        <View style={{
+          borderRadius: borderRadius.md,
+          padding: spacing.sm,
+          marginTop: spacing.sm,
+          alignItems: 'center',
+          backgroundColor: isCorrect ? colors.status.successLight : colors.status.errorLight,
+        }}>
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: isCorrect ? colors.status.success : colors.status.error }}>
             {isCorrect ? '✓ Excellent !' : '✗ Pas tout à fait…'}
           </Text>
           {!isCorrect && (
-            <Text style={styles.feedbackHint}>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, marginTop: spacing.xs, textAlign: 'center' }}>
               Bonne réponse :{' '}
               {config.correct_order
                 .map(id => config.words_shuffled.find(w => w.id === id)?.arabic_vocalized ?? '')
@@ -130,91 +183,3 @@ export function ReorderExercise({ config: rawConfig, onComplete }: ExerciseCompo
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: Spacing.lg, gap: Spacing.md },
-  instruction: {
-    fontSize: FontSizes.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  goalBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 2,
-  },
-  goalLabel: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontWeight: '600',
-  },
-  goalText: {
-    fontSize: FontSizes.body,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  hint: {
-    fontSize: FontSizes.small,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  answerZone: {
-    minHeight: 80,
-    borderRadius: Radius.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    padding: Spacing.md,
-    marginBottom: Spacing.xl,
-    backgroundColor: Colors.bg,
-  },
-  zoneLabel: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginBottom: Spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  availableZone: { marginBottom: Spacing.xl },
-  wordRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, justifyContent: 'center' },
-  wordChip: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  wordChipSelected: { backgroundColor: '#EEF6F1', borderColor: Colors.primary },
-  wordTranslit: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  placeholder: { color: Colors.textMuted, fontSize: FontSizes.body, alignSelf: 'center', paddingVertical: Spacing.md },
-  validateButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-  },
-  validateText: { color: '#FFF', fontWeight: '700', fontSize: FontSizes.body },
-  feedback: { borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.md, alignItems: 'center' },
-  feedbackCorrect: { backgroundColor: '#EEF6F1' },
-  feedbackWrong: { backgroundColor: '#FFF4F4' },
-  feedbackText: { fontSize: FontSizes.body, fontWeight: '700' },
-  feedbackHint: { fontSize: FontSizes.small, color: Colors.textMuted, marginTop: Spacing.sm, textAlign: 'center' },
-});

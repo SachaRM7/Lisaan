@@ -1,7 +1,7 @@
 // src/components/StreakCelebration.tsx
 
 import React, { useEffect } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { Text } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -10,6 +10,7 @@ import Animated, {
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface StreakCelebrationProps {
   streakDays: number;
@@ -25,6 +26,7 @@ const MILESTONE_MESSAGES: Record<number, string> = {
 };
 
 export function StreakCelebration({ streakDays, visible, onHide }: StreakCelebrationProps) {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const translateY = useSharedValue(-80);
   const opacity = useSharedValue(0);
 
@@ -35,7 +37,6 @@ export function StreakCelebration({ streakDays, visible, onHide }: StreakCelebra
       translateY.value = withSpring(0, { damping: 14 });
       opacity.value = withTiming(1, { duration: 300 });
 
-      // Auto-hide après 3 secondes
       translateY.value = withDelay(3000, withTiming(-80, { duration: 400 }));
       opacity.value = withDelay(3000, withTiming(0, { duration: 400 }, (finished) => {
         if (finished && onHide) runOnJS(onHide)();
@@ -51,32 +52,20 @@ export function StreakCelebration({ streakDays, visible, onHide }: StreakCelebra
   if (!message || !visible) return null;
 
   return (
-    <Animated.View style={[styles.banner, animatedStyle]}>
-      <Text style={styles.text}>{message}</Text>
+    <Animated.View style={[{
+      position: 'absolute',
+      top: 56,
+      alignSelf: 'center',
+      backgroundColor: colors.brand.dark,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.pill,
+      zIndex: 9999,
+      ...shadows.medium,
+    }, animatedStyle]}>
+      <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.inverse, letterSpacing: 0.3 }}>
+        {message}
+      </Text>
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  banner: {
-    position: 'absolute',
-    top: 56,
-    alignSelf: 'center',
-    backgroundColor: '#1B3A2D',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    zIndex: 9999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  text: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFDF7',
-    letterSpacing: 0.3,
-  },
-});

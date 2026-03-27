@@ -1,6 +1,6 @@
 // src/components/onboarding/OptionCard.tsx
-import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import { Colors, Spacing, Radius, FontSizes } from '../../constants/theme';
+import { TouchableOpacity, Text, View } from 'react-native';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface OptionCardProps {
   label: string;
@@ -11,91 +11,57 @@ interface OptionCardProps {
 }
 
 export default function OptionCard({ label, icon, selected, onPress, mode }: OptionCardProps) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
+
   return (
     <TouchableOpacity
-      style={[styles.card, selected && styles.cardSelected]}
+      style={{
+        borderWidth: 1.5,
+        borderColor: selected ? colors.brand.primary : colors.border.medium,
+        borderRadius: borderRadius.md,
+        paddingHorizontal: spacing.base,
+        paddingVertical: spacing.base,
+        backgroundColor: selected ? colors.brand.light : colors.background.card,
+      }}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.row}>
-        {icon ? <Text style={styles.icon}>{icon}</Text> : null}
-        <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>
-        <View style={[
-          mode === 'multi' ? styles.checkbox : styles.radio,
-          selected && styles.checkSelected,
-        ]}>
-          {selected && <View style={mode === 'multi' ? styles.checkmark : styles.radioDot} />}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        {icon ? <Text style={{ fontSize: 22 }}>{icon}</Text> : null}
+        <Text style={{
+          flex: 1,
+          fontFamily: selected ? typography.family.uiMedium : typography.family.ui,
+          fontSize: typography.size.body,
+          color: selected ? colors.brand.primary : colors.text.primary,
+        }}>
+          {label}
+        </Text>
+        <View style={{
+          width: 20,
+          height: 20,
+          borderRadius: mode === 'multi' ? 4 : 10,
+          borderWidth: 2,
+          borderColor: selected ? colors.brand.primary : colors.border.medium,
+          backgroundColor: selected ? colors.brand.primary : 'transparent',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          {selected && (
+            mode === 'multi' ? (
+              <View style={{
+                width: 10,
+                height: 6,
+                borderLeftWidth: 2,
+                borderBottomWidth: 2,
+                borderColor: colors.text.inverse,
+                transform: [{ rotate: '-45deg' }, { translateY: -1 }],
+              }} />
+            ) : (
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.text.inverse }} />
+            )
+          )}
         </View>
       </View>
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-  },
-  cardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  icon: {
-    fontSize: 22,
-  },
-  label: {
-    flex: 1,
-    fontSize: FontSizes.body,
-    color: Colors.textPrimary,
-    fontWeight: '500',
-  },
-  labelSelected: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary,
-  },
-  radioDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.textOnPrimary,
-  },
-  checkmark: {
-    width: 10,
-    height: 6,
-    borderLeftWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: Colors.textOnPrimary,
-    transform: [{ rotate: '-45deg' }, { translateY: -1 }],
-  },
-});
