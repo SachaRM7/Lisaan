@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 
 import type { LessonSection, LessonSections, SectionProgress } from '../../types/section';
@@ -217,7 +218,18 @@ export function SectionPlayer({
           paddingVertical: spacing.base,
         }}>
           {onBack ? (
-            <TouchableOpacity onPress={onBack} style={{ width: 36, height: 36, justifyContent: 'center' }} hitSlop={12}>
+            <TouchableOpacity
+              onPress={() => Alert.alert(
+                'Quitter la leçon ?',
+                'Ta progression sera perdue.',
+                [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Quitter', style: 'destructive', onPress: onBack },
+                ],
+              )}
+              style={{ width: 36, height: 36, justifyContent: 'center' }}
+              hitSlop={12}
+            >
               <Text style={{ fontSize: 22, color: colors.text.secondary }}>×</Text>
             </TouchableOpacity>
           ) : <View style={{ width: 36, height: 36 }} />}
@@ -320,7 +332,18 @@ export function SectionPlayer({
         paddingVertical: spacing.base,
       }}>
         {onBack ? (
-          <TouchableOpacity onPress={onBack} style={{ width: 36, height: 36, justifyContent: 'center' }} hitSlop={12}>
+          <TouchableOpacity
+            onPress={() => Alert.alert(
+              'Quitter la leçon ?',
+              'Ta progression sera perdue.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                { text: 'Quitter', style: 'destructive', onPress: onBack },
+              ],
+            )}
+            style={{ width: 36, height: 36, justifyContent: 'center' }}
+            hitSlop={12}
+          >
             <Text style={{ fontSize: 22, color: colors.text.secondary }}>×</Text>
           </TouchableOpacity>
         ) : <View style={{ width: 36, height: 36 }} />}

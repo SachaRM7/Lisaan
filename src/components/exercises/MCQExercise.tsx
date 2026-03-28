@@ -1,7 +1,13 @@
 // src/components/exercises/MCQExercise.tsx
 import { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import type { ExerciseComponentProps, ExerciseOption } from '../../types/exercise';
 import ArabicText from '../arabic/ArabicText';
 import { AudioButton } from '../AudioButton';
@@ -176,11 +182,10 @@ function OptionCard({
 
 // ── Composant principal ────────────────────────────────────────
 export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
-  const { colors, typography, spacing } = useTheme();
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const [selected, setSelected] = useState<string | null>(null);
-  const [answered, setAnswered] = useState(false);
+  const [validated, setValidated] = useState(false);
   const startTime = useRef(Date.now());
-  const attempts = useRef(1);
   const hapticFeedback = useSettingsStore((s) => s.haptic_feedback);
   const translationMode = useSettingsStore((s) => s.translation_mode);
   const harakatsMode = useSettingsStore((s) => s.harakats_mode);
@@ -191,102 +196,171 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
   const options = config.options ?? [];
   const correctOption = options.find((o) => o.correct);
 
+  // Shake Reanimated — appliqué au conteneur des options
+  const shakeOffset = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeOffset.value }],
+  }));
+
+  function triggerShake() {
+    shakeOffset.value = withSequence(
+      withTiming(10, { duration: 55 }),
+      withTiming(-10, { duration: 55 }),
+      withTiming(10, { duration: 55 }),
+      withTiming(-10, { duration: 55 }),
+      withTiming(6, { duration: 45 }),
+      withTiming(-6, { duration: 45 }),
+      withTiming(0, { duration: 40 }),
+    );
+  }
+
   function handleSelect(option: ExerciseOption) {
-    if (answered) return;
+    if (validated) return;
     setSelected(option.id);
-    setAnswered(true);
-    const isCorrect = option.correct;
-    if (!isCorrect) attempts.current = 2;
+  }
+
+  function handleValidate() {
+    if (!selected || validated) return;
+    setValidated(true);
+
+    const isCorrect = options.find(o => o.id === selected)?.correct ?? false;
+
     if (hapticFeedback) {
-      Haptics.impactAsync(isCorrect
-        ? Haptics.ImpactFeedbackStyle.Light
-        : Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.notificationAsync(
+        isCorrect
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Error,
+      );
     }
+
+    if (!isCorrect) {
+      triggerShake();
+    }
+
     setTimeout(() => {
       onComplete({
         exercise_id: config.id,
         correct: isCorrect,
         time_ms: Date.now() - startTime.current,
-        attempts: attempts.current,
-        user_answer: option.id,
+        attempts: isCorrect ? 1 : 2,
+        user_answer: selected,
       });
     }, isCorrect ? 800 : 1200);
   }
 
   function getExerciseState(option: ExerciseOption): 'default' | 'selected' | 'correct' | 'incorrect' | 'dimmed' {
-    if (!answered) return selected === option.id ? 'selected' : 'default';
+    if (!validated) return selected === option.id ? 'selected' : 'default';
     if (option.correct) return 'correct';
     if (option.id === selected) return 'incorrect';
     return 'dimmed';
   }
 
-  const isCorrectAnswer = selected === correctOption?.id;
+  const isCorrectAnswer = validated && (options.find(o => o.id === selected)?.correct ?? false);
+  const buttonDisabled = !selected;
+  const buttonBg = buttonDisabled
+    ? colors.status.disabled
+    : colors.brand.primary;
 
   return (
-    <ScrollView
-      contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg }}
-      showsVerticalScrollIndicator={false}
-    >
-      {config.instruction_fr ? (
-        <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
-          {config.instruction_fr}
-        </Text>
-      ) : null}
+    <View style={{ flex: 1 }}>
+      {/* Contenu scrollable */}
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg }}
+        showsVerticalScrollIndicator={false}
+      >
+        {config.instruction_fr ? (
+          <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
+            {config.instruction_fr}
+          </Text>
+        ) : null}
 
-      {config.prompt.ar || config.prompt.fr ? (
-        <PromptCard
-          ar={config.prompt.ar}
-          fr={config.prompt.fr}
-          audioUrl={config.audio_url}
-          audioFallbackText={config.audio_fallback_text}
-          defaultHarakats={defaultHarakats}
-          defaultTranslation={defaultTranslation}
-        />
-      ) : (config.audio_url || config.audio_fallback_text) ? (
-        <View style={{ alignItems: 'center', backgroundColor: colors.background.group, borderRadius: 32, paddingVertical: spacing.hero, paddingHorizontal: spacing.lg }}>
-          <AudioButton
+        {config.prompt.ar || config.prompt.fr ? (
+          <PromptCard
+            ar={config.prompt.ar}
+            fr={config.prompt.fr}
             audioUrl={config.audio_url}
-            fallbackText={config.audio_fallback_text}
-            autoPlay={true}
-            size={40}
-            style={{ alignSelf: 'center' }}
-          />
-        </View>
-      ) : null}
-
-      <View style={{ gap: spacing.base }}>
-        {options.map((option) => (
-          <OptionCard
-            key={option.id}
-            option={option}
-            answered={answered}
-            selected={selected}
+            audioFallbackText={config.audio_fallback_text}
             defaultHarakats={defaultHarakats}
             defaultTranslation={defaultTranslation}
-            onSelect={handleSelect}
-            exerciseState={getExerciseState(option)}
           />
-        ))}
-      </View>
+        ) : (config.audio_url || config.audio_fallback_text) ? (
+          <View style={{ alignItems: 'center', backgroundColor: colors.background.group, borderRadius: 32, paddingVertical: spacing.hero, paddingHorizontal: spacing.lg }}>
+            <AudioButton
+              audioUrl={config.audio_url}
+              fallbackText={config.audio_fallback_text}
+              autoPlay={true}
+              size={40}
+              style={{ alignSelf: 'center' }}
+            />
+          </View>
+        ) : null}
 
-      {answered ? (
-        <View style={{
-          borderRadius: 16,
-          padding: spacing.base,
-          alignItems: 'center',
-          backgroundColor: isCorrectAnswer ? colors.status.successLight : colors.status.errorLight,
-        }}>
+        {/* Options avec shake Reanimated */}
+        <Reanimated.View style={[{ gap: spacing.base }, shakeStyle]}>
+          {options.map((option) => (
+            <OptionCard
+              key={option.id}
+              option={option}
+              answered={validated}
+              selected={selected}
+              defaultHarakats={defaultHarakats}
+              defaultTranslation={defaultTranslation}
+              onSelect={handleSelect}
+              exerciseState={getExerciseState(option)}
+            />
+          ))}
+        </Reanimated.View>
+
+        {/* Feedback après validation */}
+        {validated ? (
+          <View style={{
+            borderRadius: borderRadius.md,
+            padding: spacing.base,
+            alignItems: 'center',
+            backgroundColor: isCorrectAnswer ? colors.status.successLight : colors.status.errorLight,
+          }}>
+            <Text style={{
+              fontFamily: typography.family.uiBold,
+              fontSize: typography.size.body,
+              color: isCorrectAnswer ? colors.status.success : colors.status.error,
+            }}>
+              {isCorrectAnswer
+                ? '✓ Bravo !'
+                : `✗ La bonne réponse était : ${correctOption?.text.fr ?? correctOption?.text.ar ?? ''}`}
+            </Text>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {/* Footer sticky — Valider / Continuer */}
+      <View style={{
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.base,
+        borderTopWidth: 1,
+        borderTopColor: colors.border.subtle,
+        backgroundColor: colors.background.main,
+      }}>
+        <Pressable
+          onPress={validated ? undefined : handleValidate}
+          disabled={buttonDisabled}
+          style={({ pressed }) => ({
+            height: 56,
+            borderRadius: borderRadius.pill,
+            backgroundColor: buttonDisabled ? colors.status.disabled : pressed ? colors.brand.dark : buttonBg,
+            alignItems: 'center' as const,
+            justifyContent: 'center' as const,
+            ...(buttonDisabled ? {} : shadows.prominent),
+          })}
+        >
           <Text style={{
             fontFamily: typography.family.uiBold,
             fontSize: typography.size.body,
-            color: isCorrectAnswer ? colors.status.success : colors.status.error,
+            color: buttonDisabled ? colors.text.secondary : colors.text.inverse,
           }}>
-            {isCorrectAnswer
-              ? '✓ Bravo !'
-              : `✗ La bonne réponse était : ${correctOption?.text.fr ?? correctOption?.text.ar ?? ''}`}
+            {validated ? 'Continuer →' : 'Valider'}
           </Text>
-        </View>
-      ) : null}
-    </ScrollView>
+        </Pressable>
+      </View>
+    </View>
   );
 }

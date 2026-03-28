@@ -176,6 +176,14 @@ export default function RootLayout() {
             name="onboarding"
             options={{ animation: 'fade', gestureEnabled: false }}
           />
+          {/* Transition premium drill-down : fade + slide up */}
+          <Stack.Screen
+            name="module/[id]"
+            options={{
+              animation: 'fade_from_bottom',
+              contentStyle: { backgroundColor: Colors.bg },
+            }}
+          />
           <Stack.Screen
             name="lesson/[id]"
             options={{ animation: 'slide_from_bottom', gestureEnabled: false }}

@@ -4,8 +4,10 @@ import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, Pressable, Animated, ScrollView,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import type { ExerciseComponentProps, MatchPair } from '../../types/exercise';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 interface MatchState {
   selectedLeft: string | null;
@@ -27,11 +29,13 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const hapticFeedback = useSettingsStore((s) => s.haptic_feedback);
   const pairs: MatchPair[] = config.matchPairs ?? [];
   const startTime = useRef(Date.now());
   const arabicLineHeight = Math.round(36 * 1.9);
 
   const [shuffledRight] = useState(() => shuffleArray(pairs));
+  const [grayedPairs, setGrayedPairs] = useState<Set<string>>(new Set());
 
   const [state, setState] = useState<MatchState>({
     selectedLeft: null,
@@ -76,8 +80,13 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
     const newAttempts = state.totalAttempts + 1;
 
     if (isCorrect) {
+      if (hapticFeedback) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const newMatched = new Set(state.matchedPairs);
       newMatched.add(pairId);
+      // Griser les deux cartes après 600ms
+      setTimeout(() => {
+        setGrayedPairs(prev => { const s = new Set(prev); s.add(pairId); return s; });
+      }, 600);
 
       if (newMatched.size === pairs.length) {
         setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
@@ -94,6 +103,7 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
         setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
       }
     } else {
+      if (hapticFeedback) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       triggerShake();
       setState(prev => ({ ...prev, incorrectPair: [selectedLeft, pairId], totalAttempts: newAttempts, wrongAttempts: prev.wrongAttempts + 1 }));
       setTimeout(() => {
@@ -112,8 +122,12 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
       const newAttempts = state.totalAttempts + 1;
 
       if (isCorrect) {
+        if (hapticFeedback) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const newMatched = new Set(state.matchedPairs);
         newMatched.add(pairId);
+        setTimeout(() => {
+          setGrayedPairs(prev => { const s = new Set(prev); s.add(pairId); return s; });
+        }, 600);
 
         if (newMatched.size === pairs.length) {
           setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
@@ -130,6 +144,7 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
           setState(prev => ({ ...prev, matchedPairs: newMatched, selectedLeft: null, selectedRight: null, totalAttempts: newAttempts }));
         }
       } else {
+        if (hapticFeedback) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         triggerShake();
         setState(prev => ({ ...prev, incorrectPair: [pairId, rightId], totalAttempts: newAttempts, wrongAttempts: prev.wrongAttempts + 1 }));
         setTimeout(() => {
@@ -146,6 +161,7 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
   // Styles dynamiques pour un item
   function getItemStyle(side: 'left' | 'right', pairId: string) {
     const isMatched = state.matchedPairs.has(pairId);
+    const isGrayed = grayedPairs.has(pairId);
     const isSelected = side === 'left' ? state.selectedLeft === pairId : state.selectedRight === pairId;
     const isIncorrect = side === 'left' ? state.incorrectPair?.[0] === pairId : state.incorrectPair?.[1] === pairId;
 
@@ -158,6 +174,7 @@ export function MatchExercise({ config, onComplete }: ExerciseComponentProps) {
       justifyContent: 'center' as const,
     };
 
+    if (isGrayed) return { ...base, backgroundColor: colors.background.group, borderColor: 'transparent', opacity: 0.5 };
     if (isMatched) return { ...base, backgroundColor: colors.status.successLight, borderColor: colors.status.success };
     if (isIncorrect) return { ...base, backgroundColor: colors.status.errorLight, borderColor: colors.status.error };
     if (isSelected) return { ...base, backgroundColor: colors.brand.light, borderColor: colors.brand.primary, ...shadows.medium };

@@ -1,12 +1,12 @@
 // app/(tabs)/learn.tsx
-import { useState, useEffect, useRef } from 'react';
+// Layout Bento : HeroModuleCard (full-width) + grille carrée complétés/verrouillés
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  Pressable,
-  ActivityIndicator,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,7 +17,9 @@ import { useProgress, useInitFirstLesson } from '../../src/hooks/useProgress';
 import { useAuthStore } from '../../src/stores/useAuthStore';
 import { supabase } from '../../src/db/remote';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { ProgressBar } from '../../src/components/ui/ProgressBar';
+import { HeroModuleCard } from '../../src/components/learn/HeroModuleCard';
+import { CompletedModuleCard } from '../../src/components/learn/CompletedModuleCard';
+import { LockedModuleCard } from '../../src/components/learn/LockedModuleCard';
 import type { Module } from '../../src/hooks/useModules';
 import type { Lesson } from '../../src/hooks/useLessons';
 import type { LessonProgress } from '../../src/hooks/useProgress';
@@ -39,212 +41,6 @@ function isModuleUnlocked(
   const previousCompleted = previousProgress.filter(p => p.status === 'completed').length;
   const previousTotal = lessonCountByModule[previousModule.id] ?? 0;
   return previousTotal > 0 && previousCompleted >= previousTotal;
-}
-
-// ── Ligne de leçon ──────────────────────────────────────────
-
-function LessonRow({
-  lesson, progress, onPress,
-}: {
-  lesson: Lesson;
-  progress: LessonProgress | undefined;
-  onPress: () => void;
-}) {
-  const { colors, typography, spacing, borderRadius } = useTheme();
-  const status = progress?.status;
-  const isLocked = !status || status === 'locked';
-  const isCompleted = status === 'completed';
-  const arabicLineHeight = Math.round(22 * 1.9);
-
-  return (
-    <Pressable
-      style={[
-        {
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.sm,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border.subtle,
-        },
-        isLocked && { opacity: 0.4 },
-      ]}
-      onPress={isLocked ? undefined : onPress}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
-        <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary, width: 20 }}>
-          {lesson.sort_order}.
-        </Text>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ fontFamily: typography.family.arabic, fontSize: typography.size.arabicSmall, lineHeight: arabicLineHeight, color: colors.text.heroArabic }}>
-            {lesson.title_ar}
-          </Text>
-          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
-            {lesson.title_fr}
-          </Text>
-        </View>
-      </View>
-      <View style={{
-        width: 20,
-        height: 20,
-        borderRadius: borderRadius.pill,
-        backgroundColor: isCompleted ? colors.status.success : isLocked ? colors.background.group : colors.background.group,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <Text style={{ fontSize: 10 }}>
-          {isCompleted ? '✓' : isLocked ? '🔒' : '→'}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-// ── Card Module Déverrouillé ────────────────────────────────
-
-function ModuleCard({
-  module,
-  number,
-  progressList,
-  isNewlyUnlocked,
-}: {
-  module: Module;
-  number: number;
-  progressList: LessonProgress[];
-  isNewlyUnlocked: boolean;
-}) {
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
-  const router = useRouter();
-  const [expanded, setExpanded] = useState(number === 1 || isNewlyUnlocked);
-  const { data: lessons, isLoading } = useLessons(module.id);
-
-  const completedCount = progressList.filter(p => p.status === 'completed').length;
-  const totalCount = lessons?.length ?? 0;
-  const progressRatio = totalCount > 0 ? completedCount / totalCount : 0;
-  const arabicLineHeight = Math.round(36 * 1.9);
-
-  const glowAnim = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (isNewlyUnlocked) {
-      Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 0.7, duration: 300, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 0.7, duration: 300, useNativeDriver: true }),
-        Animated.timing(glowAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [isNewlyUnlocked]);
-
-  return (
-    <Animated.View style={[
-      {
-        backgroundColor: colors.background.card,
-        borderRadius: borderRadius.md,
-        overflow: 'hidden',
-        ...shadows.subtle,
-      },
-      isNewlyUnlocked && { opacity: glowAnim },
-    ]}>
-      <Pressable onPress={() => setExpanded(e => !e)}>
-        {/* Header de la card */}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: spacing.lg }}>
-          {/* Gauche : module label + titre fr */}
-          <View style={{ flex: 1, gap: spacing.micro }}>
-            <Text style={{
-              fontFamily: typography.family.uiBold,
-              fontSize: typography.size.tiny,
-              color: colors.text.secondary,
-              letterSpacing: typography.letterSpacing.caps,
-              textTransform: 'uppercase',
-            }}>
-              MODULE {number}
-            </Text>
-            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.primary }}>
-              {module.title_fr}
-            </Text>
-          </View>
-          {/* Droite : titre arabe massif */}
-          <Text style={{
-            fontFamily: typography.family.arabic,
-            fontSize: typography.size.arabicTitle,
-            lineHeight: arabicLineHeight,
-            color: colors.text.heroArabic,
-            textAlign: 'right',
-          }}>
-            {module.title_ar}
-          </Text>
-        </View>
-
-        {/* Barre de progression fine */}
-        <ProgressBar
-          progress={progressRatio}
-          variant="thin"
-          style={{ marginHorizontal: spacing.lg, marginBottom: spacing.sm }}
-        />
-      </Pressable>
-
-      {/* Liste de leçons dépliable */}
-      {expanded && (
-        <View style={{ paddingBottom: spacing.xs }}>
-          <View style={{ height: 1, backgroundColor: colors.border.subtle }} />
-          {isLoading ? (
-            <ActivityIndicator size="small" color={colors.brand.primary} style={{ padding: spacing.base }} />
-          ) : (
-            lessons?.map((lesson) => {
-              const progress = progressList.find(p => p.lesson_id === lesson.id);
-              return (
-                <LessonRow
-                  key={lesson.id}
-                  lesson={lesson}
-                  progress={progress}
-                  onPress={() => router.push(`/lesson/${lesson.id}`)}
-                />
-              );
-            })
-          )}
-        </View>
-      )}
-    </Animated.View>
-  );
-}
-
-// ── Card Module Verrouillé ──────────────────────────────────
-
-function LockedModuleCard({ module, number, lockMessage }: { module: Module; number: number; lockMessage?: string }) {
-  const { colors, typography, spacing, borderRadius } = useTheme();
-  const arabicLineHeight = Math.round(36 * 1.9);
-
-  return (
-    <View style={{
-      backgroundColor: colors.background.main,
-      borderRadius: borderRadius.md,
-      overflow: 'hidden',
-      opacity: 0.5,
-    }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: spacing.lg }}>
-        <View style={{ flex: 1, gap: spacing.micro }}>
-          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.tiny, color: colors.text.secondary, letterSpacing: typography.letterSpacing.caps, textTransform: 'uppercase' }}>
-            MODULE {number}
-          </Text>
-          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.secondary }}>
-            {module.title_fr}
-          </Text>
-          {lockMessage && (
-            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, fontStyle: 'italic', marginTop: spacing.micro }}>
-              {lockMessage}
-            </Text>
-          )}
-        </View>
-        <View style={{ alignItems: 'flex-end', gap: spacing.micro }}>
-          <Text style={{ fontFamily: typography.family.arabic, fontSize: typography.size.arabicTitle, lineHeight: arabicLineHeight, color: colors.text.secondary, textAlign: 'right' }}>
-            {module.title_ar}
-          </Text>
-          <Text style={{ fontSize: 16 }}>🔒</Text>
-        </View>
-      </View>
-    </View>
-  );
 }
 
 // ── Mutation déverrouillage ─────────────────────────────────
@@ -277,6 +73,7 @@ function useUnlockModule() {
 
 export default function LearnScreen() {
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const router = useRouter();
   const { data: modules, isLoading } = useModules();
   const { data: progress = [], isSuccess: progressLoaded } = useProgress();
   const { data: module1Lessons } = useLessons(modules?.[0]?.id ?? '');
@@ -288,8 +85,8 @@ export default function LearnScreen() {
   const initFirstLesson = useInitFirstLesson();
   const unlockModule = useUnlockModule();
   const userId = useAuthStore((s) => s.userId);
-  const [unlockBannerMessage, setUnlockBannerMessage] = useState<string | null>(null);
-  const [newlyUnlockedIndex, setNewlyUnlockedIndex] = useState<number | null>(null);
+  const [bannerMsg, setBannerMsg] = useState<string | null>(null);
+  const [newlyUnlocked, setNewlyUnlocked] = useState<number | null>(null);
   const prevUnlocked = useRef<Record<number, boolean>>({});
 
   const { data: userStats } = useQuery({
@@ -313,26 +110,86 @@ export default function LearnScreen() {
   }, [userId, progressLoaded, progress, module1Lessons]);
 
   const allModules = modules ?? [];
-  const lessonsByModule: Record<string, { id: string }[]> = {
+
+  const lessonsByModuleId = useMemo<Record<string, Lesson[]>>(() => ({
     [modules?.[0]?.id ?? '']: module1Lessons ?? [],
     [modules?.[1]?.id ?? '']: module2Lessons ?? [],
     [modules?.[2]?.id ?? '']: module3Lessons ?? [],
     [modules?.[3]?.id ?? '']: module4Lessons ?? [],
     [modules?.[4]?.id ?? '']: module5Lessons ?? [],
     [modules?.[5]?.id ?? '']: module6Lessons ?? [],
-  };
+  }), [modules, module1Lessons, module2Lessons, module3Lessons, module4Lessons, module5Lessons, module6Lessons]);
 
-  const lessonCountByModule: Record<string, number> = {};
-  for (const [modId, lessons] of Object.entries(lessonsByModule)) {
-    lessonCountByModule[modId] = lessons.length;
-  }
+  const lessonCountByModule = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const [modId, lessons] of Object.entries(lessonsByModuleId)) {
+      counts[modId] = lessons.length;
+    }
+    return counts;
+  }, [lessonsByModuleId]);
 
-  const progressByModule: Record<string, LessonProgress[]> = {};
-  for (const mod of allModules) {
-    progressByModule[mod.id] = progress.filter(p =>
-      lessonsByModule[mod.id]?.some((l: { id: string }) => l.id === p.lesson_id)
-    );
-  }
+  const progressByModule = useMemo<Record<string, LessonProgress[]>>(() => {
+    const byMod: Record<string, LessonProgress[]> = {};
+    for (const mod of allModules) {
+      const modLessonIds = new Set((lessonsByModuleId[mod.id] ?? []).map(l => l.id));
+      byMod[mod.id] = progress.filter(p => modLessonIds.has(p.lesson_id));
+    }
+    return byMod;
+  }, [allModules, lessonsByModuleId, progress]);
+
+  // ── Module Hero : premier module débloqué non entièrement complété ──
+
+  const heroModule = useMemo<Module | null>(() => {
+    for (const mod of allModules) {
+      const unlocked = isModuleUnlocked(mod.sort_order, progressByModule, allModules, lessonCountByModule);
+      if (!unlocked) continue;
+      const total = lessonCountByModule[mod.id] ?? 0;
+      const completed = (progressByModule[mod.id] ?? []).filter(p => p.status === 'completed').length;
+      if (total === 0 || completed < total) return mod;
+    }
+    // Tout complété → afficher le dernier débloqué
+    for (let i = allModules.length - 1; i >= 0; i--) {
+      const mod = allModules[i];
+      if (isModuleUnlocked(mod.sort_order, progressByModule, allModules, lessonCountByModule)) return mod;
+    }
+    return allModules[0] ?? null;
+  }, [allModules, progressByModule, lessonCountByModule]);
+
+  // Prochaine leçon du hero (in_progress en priorité, sinon available)
+  const heroNextLesson = useMemo<Lesson | null>(() => {
+    if (!heroModule) return null;
+    const heroLessons = lessonsByModuleId[heroModule.id] ?? [];
+    for (const l of heroLessons) {
+      if (progress.find(p => p.lesson_id === l.id)?.status === 'in_progress') return l;
+    }
+    for (const l of heroLessons) {
+      if (progress.find(p => p.lesson_id === l.id)?.status === 'available') return l;
+    }
+    return heroLessons[0] ?? null;
+  }, [heroModule, lessonsByModuleId, progress]);
+
+  const heroCompleted = heroModule
+    ? (progressByModule[heroModule.id] ?? []).filter(p => p.status === 'completed').length
+    : 0;
+  const heroTotal = heroModule ? (lessonCountByModule[heroModule.id] ?? 0) : 0;
+
+  // ── Modules de la grille (tous sauf hero) ──
+
+  const gridModules = useMemo(
+    () => allModules.filter(m => m.id !== heroModule?.id),
+    [allModules, heroModule],
+  );
+
+  // Paires pour le rendu 2 colonnes
+  const gridPairs = useMemo<[Module, Module | null][]>(() => {
+    const pairs: [Module, Module | null][] = [];
+    for (let i = 0; i < gridModules.length; i += 2) {
+      pairs.push([gridModules[i], gridModules[i + 1] ?? null]);
+    }
+    return pairs;
+  }, [gridModules]);
+
+  // ── Logique bannière déverrouillage ──
 
   const module2Unlocked = isModuleUnlocked(2, progressByModule, allModules, lessonCountByModule);
   const module3Unlocked = isModuleUnlocked(3, progressByModule, allModules, lessonCountByModule);
@@ -340,24 +197,23 @@ export default function LearnScreen() {
   const module5Unlocked = isModuleUnlocked(5, progressByModule, allModules, lessonCountByModule);
   const module6Unlocked = isModuleUnlocked(6, progressByModule, allModules, lessonCountByModule);
 
-  function handleModuleUnlock(index: number, lessons: typeof module2Lessons, message: string) {
+  function handleModuleUnlock(index: number, lessons: Lesson[] | undefined, message: string) {
     return (unlocked: boolean) => {
       if (unlocked && !prevUnlocked.current[index + 2]) {
         prevUnlocked.current[index + 2] = true;
         const mod = allModules.find(m => m.sort_order === index + 2);
         const alreadyHadProgress = mod ? (progressByModule[mod.id]?.length ?? 0) > 0 : false;
         if (!alreadyHadProgress) {
-          setNewlyUnlockedIndex(index + 1);
-          setUnlockBannerMessage(message);
+          setNewlyUnlocked(index + 1);
+          setBannerMsg(message);
           if (lessons && lessons.length > 0) unlockModule.mutate(lessons[0].id);
-          setTimeout(() => setUnlockBannerMessage(null), 4000);
-          setTimeout(() => setNewlyUnlockedIndex(null), 6000);
+          setTimeout(() => setBannerMsg(null), 4000);
+          setTimeout(() => setNewlyUnlocked(null), 6000);
         }
       }
     };
   }
 
-  // Déclencher les effets de déverrouillage
   useEffect(() => { handleModuleUnlock(0, module2Lessons, '🎉 Module 2 débloqué ! Découvre les harakats.')(module2Unlocked); }, [module2Unlocked]);
   useEffect(() => { handleModuleUnlock(1, module3Lessons, '🎉 Module 3 débloqué ! Lis tes premiers mots arabes.')(module3Unlocked); }, [module3Unlocked]);
   useEffect(() => { handleModuleUnlock(2, module4Lessons, '🎉 Module 4 débloqué ! Construis du sens en arabe.')(module4Unlocked); }, [module4Unlocked]);
@@ -374,24 +230,48 @@ export default function LearnScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }} edges={['top']}>
-      {/* Banner déverrouillage */}
-      {unlockBannerMessage && (
-        <View style={{ backgroundColor: colors.brand.primary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, alignItems: 'center' }}>
-          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.inverse, textAlign: 'center' }}>
-            {unlockBannerMessage}
+      {/* Bannière déverrouillage */}
+      {bannerMsg && (
+        <View style={{
+          backgroundColor: colors.brand.primary,
+          paddingHorizontal: spacing.lg,
+          paddingVertical: spacing.sm,
+          alignItems: 'center',
+        }}>
+          <Text style={{
+            fontFamily: typography.family.uiBold,
+            fontSize: typography.size.body,
+            color: colors.text.inverse,
+            textAlign: 'center',
+          }}>
+            {bannerMsg}
           </Text>
         </View>
       )}
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.base, paddingBottom: 120 }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.base,
+          paddingBottom: 120,
+        }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
-          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary }}>
+        {/* ── Header ── */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: spacing.lg,
+        }}>
+          <Text style={{
+            fontFamily: typography.family.uiBold,
+            fontSize: typography.size.h2,
+            color: colors.text.primary,
+          }}>
             Lisaan
           </Text>
+
           {/* Chip streak */}
           <View style={{
             flexDirection: 'row',
@@ -404,49 +284,78 @@ export default function LearnScreen() {
             ...shadows.subtle,
           }}>
             <Text style={{ fontSize: 14 }}>🔥</Text>
-            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.small, color: colors.accent.gold }}>
+            <Text style={{
+              fontFamily: typography.family.uiBold,
+              fontSize: typography.size.small,
+              color: colors.accent.gold,
+            }}>
               {userStats?.streak_current ?? 0}
             </Text>
           </View>
         </View>
 
-        {/* Modules */}
-        <View style={{ gap: spacing.base }}>
-          {allModules.map((module, index) => {
-            const number = index + 1;
-            const progressList = progressByModule[module.id] ?? [];
+        {/* ── Hero Module Card (full-width) ── */}
+        {heroModule && (
+          <HeroModuleCard
+            module={heroModule}
+            number={heroModule.sort_order}
+            completedCount={heroCompleted}
+            totalLessons={heroTotal}
+            onPressCard={() => router.push(`/module/${heroModule.id}` as any)}
+            onPressContinue={() => {
+              if (heroNextLesson) {
+                router.push(`/lesson/${heroNextLesson.id}` as any);
+              } else {
+                router.push(`/module/${heroModule.id}` as any);
+              }
+            }}
+          />
+        )}
 
-            const unlocked = isModuleUnlocked(module.sort_order, progressByModule, allModules, lessonCountByModule);
-            const hasProgress = progress.some(p =>
-              lessonsByModule[module.id]?.some((l: { id: string }) => l.id === p.lesson_id)
-            );
-            const isPlayable = index === 0 || (unlocked && (hasProgress || lessonsByModule[module.id]?.length === 0));
+        {/* ── Grille : complétés + verrouillés ── */}
+        {gridPairs.length > 0 && (
+          <View style={{ marginTop: spacing.lg, gap: spacing.base }}>
+            {gridPairs.map(([m1, m2], pairIndex) => {
+              const m1Unlocked = isModuleUnlocked(m1.sort_order, progressByModule, allModules, lessonCountByModule);
+              const m1Total = lessonCountByModule[m1.id] ?? 0;
+              const m1Completed = (progressByModule[m1.id] ?? []).filter(p => p.status === 'completed').length;
+              const m1Done = m1Unlocked && m1Total > 0 && m1Completed >= m1Total;
 
-            if (isPlayable) {
+              const m2Unlocked = m2 ? isModuleUnlocked(m2.sort_order, progressByModule, allModules, lessonCountByModule) : false;
+              const m2Total = m2 ? (lessonCountByModule[m2.id] ?? 0) : 0;
+              const m2Completed = m2 ? (progressByModule[m2.id] ?? []).filter(p => p.status === 'completed').length : 0;
+              const m2Done = m2 && m2Unlocked && m2Total > 0 && m2Completed >= m2Total;
+
               return (
-                <ModuleCard
-                  key={module.id}
-                  module={module}
-                  number={number}
-                  progressList={progressList}
-                  isNewlyUnlocked={newlyUnlockedIndex === index}
-                />
+                <View key={`pair-${pairIndex}`} style={{ flexDirection: 'row', gap: spacing.base }}>
+                  {m1Done ? (
+                    <CompletedModuleCard
+                      module={m1}
+                      number={m1.sort_order}
+                      onPress={() => router.push(`/module/${m1.id}` as any)}
+                    />
+                  ) : (
+                    <LockedModuleCard module={m1} number={m1.sort_order} />
+                  )}
+
+                  {m2 ? (
+                    m2Done ? (
+                      <CompletedModuleCard
+                        module={m2}
+                        number={m2.sort_order}
+                        onPress={() => router.push(`/module/${m2.id}` as any)}
+                      />
+                    ) : (
+                      <LockedModuleCard module={m2} number={m2.sort_order} />
+                    )
+                  ) : (
+                    <View style={{ flex: 1 }} />
+                  )}
+                </View>
               );
-            }
-
-            const prevModule = allModules.find(m => m.sort_order === module.sort_order - 1);
-            const lockMessage = prevModule ? `Termine le Module ${number - 1} pour débloquer` : undefined;
-
-            return (
-              <LockedModuleCard
-                key={module.id}
-                module={module}
-                number={number}
-                lockMessage={lockMessage}
-              />
-            );
-          })}
-        </View>
+            })}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

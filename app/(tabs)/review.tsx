@@ -53,7 +53,7 @@ export default function ReviewScreen() {
         <View style={headerStyle}>
           <Text style={titleStyle}>Réviser</Text>
         </View>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.base }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, paddingBottom: 120, gap: spacing.base }}>
           <Text style={{ fontSize: 56 }}>📚</Text>
           <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center' }}>
             Rien à réviser pour l'instant
@@ -79,7 +79,7 @@ export default function ReviewScreen() {
         <View style={headerStyle}>
           <Text style={titleStyle}>Réviser</Text>
         </View>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.xl, gap: spacing.xl }}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 120, gap: spacing.xl }}>
           <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
             <Text style={{ fontSize: 56 }}>✅</Text>
             <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary }}>
@@ -110,7 +110,7 @@ export default function ReviewScreen() {
       <View style={headerStyle}>
         <Text style={titleStyle}>Réviser</Text>
       </View>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.xl, gap: spacing.xl }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 120, gap: spacing.xl }}>
         {/* Compteur hero */}
         <View style={{
           backgroundColor: colors.background.group,

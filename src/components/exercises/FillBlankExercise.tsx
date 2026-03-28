@@ -11,6 +11,7 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [solved, setSolved] = useState(false);
+  const [madeError, setMadeError] = useState(false);
   const startTime = useRef(Date.now());
   const attempts = useRef(0);
   const hapticFeedback = useSettingsStore((s) => s.haptic_feedback);
@@ -57,7 +58,7 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
       setSolved(true);
       animateFill();
       if (hapticFeedback) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       setTimeout(() => {
         onComplete({
@@ -69,9 +70,10 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
         });
       }, 1000);
     } else {
+      setMadeError(true);
       flashRed(option.id);
       if (hapticFeedback) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       setTimeout(() => setSelectedId(null), 500);
     }
@@ -135,19 +137,39 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
 
       {/* Phrase avec trou */}
       <View style={{
-        backgroundColor: colors.background.card,
+        backgroundColor: solved
+          ? colors.status.successLight
+          : (selectedId && !options.find(o => o.id === selectedId)?.correct)
+            ? colors.status.errorLight
+            : colors.background.card,
         borderRadius: borderRadius.lg,
         padding: spacing.lg,
         alignItems: 'center',
         gap: spacing.sm,
         borderWidth: 1,
-        borderColor: colors.border.subtle,
+        borderColor: solved
+          ? colors.status.success
+          : (selectedId && !options.find(o => o.id === selectedId)?.correct)
+            ? colors.status.error
+            : colors.border.subtle,
         ...shadows.subtle,
       }}>
         {renderSentence()}
         {sentence && (
           <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
             {sentence.fr}
+          </Text>
+        )}
+        {/* Bonne réponse révélée après une erreur */}
+        {madeError && !solved && (
+          <Text style={{
+            fontFamily: typography.family.uiBold,
+            fontSize: typography.size.body,
+            color: colors.status.success,
+            textAlign: 'center',
+            marginTop: spacing.xs,
+          }}>
+            ✓ {options.find(o => o.correct)?.text.ar ?? ''}
           </Text>
         )}
       </View>

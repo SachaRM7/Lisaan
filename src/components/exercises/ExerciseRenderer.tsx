@@ -19,7 +19,12 @@ export function ExerciseRenderer({ config, onComplete }: ExerciseRendererProps) 
     );
   }
 
-  return <Component config={config} onComplete={onComplete} />;
+  // flex:1 garantit que les composants avec footer sticky (MCQExercise) ont une hauteur ancrée
+  return (
+    <View style={{ flex: 1 }}>
+      <Component config={config} onComplete={onComplete} />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

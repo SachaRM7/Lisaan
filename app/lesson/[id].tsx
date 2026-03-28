@@ -456,6 +456,10 @@ export default function LessonScreen() {
     });
 
     // SRS
+    if (contentType === 'letters' && lessonLetters?.length) {
+      await createSRSCardsForItems(lessonLetters.map(l => l.id), 'letter');
+      queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+    }
     if (contentType === 'diacritics' && lessonDiacritics?.length) {
       await createSRSCardsForItems(lessonDiacritics.map(d => d.id), 'diacritic');
       queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
@@ -743,7 +747,7 @@ export default function LessonScreen() {
 
 async function createSRSCardsForItems(
   itemIds: string[],
-  itemType: 'diacritic' | 'word' | 'sentence',
+  itemType: 'letter' | 'diacritic' | 'word' | 'sentence',
 ): Promise<void> {
   const { useAuthStore } = await import('../../src/stores/useAuthStore');
   const userId = useAuthStore.getState().userId;
