@@ -216,7 +216,7 @@ export default function ProfileScreen() {
             }
             useAuthStore.getState().clearUser();
             posthogReset();
-            router.replace('/auth-choice' as never);
+            router.replace('/auth');
           },
         },
       ],
@@ -374,7 +374,7 @@ export default function ProfileScreen() {
                 paddingVertical: spacing.sm,
                 alignItems: 'center',
               })}
-              onPress={() => router.push('/auth-screen?mode=convert' as any)}
+              onPress={() => router.push('/auth?mode=convert' as any)}
             >
               <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.small, color: colors.text.inverse }}>
                 Créer un compte

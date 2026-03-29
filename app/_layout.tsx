@@ -149,7 +149,7 @@ export default function RootLayout() {
       router.replace('/(onboarding)/step1');
     } else if (!isGuest && !authUserId) {
       // Onboarding fait mais pas encore choisi Guest/Auth
-      router.replace('/auth-choice' as any);
+      router.replace('/auth');
     } else {
       // Guest ou Auth → Home
       router.replace('/(tabs)/learn');
@@ -180,12 +180,8 @@ export default function RootLayout() {
                   options={{ animation: 'fade', gestureEnabled: false }}
                 />
                 <Stack.Screen
-                  name="auth-choice"
+                  name="auth"
                   options={{ animation: 'fade', gestureEnabled: false }}
-                />
-                <Stack.Screen
-                  name="auth-screen"
-                  options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
                 />
                 <Stack.Screen
                   name="module/[id]"
