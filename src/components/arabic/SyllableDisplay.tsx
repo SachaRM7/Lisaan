@@ -1,6 +1,6 @@
 // src/components/arabic/SyllableDisplay.tsx
 
-import { View, Text, StyleSheet, ScrollView, Pressable, Animated } from 'react-native';
+import { View, Text, ScrollView, Pressable, Animated } from 'react-native';
 import { useEffect, useRef } from 'react';
 import ArabicText from './ArabicText';
 import type { Diacritic } from '../../hooks/useDiacritics';
@@ -248,4 +248,3 @@ function AnimatedSyllable({
   );
 }
 
-const styles = StyleSheet.create({});

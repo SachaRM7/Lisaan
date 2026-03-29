@@ -211,6 +211,26 @@ export async function initLocalSchema(): Promise<void> {
     );
 
     -- ============================================================
+    -- TABLES CONTENU — Scénarios de dialogue situés (É14)
+    -- ============================================================
+
+    CREATE TABLE IF NOT EXISTS dialogue_scenarios (
+      id TEXT PRIMARY KEY,
+      lesson_id TEXT NOT NULL,
+      title_fr TEXT NOT NULL,
+      title_ar TEXT NOT NULL,
+      context_fr TEXT NOT NULL,
+      setting_ar TEXT NOT NULL,
+      setting_transliteration TEXT NOT NULL,
+      difficulty INTEGER NOT NULL DEFAULT 3,
+      turns TEXT NOT NULL DEFAULT '[]',
+      vocabulary_ids TEXT NOT NULL DEFAULT '[]',
+      grammar_rule_ids TEXT NOT NULL DEFAULT '[]',
+      synced_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_dlg_scenario_lesson ON dialogue_scenarios(lesson_id);
+
+    -- ============================================================
     -- TABLES UTILISATEUR (read-write local, sync vers Cloud)
     -- ============================================================
 
@@ -366,6 +386,7 @@ export async function initLocalSchema(): Promise<void> {
     `ALTER TABLE words ADD COLUMN theme TEXT`,
     `CREATE INDEX IF NOT EXISTS idx_words_theme ON words(theme)`,
     `ALTER TABLE lessons ADD COLUMN content_refs TEXT DEFAULT '[]'`,
+    `ALTER TABLE user_settings ADD COLUMN analytics_enabled INTEGER NOT NULL DEFAULT 1`,
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch (_) { /* colonne déjà présente */ }

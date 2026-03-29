@@ -48,7 +48,7 @@ function ZelligePattern({ color }: { color: string }) {
 }
 
 export function ModuleCompleteScreen({
-  moduleTitle, moduleTitleAr, moduleNumber, moduleIcon, totalXP, lessonsCount, timeMinutes, onContinue,
+  moduleTitle, moduleTitleAr, moduleNumber, moduleIcon: _moduleIcon, totalXP, lessonsCount, timeMinutes, onContinue,
 }: ModuleCompleteScreenProps) {
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
 

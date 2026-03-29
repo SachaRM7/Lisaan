@@ -15,7 +15,7 @@ import { useDiacritics, useDiacriticsForLesson } from '../../../src/hooks/useDia
 import { useWords, useSimpleWords, useWordsByTheme } from '../../../src/hooks/useWords';
 import { useRoots } from '../../../src/hooks/useRoots';
 import { useSentences } from '../../../src/hooks/useSentences';
-import { useDialogues, useDialogueWithTurns } from '../../../src/hooks/useDialogues';
+import { useDialogueWithTurns } from '../../../src/hooks/useDialogues';
 import { generateLetterExercises } from '../../../src/engines/exercise-generator';
 import { generateHarakatExercises, LESSON_DIACRITIC_RANGES } from '../../../src/engines/harakat-exercise-generator';
 import { generateWordExercises, LESSON_WORD_CONFIG } from '../../../src/engines/word-exercise-generator';
@@ -60,7 +60,7 @@ function getEncouragement(pct: number): string {
 export default function ExercisesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { colors, typography, borderRadius, shadows } = useTheme();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<ExerciseResult[]>([]);
   const [phase, setPhase] = useState<'exercises' | 'results'>('exercises');
@@ -106,7 +106,6 @@ export default function ExercisesScreen() {
 
   // ── Module 4 : phrases et dialogues ─────────────────────────
   const { data: allSentences } = useSentences();
-  const { data: allDialogues } = useDialogues();
 
   const sentenceConfig = contentType === 'sentences' && lesson
     ? LESSON_SENTENCE_CONFIG[lesson.sort_order]
@@ -299,7 +298,6 @@ export default function ExercisesScreen() {
     const totalTime = Math.round((Date.now() - startTime) / 1000);
     const baseXP = (lesson?.xp_reward as number | undefined) ?? 20;
     const earnedXP = calculateLessonXP(baseXP, pct);
-    const isPerfect = pct >= 100;
 
     async function handleContinue() {
       if (!id) { router.replace('/(tabs)/learn'); return; }

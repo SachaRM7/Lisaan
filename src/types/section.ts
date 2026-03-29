@@ -29,7 +29,7 @@ export interface LessonSection {
  */
 export interface LessonSections {
   /** Le type de contenu de la leçon (pour savoir quel composant de teaching utiliser) */
-  contentType: 'letters' | 'diacritics' | 'words' | 'sentences' | 'grammar' | 'conjugation';
+  contentType: 'letters' | 'diacritics' | 'words' | 'sentences' | 'grammar' | 'conjugation' | 'situations';
   /** Les sections ordonnées */
   sections: LessonSection[];
 }

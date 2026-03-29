@@ -22,7 +22,7 @@ import { useSentences } from '../../src/hooks/useSentences';
 import { useDialogues, useDialogueWithTurns } from '../../src/hooks/useDialogues';
 import { useGrammarRules } from '../../src/hooks/useGrammarRules';
 import { useConjugationsByWords } from '../../src/hooks/useConjugations';
-import { useUpdateSRSCard, useSRSCards } from '../../src/hooks/useSRSCards';
+import { useDialogueScenariosForLesson } from '../../src/hooks/useDialogueScenario';
 import { useCompleteLesson } from '../../src/hooks/useProgress';
 import { useBadges } from '../../src/hooks/useBadges';
 import { useAuthStore } from '../../src/stores/useAuthStore';
@@ -34,10 +34,10 @@ import { generateHarakatLessonSections, LESSON_DIACRITIC_RANGES } from '../../sr
 import { generateWordLessonSections, LESSON_WORD_CONFIG } from '../../src/engines/word-exercise-generator';
 import { generateSentenceLessonSections, LESSON_SENTENCE_CONFIG } from '../../src/engines/sentence-exercise-generator';
 import { generateGrammarExercises } from '../../src/engines/grammar-exercise-generator';
-import { generateConjugationExercises } from '../../src/engines/conjugation-exercise-generator';
+import { generateConjugationExercises, generatePresentTenseFillBlanks } from '../../src/engines/conjugation-exercise-generator';
 
 // ── Engines ──────────────────────────────────────────────────
-import { computeSRSUpdate, exerciseResultToQuality, createNewCard } from '../../src/engines/srs';
+import { createNewCard } from '../../src/engines/srs';
 import { updateStreak } from '../../src/engines/streak';
 import { addXP, calculateLessonXP } from '../../src/engines/xp';
 import { track } from '../../src/analytics/posthog';
@@ -73,8 +73,10 @@ const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   5: [16, 19], 6: [20, 23], 7: [24, 28],
 };
 
-const MODULE_GRAMMAR_ID    = 'a1000000-0000-0000-0000-000000000005';
+const MODULE_GRAMMAR_ID     = 'a1000000-0000-0000-0000-000000000005';
 const MODULE_CONJUGATION_ID = 'a1000000-0000-0000-0000-000000000006';
+const MODULE_PRESENT_ID     = 'a1000000-0000-0000-0000-000000000007';
+const MODULE_SITUATIONS_ID  = 'a1000000-0000-0000-0000-000000000008';
 
 type LessonScreenMode = 'loading' | 'hub' | 'playing' | 'lesson_complete';
 
@@ -119,8 +121,10 @@ export default function LessonScreen() {
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
   const moduleId = lesson?.module_id ?? '';
   const contentType: LessonSections['contentType'] =
-    moduleId === MODULE_GRAMMAR_ID    ? 'grammar'      :
+    moduleId === MODULE_GRAMMAR_ID     ? 'grammar'      :
     moduleId === MODULE_CONJUGATION_ID ? 'conjugation'  :
+    moduleId === MODULE_PRESENT_ID     ? 'conjugation'  :
+    moduleId === MODULE_SITUATIONS_ID  ? 'situations'   :
     moduleSortOrder === 2 ? 'diacritics' :
     moduleSortOrder === 3 ? 'words'      :
     moduleSortOrder === 4 ? 'sentences'  :
@@ -132,9 +136,6 @@ export default function LessonScreen() {
   }, [lesson?.content_refs]);
 
   const exercise_direction = useSettingsStore((s) => s.exercise_direction);
-  const updateSRSCard = useUpdateSRSCard();
-  const { data: srsCards } = useSRSCards();
-  const updatedItemIds = useRef(new Set<string>());
   const completeLesson = useCompleteLesson();
   const { checkBadges } = useBadges();
 
@@ -181,13 +182,16 @@ export default function LessonScreen() {
     contentType === 'grammar' ? moduleId : ''
   );
 
-  // ── Module 6 : conjugaison ───────────────────────────────
+  // ── Module 6 : conjugaison passé ────────────────────────
+  const isPastConjugation = contentType === 'conjugation' && moduleId === MODULE_CONJUGATION_ID;
+  const isPresentConjugation = contentType === 'conjugation' && moduleId === MODULE_PRESENT_ID;
+
   const { conjugations: lessonConjugations, loading: conjugationsLoading } = useConjugationsByWords(
-    contentType === 'conjugation' ? contentRefs : [],
+    isPastConjugation ? contentRefs : [],
     'past'
   );
   const { conjugations: allConjugations } = useConjugationsByWords(
-    contentType === 'conjugation' ? [
+    isPastConjugation ? [
       'd0000000-0000-0000-0000-000000000001',
       'd0000000-0000-0000-0000-000000000002',
       'd0000000-0000-0000-0000-000000000003',
@@ -198,9 +202,20 @@ export default function LessonScreen() {
     'past'
   );
 
+  // ── Module 7 : présent ───────────────────────────────────
+  const { conjugations: presentConjugations, loading: presentLoading } = useConjugationsByWords(
+    isPresentConjugation ? contentRefs : [],
+    'present'
+  );
+
+  // ── Module 8 : situations ────────────────────────────────
+  const { data: dialogueScenarios, isLoading: scenariosLoading } = useDialogueScenariosForLesson(
+    contentType === 'situations' ? (id ?? null) : null
+  );
+
   // ── Module 4 : phrases ───────────────────────────────────
   const { data: allSentences, isLoading: sentencesLoading, refetch: refetchSentences } = useSentences();
-  const { data: allDialogues, isLoading: dialoguesLoading } = useDialogues();
+  const { isLoading: dialoguesLoading } = useDialogues();
   const [forceSyncing, setForceSyncing] = useState(false);
   const syncAttempted = useRef(false);
 
@@ -232,7 +247,9 @@ export default function LessonScreen() {
     || (contentType === 'words' && (rootsLoading || simpleWordsLoading || themeWordsLoading))
     || (contentType === 'sentences' && (sentencesLoading || dialoguesLoading || forceSyncing))
     || (contentType === 'grammar' && grammarLoading)
-    || (contentType === 'conjugation' && conjugationsLoading);
+    || (isPastConjugation && conjugationsLoading)
+    || (isPresentConjugation && presentLoading)
+    || (contentType === 'situations' && scenariosLoading);
 
   // ── Force sync sentences si vides ────────────────────────
   useEffect(() => {
@@ -274,7 +291,7 @@ export default function LessonScreen() {
         sections: [{ id: 'section-grammar-0', index: 0, title_fr: lessonRules[0].title_fr, teachingItemIds: lessonRules.map(r => r.id), exercises }],
       };
     }
-    if (contentType === 'conjugation') {
+    if (contentType === 'conjugation' && isPastConjugation) {
       if (!lessonConjugations.length) return { contentType: 'conjugation', sections: [] };
       const wordIds = [...new Set(lessonConjugations.map(e => e.word_id))];
       const allVerbEntries = allConjugations.length ? allConjugations : lessonConjugations;
@@ -286,6 +303,53 @@ export default function LessonScreen() {
         sections: [{ id: 'section-conj-0', index: 0, title_fr: lesson?.title_fr ?? 'Conjugaison', teachingItemIds: wordIds, exercises }],
       };
     }
+    if (contentType === 'conjugation' && isPresentConjugation) {
+      if (!presentConjugations.length) return { contentType: 'conjugation', sections: [] };
+      const wordIds = [...new Set(presentConjugations.map(e => e.word_id))];
+      const verbGroups = wordIds.map(wid => ({
+        wordId: wid,
+        verbLabel_fr: presentConjugations.find(e => e.word_id === wid)?.pronoun_fr?.split(' ')[0] ?? wid,
+        entries: presentConjugations.filter(e => e.word_id === wid),
+      }));
+      return generatePresentTenseFillBlanks(verbGroups);
+    }
+    if (contentType === 'situations') {
+      if (!dialogueScenarios?.length) return { contentType: 'situations', sections: [] };
+      const sections = dialogueScenarios.map((scenario, index) => ({
+        id: `section-dlg-${index}`,
+        title_fr: scenario.title_fr,
+        index,
+        teachingItemIds: [scenario.id],
+        exercises: [{
+          id: `dlg-exercise-${scenario.id}`,
+          type: 'dialogue' as const,
+          instruction_fr: scenario.context_fr,
+          context_fr: scenario.context_fr,
+          prompt: { ar: scenario.setting_ar, fr: scenario.context_fr },
+          turns: scenario.turns
+            .filter(t => t.speaker !== 'student')
+            .map((t, ti) => ({
+              id: t.id ?? `turn-${ti}`,
+              speaker: (t.speaker === 'B' ? 'b' : 'a') as 'a' | 'b',
+              arabic: t.arabic,
+              arabic_vocalized: t.arabic_vocalized,
+              translation_fr: t.translation_fr,
+            })),
+          choices: (scenario.turns.find(t => t.speaker === 'student')?.choices ?? []).map(c => ({
+            id: c.id,
+            arabic: c.arabic,
+            arabic_vocalized: c.arabic_vocalized,
+            transliteration: c.transliteration,
+            is_correct: c.is_correct,
+            feedback_fr: c.is_correct ? 'Bonne réplique !' : 'Essaie une autre réponse.',
+          })),
+          show_transliteration: true,
+          show_translation: true,
+          metadata: { scenario_id: scenario.id },
+        }],
+      }));
+      return { contentType: 'situations', sections };
+    }
     // sentences
     if (!lesson || !sentenceConfig) return { contentType: 'sentences', sections: [] };
     return generateSentenceLessonSections(
@@ -294,7 +358,9 @@ export default function LessonScreen() {
   }, [contentType, lesson, lessonLetters, allLetters, exercise_direction,
       lessonDiacritics, allDiacritics, lessonWords, allWords, allRoots,
       lessonSentences, allSentences, sentenceConfig, dialoguesWithTurns,
-      grammarRules, contentRefs, lessonConjugations, allConjugations]);
+      grammarRules, contentRefs, lessonConjugations, allConjugations,
+      isPastConjugation, isPresentConjugation, presentConjugations,
+      dialogueScenarios]);
 
   // ── Init : détecter mode au chargement ───────────────────
   const initDone = useRef(false);

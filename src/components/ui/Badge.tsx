@@ -22,8 +22,8 @@ export function Badge({ variant = 'category', label, style }: Props) {
     alignSelf: 'flex-start',
   };
 
-  let bgColor = colors.background.group;
-  let textColor = colors.text.secondary;
+  let bgColor: string = colors.background.group;
+  let textColor: string = colors.text.secondary;
 
   if (variant === 'status') {
     bgColor = colors.brand.light;

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import type { ExerciseComponentProps, DialogueExerciseConfig, DialogueChoice } from '../../types/exercise';
+import type { ExerciseComponentProps, DialogueExerciseConfig } from '../../types/exercise';
 import ArabicText from '../arabic/ArabicText';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../ui';
@@ -117,8 +117,8 @@ export function DialogueExercise({ config: rawConfig, onComplete }: ExerciseComp
           const isSelected = selectedChoice === choice.id;
           const showResult = isValidated && isSelected;
 
-          let bg = colors.background.card;
-          let borderColor = colors.border.medium;
+          let bg: string = colors.background.card;
+          let borderColor: string = colors.border.medium;
           if (showResult && choice.is_correct) { bg = colors.status.successLight; borderColor = colors.status.success; }
           else if (showResult && !choice.is_correct) { bg = colors.status.errorLight; borderColor = colors.status.error; }
           else if (isSelected) { bg = colors.brand.light; borderColor = colors.brand.primary; }

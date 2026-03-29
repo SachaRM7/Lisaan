@@ -138,8 +138,8 @@ export default function AuthScreen() {
 
   // ── Apple Sign In ─────────────────────────────────────
   // TODO: Activer quand Apple OAuth sera configuré dans Supabase Dashboard
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async function handleAppleSignIn() {
+  // @ts-ignore — sera utilisé quand OAuth Apple sera activé
+  async function _handleAppleSignIn() {
     // TODO: Activer quand Apple OAuth sera configuré dans Supabase Dashboard
     // setError(null);
     // setLoading(true);
@@ -174,8 +174,8 @@ export default function AuthScreen() {
 
   // ── Google Sign In ────────────────────────────────────
   // TODO: Activer quand Google OAuth sera configuré dans Supabase Dashboard
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async function handleGoogleSignIn() {
+  // @ts-ignore — sera utilisé quand OAuth Google sera activé
+  async function _handleGoogleSignIn() {
     // TODO: Activer quand Google OAuth sera configuré dans Supabase Dashboard
     // setError(null);
     // setLoading(true);

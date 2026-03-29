@@ -5,7 +5,6 @@ import {
   View,
   Text,
   ScrollView,
-  Animated,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -86,7 +85,7 @@ export default function LearnScreen() {
   const unlockModule = useUnlockModule();
   const userId = useAuthStore((s) => s.effectiveUserId());
   const [bannerMsg, setBannerMsg] = useState<string | null>(null);
-  const [newlyUnlocked, setNewlyUnlocked] = useState<number | null>(null);
+  const [_newlyUnlocked, setNewlyUnlocked] = useState<number | null>(null);
   const prevUnlocked = useRef<Record<number, boolean>>({});
 
   const { data: userStats } = useQuery({

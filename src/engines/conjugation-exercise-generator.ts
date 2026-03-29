@@ -2,6 +2,8 @@
 
 import type { ConjugationEntry } from '../types/grammar';
 import type { ExerciseConfig, DialogueTurn, DialogueChoice } from '../types/exercise';
+import type { LessonSections } from '../types/section';
+import { buildSection, buildLessonSections } from './section-utils';
 
 const PRIORITY_PRONOUNS = ['ana', 'anta', 'huwa', 'hiya', 'nahnu'];
 
@@ -10,7 +12,7 @@ const PRIORITY_PRONOUNS = ['ana', 'anta', 'huwa', 'hiya', 'nahnu'];
  * Mélange MCQ (identifier la forme / le pronom) + dialogue (utiliser en contexte).
  */
 export function generateConjugationExercises(
-  wordId: string,
+  _wordId: string,
   entries: ConjugationEntry[],
   allVerbEntries: ConjugationEntry[],
   showTransliteration = true,
@@ -146,6 +148,85 @@ function generateConjugationDialogue(
     show_translation: true,
     metadata: { word_id: correctEntry.word_id },
   };
+}
+
+/**
+ * Génère des leçons de présent sous forme de LessonSections.
+ * Une section par verbe : pronoun-MCQ + form-MCQ + fill_blank pour chaque pronom prioritaire.
+ *
+ * @param verbGroups  Tableau de { wordId, verbLabel_fr, entries } — un élément par verbe
+ * @param showTransliteration  Afficher la translittération dans les exercices
+ */
+export function generatePresentTenseFillBlanks(
+  verbGroups: Array<{
+    wordId: string;
+    verbLabel_fr: string;
+    entries: ConjugationEntry[];
+  }>,
+  showTransliteration = true,
+): LessonSections {
+  const sections = verbGroups.map((group, index) => {
+    const presentEntries = group.entries.filter(e => e.tense === 'present');
+    const targetEntries = presentEntries.filter(e => PRIORITY_PRONOUNS.includes(e.pronoun_code));
+    const allPresentEntries = presentEntries;
+
+    const exercises: ExerciseConfig[] = [];
+
+    // MCQ pronom + MCQ forme pour chaque pronom prioritaire
+    for (const entry of targetEntries) {
+      exercises.push(generatePronounMCQ(entry, allPresentEntries, showTransliteration));
+      exercises.push(generateFormMCQ(entry, allPresentEntries, showTransliteration));
+    }
+
+    // fill_blank : une phrase par pronom prioritaire (si example_sentence disponible)
+    const withSentences = targetEntries.filter(e => e.example_sentence_ar_vocalized);
+    for (const entry of withSentences) {
+      const distractors = allPresentEntries
+        .filter(e => e.id !== entry.id && e.conjugated_ar !== entry.conjugated_ar)
+        .slice(0, 3)
+        .map(e => ({
+          id: e.id,
+          text: { ar: e.conjugated_ar_vocalized },
+          correct: false,
+        }));
+
+      exercises.push({
+        id: `present-fillblank-${entry.id}`,
+        type: 'fill_blank',
+        instruction_fr: 'Complète la phrase avec la bonne forme du verbe',
+        prompt: { ar: entry.conjugated_ar_vocalized },
+        sentence: {
+          ar: entry.example_sentence_ar ?? entry.conjugated_ar,
+          fr: entry.example_sentence_translation_fr ?? '',
+          transliteration: showTransliteration ? entry.conjugated_transliteration : '',
+        },
+        blank_word: {
+          ar: entry.conjugated_ar_vocalized,
+          position: 0,
+        },
+        options: shuffleArray([
+          { id: entry.id, text: { ar: entry.conjugated_ar_vocalized }, correct: true },
+          ...distractors,
+        ]),
+        show_transliteration: showTransliteration,
+        metadata: { conjugation_id: entry.id, word_id: entry.word_id },
+      });
+    }
+
+    // Dialogue si suffisamment d'exemples
+    if (withSentences.length >= 2) {
+      exercises.push(generateConjugationDialogue(withSentences, showTransliteration));
+    }
+
+    return buildSection(
+      index,
+      `${group.verbLabel_fr} — présent`,
+      [group.wordId],
+      exercises,
+    );
+  });
+
+  return buildLessonSections('conjugation', sections);
 }
 
 function shuffleArray<T>(array: T[]): T[] {

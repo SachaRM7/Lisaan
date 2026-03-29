@@ -102,7 +102,7 @@ function _generateExercisesForSentences(
   type: string,
   sectionSentences: Sentence[],
   allSentences: Sentence[],
-  allWords: Word[],
+  _allWords: Word[],
 ): ExerciseConfig[] {
   const exercises: ExerciseConfig[] = [];
 

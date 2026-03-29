@@ -17,6 +17,7 @@ export interface UserSettings {
   audio_speed: AudioSpeed;
   font_size: FontSizePreference;
   haptic_feedback: boolean;
+  analytics_enabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -29,4 +30,5 @@ export const DEFAULT_SETTINGS: UserSettings = {
   audio_speed: 'slow',
   font_size: 'large',
   haptic_feedback: true,
+  analytics_enabled: true,
 };

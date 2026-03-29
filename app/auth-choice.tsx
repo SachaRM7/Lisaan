@@ -12,7 +12,7 @@ import { DEFAULT_SETTINGS } from '../src/types/settings';
 
 export default function AuthChoiceScreen() {
   const router = useRouter();
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { colors, typography, borderRadius, shadows } = useTheme();
 
   async function handleGuestMode() {
     const guestId = Crypto.randomUUID();

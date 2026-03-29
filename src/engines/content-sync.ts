@@ -7,6 +7,7 @@ import {
   upsertSentences, upsertDialogues, upsertDialogueTurns,
   upsertBadges,
   upsertGrammarRules, upsertConjugationEntries,
+  upsertDialogueScenarios,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
 import { prefetchAudio } from '../services/audio-cache-service';
@@ -238,6 +239,21 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
     result.errors.push(`conjugation_entries: ${e.message}`);
   }
 
+  // --- Dialogue Scenarios ---
+  try {
+    const { data, error } = await supabase
+      .from('dialogue_scenarios')
+      .select('*');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertDialogueScenarios(data);
+      await updateSyncMetadata('dialogue_scenarios', data.length);
+      result.tables.dialogue_scenarios = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`dialogue_scenarios: ${e.message}`);
+  }
+
   // Pré-téléchargement audio en arrière-plan (fire-and-forget)
   prefetchAudio().catch(err => console.warn('[content-sync] prefetch audio failed:', err));
 
@@ -255,6 +271,7 @@ export async function needsContentSync(): Promise<boolean> {
     'sentences', 'dialogues', 'dialogue_turns',
     'badges',
     'grammar_rules', 'conjugation_entries',
+    'dialogue_scenarios',
   ];
   for (const table of tables) {
     const meta = await getSyncMetadata(table);

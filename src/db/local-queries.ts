@@ -1,7 +1,10 @@
 // src/db/local-queries.ts
 
 import { getLocalDB } from './local';
+import * as ExpoCrypto from 'expo-crypto';
 import type { LessonSessionState, SectionProgress } from '../types/section';
+
+const randomUUID = () => ExpoCrypto.randomUUID();
 
 // ================================================================
 // CONTENT — Lecture seule (sync depuis Cloud → SQLite)
@@ -316,8 +319,9 @@ export async function upsertSettings(userId: string, settings: Record<string, an
   const now = new Date().toISOString();
   await db.runAsync(
     `INSERT INTO user_settings (user_id, harakats_mode, transliteration_mode, translation_mode,
-      exercise_direction, audio_enabled, audio_autoplay, audio_speed, font_size, haptic_feedback, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      exercise_direction, audio_enabled, audio_autoplay, audio_speed, font_size, haptic_feedback,
+      analytics_enabled, updated_at, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
      ON CONFLICT(user_id) DO UPDATE SET
        harakats_mode = excluded.harakats_mode,
        transliteration_mode = excluded.transliteration_mode,
@@ -328,11 +332,13 @@ export async function upsertSettings(userId: string, settings: Record<string, an
        audio_speed = excluded.audio_speed,
        font_size = excluded.font_size,
        haptic_feedback = excluded.haptic_feedback,
+       analytics_enabled = excluded.analytics_enabled,
        updated_at = ?,
        synced_at = NULL`,
     [userId, settings.harakats_mode, settings.transliteration_mode, settings.translation_mode,
      settings.exercise_direction, settings.audio_enabled ? 1 : 0, settings.audio_autoplay ? 1 : 0,
-     settings.audio_speed, settings.font_size, settings.haptic_feedback ? 1 : 0, now, now]
+     settings.audio_speed, settings.font_size, settings.haptic_feedback ? 1 : 0,
+     settings.analytics_enabled !== false ? 1 : 0, now, now]
   );
 }
 
@@ -781,6 +787,42 @@ export async function upsertConjugationEntries(entries: any[]): Promise<void> {
   }
 }
 
+export async function upsertDialogueScenarios(scenarios: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const s of scenarios) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO dialogue_scenarios
+         (id, lesson_id, title_fr, title_ar, context_fr,
+          setting_ar, setting_transliteration, difficulty,
+          turns, vocabulary_ids, grammar_rule_ids, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        s.id, s.lesson_id, s.title_fr, s.title_ar, s.context_fr,
+        s.setting_ar, s.setting_transliteration, s.difficulty ?? 3,
+        JSON.stringify(s.turns ?? []),
+        JSON.stringify(s.vocabulary_ids ?? []),
+        JSON.stringify(s.grammar_rule_ids ?? []),
+        now,
+      ]
+    );
+  }
+}
+
+export async function getDialogueScenariosByLesson(lessonId: string): Promise<any[]> {
+  const db = getLocalDB();
+  const rows = await db.getAllAsync<any>(
+    'SELECT * FROM dialogue_scenarios WHERE lesson_id = ?',
+    [lessonId]
+  );
+  return rows.map(r => ({
+    ...r,
+    turns: JSON.parse(r.turns ?? '[]'),
+    vocabulary_ids: JSON.parse(r.vocabulary_ids ?? '[]'),
+    grammar_rule_ids: JSON.parse(r.grammar_rule_ids ?? '[]'),
+  }));
+}
+
 // ============================================================
 // DEV UTILITIES (jamais appelé en production)
 // ============================================================
@@ -795,7 +837,7 @@ export async function devCompleteAllLessons(userId: string): Promise<number> {
        VALUES (?, ?, ?, 'completed', 100, ?, 1, 60, ?, NULL)
        ON CONFLICT(user_id, lesson_id) DO UPDATE SET
          status = 'completed', score = 100, completed_at = ?, updated_at = ?, synced_at = NULL`,
-      [crypto.randomUUID(), userId, lesson.id, now, now, now, now]
+      [randomUUID(), userId, lesson.id, now, now, now, now]
     );
   }
   return lessons.length;

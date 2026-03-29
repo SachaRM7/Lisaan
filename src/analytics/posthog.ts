@@ -24,9 +24,16 @@ export function getPostHog(): PostHog {
   return _client;
 }
 
+// Analytics consent gate — set by useSettingsStore on load to avoid circular imports
+let _analyticsEnabled = true;
+export function setAnalyticsEnabled(enabled: boolean): void {
+  _analyticsEnabled = enabled;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function track(event: string, properties?: Record<string, any>): void {
   try {
+    if (!_analyticsEnabled) return;
     getPostHog().capture(event, properties);
   } catch (e) {
     console.warn('[Analytics] track error:', e);

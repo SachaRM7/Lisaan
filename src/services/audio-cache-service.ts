@@ -1,6 +1,6 @@
 // src/services/audio-cache-service.ts
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getLocalDB } from '../db/local';
 
 const AUDIO_DIR = FileSystem.documentDirectory + 'audio/';

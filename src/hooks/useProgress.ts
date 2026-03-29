@@ -1,7 +1,10 @@
 // src/hooks/useProgress.ts
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as ExpoCrypto from 'expo-crypto';
 import { useAuthStore } from '../stores/useAuthStore';
+
+const randomUUID = () => ExpoCrypto.randomUUID();
 import {
   getProgressForUser, upsertProgress, getLessonById, getLessonsByModule,
   getFirstLessonOfNextModule,
@@ -47,7 +50,7 @@ export function useCompleteLesson() {
 
       // Marquer la leçon comme complétée (local)
       await upsertProgress({
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         user_id: userId,
         lesson_id: params.lessonId,
         status: 'completed',
@@ -67,7 +70,7 @@ export function useCompleteLesson() {
 
         if (nextLesson) {
           await upsertProgress({
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             user_id: userId,
             lesson_id: nextLesson.id,
             status: 'available',
@@ -81,7 +84,7 @@ export function useCompleteLesson() {
           const firstNextLesson = await getFirstLessonOfNextModule(currentLesson.module_id);
           if (firstNextLesson) {
             await upsertProgress({
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               user_id: userId,
               lesson_id: firstNextLesson.id,
               status: 'available',
@@ -111,7 +114,7 @@ export function useInitFirstLesson() {
       if (!userId) return;
 
       await upsertProgress({
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         user_id: userId,
         lesson_id: lessonId,
         status: 'available',

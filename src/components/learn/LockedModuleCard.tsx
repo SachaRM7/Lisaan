@@ -11,7 +11,7 @@ interface LockedModuleCardProps {
   number: number;
 }
 
-export function LockedModuleCard({ module, number }: LockedModuleCardProps) {
+export function LockedModuleCard({ module, number: _number }: LockedModuleCardProps) {
   const { colors, typography, borderRadius } = useTheme();
   const arabicLineHeight = Math.round(typography.size.arabicBody * 1.9);
 

@@ -6,12 +6,11 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { palette, borderRadius as br, getShadows } from '../../src/constants/theme';
+import { borderRadius as br, getShadows } from '../../src/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -34,8 +33,8 @@ const TAB_LABELS: Record<string, string> = {
 
 // ─── Custom Floating Tab Bar ──────────────────────────────
 
-function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { colors, typography, shadows } = useTheme();
+function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
+  const { colors, typography } = useTheme();
   const insets = useSafeAreaInsets();
 
   const prominentShadow = getShadows(false, colors.shadowColor).prominent;

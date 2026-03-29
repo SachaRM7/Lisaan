@@ -18,7 +18,7 @@ interface CompletedModuleCardProps {
   onPress: () => void;
 }
 
-export function CompletedModuleCard({ module, number, onPress }: CompletedModuleCardProps) {
+export function CompletedModuleCard({ module, number: _number, onPress }: CompletedModuleCardProps) {
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const arabicLineHeight = Math.round(typography.size.arabicBody * 1.9);
 

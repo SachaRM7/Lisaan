@@ -6,7 +6,7 @@ import { getSettings, upsertSettings } from '../db/local-queries';
 import { runSync } from '../engines/sync-manager';
 import type { UserSettings } from '../types/settings';
 import { DEFAULT_SETTINGS } from '../types/settings';
-import { track } from '../analytics/posthog';
+import { track, setAnalyticsEnabled } from '../analytics/posthog';
 
 interface SettingsState extends UserSettings {
   isLoaded: boolean;
@@ -32,6 +32,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const data = await getSettings(userId);
 
       if (data) {
+        const analyticsEnabled = data.analytics_enabled !== undefined
+          ? !!data.analytics_enabled
+          : DEFAULT_SETTINGS.analytics_enabled;
         set({
           harakats_mode: data.harakats_mode ?? DEFAULT_SETTINGS.harakats_mode,
           transliteration_mode: data.transliteration_mode ?? DEFAULT_SETTINGS.transliteration_mode,
@@ -42,8 +45,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           audio_speed: data.audio_speed ?? DEFAULT_SETTINGS.audio_speed,
           font_size: data.font_size ?? DEFAULT_SETTINGS.font_size,
           haptic_feedback: !!data.haptic_feedback,
+          analytics_enabled: analyticsEnabled,
           isLoaded: true,
         });
+        setAnalyticsEnabled(analyticsEnabled);
       } else {
         set({ isLoaded: true });
       }
@@ -56,6 +61,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSetting: (key, value) => {
     // Mise à jour locale immédiate
     set({ [key]: value } as Partial<SettingsState>);
+    if (key === 'analytics_enabled') setAnalyticsEnabled(value as boolean);
     track('setting_changed', { setting: key, value: value as unknown });
 
     // Écriture SQLite + sync vers Cloud en arrière-plan
@@ -75,6 +81,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   resetToDefaults: () => {
     set({ ...DEFAULT_SETTINGS });
+    setAnalyticsEnabled(DEFAULT_SETTINGS.analytics_enabled);
 
     (async () => {
       try {

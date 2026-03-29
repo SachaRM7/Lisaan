@@ -88,13 +88,13 @@ export function SectionPlayer({
   contentType,
   initialProgress,
   contentData,
-  settings,
+  settings: _settings,
   onProgressUpdate,
   onSectionComplete,
   onBack,
   replayMode,
 }: SectionPlayerProps) {
-  const { colors, typography, spacing, borderRadius } = useTheme();
+  const { colors, typography, spacing } = useTheme();
   const hasTeaching = section.teachingItemIds.length > 0;
 
   const initialPhase = useMemo<'teaching' | 'exercises'>(() => {
@@ -449,9 +449,8 @@ function buildConjugationItems(wordIds: string[], entries: ConjugationEntry[]): 
 
 function LetterTeachingContent({
   item,
-  lessonSortOrder,
+  lessonSortOrder: _lessonSortOrder,
 }: { item: Letter | null; lessonSortOrder?: number }) {
-  const { colors, typography, spacing, borderRadius } = useTheme();
   if (!item) return null;
   return (
     <>

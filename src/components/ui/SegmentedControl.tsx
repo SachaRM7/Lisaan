@@ -24,7 +24,7 @@ interface SegmentedControlProps {
 }
 
 export function SegmentedControl({ segments, value, onChange }: SegmentedControlProps) {
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { colors, typography, borderRadius, shadows } = useTheme();
   const [containerWidth, setContainerWidth] = useState(0);
   const thumbX = useSharedValue(-1000);
 

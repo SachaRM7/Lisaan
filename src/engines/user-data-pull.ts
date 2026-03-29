@@ -1,6 +1,7 @@
 // src/engines/user-data-pull.ts
 
 import { supabase } from '../db/remote';
+import * as ExpoCrypto from 'expo-crypto';
 import {
   upsertProgress, upsertSRSCard, upsertSettings,
   getSyncMetadata, updateSyncMetadata,
@@ -32,7 +33,7 @@ export async function pullUserDataFromCloud(userId: string): Promise<void> {
   if (progressData) {
     for (const p of progressData) {
       await upsertProgress({
-        id: p.id ?? crypto.randomUUID(),
+        id: p.id ?? ExpoCrypto.randomUUID(),
         user_id: p.user_id,
         lesson_id: p.lesson_id,
         status: p.status,

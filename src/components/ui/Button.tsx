@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   Animated,
-  View,
 } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 

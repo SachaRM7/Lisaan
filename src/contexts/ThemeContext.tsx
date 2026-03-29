@@ -10,8 +10,6 @@ import {
 
 // ─── Types ────────────────────────────────────────────────
 
-type ColorMode = 'light' | 'dark';
-
 export type Theme = {
   colors: typeof palette.light;
   typography: typeof typography;
@@ -37,7 +35,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isDarkMode, setDarkMode] = useState<boolean>(false);
 
   const theme = useMemo<ThemeContextValue>(() => {
-    const colors = isDarkMode ? palette.dark : palette.light;
+    const colors = (isDarkMode ? palette.dark : palette.light) as typeof palette.light;
     const shadows = getShadows(isDarkMode, colors.shadowColor);
     return {
       colors,

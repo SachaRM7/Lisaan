@@ -1,5 +1,5 @@
 // app/(tabs)/review.tsx
-import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useDueCards, useSRSCards } from '../../src/hooks/useSRSCards';
 import { track } from '../../src/analytics/posthog';
@@ -18,7 +18,7 @@ function formatNextReview(isoDate: string): string {
 }
 
 export default function ReviewScreen() {
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const router = useRouter();
   const { data: dueCards = [] } = useDueCards();
   const { data: allCards = [] } = useSRSCards();
