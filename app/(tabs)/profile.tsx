@@ -21,12 +21,14 @@ import { clearAudioCache } from '../../src/services/audio-cache-service';
 import { supabase } from '../../src/db/remote';
 import { useBadges } from '../../src/hooks/useBadges';
 import { useAuthStore } from '../../src/stores/useAuthStore';
+import { useOnboardingStore } from '../../src/stores/useOnboardingStore';
 import { getLocalDB } from '../../src/db/local';
 import { devCompleteAllLessons, getCompletedLessonsCount } from '../../src/db/local-queries';
 import { runSync } from '../../src/engines/sync-manager';
 import { syncContentFromCloud } from '../../src/engines/content-sync';
 import { checkAndUnlockBadges } from '../../src/engines/badge-engine';
 import { useQueryClient } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { reset as posthogReset } from '../../src/analytics/posthog';
 import { useTheme } from '../../src/contexts/ThemeContext';
 
@@ -132,7 +134,10 @@ export default function ProfileScreen() {
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const store = useSettingsStore();
   const router = useRouter();
-  const userId = useAuthStore(s => s.userId);
+  const userId = useAuthStore(s => s.effectiveUserId());
+  const isGuest = useAuthStore(s => s.isGuest);
+  const authEmail = useAuthStore(s => s.email);
+  const storeDisplayName = useAuthStore(s => s.displayName);
   const queryClient = useQueryClient();
   const { allUnlockedBadges } = useBadges();
   const [allBadges, setAllBadges] = useState<BadgeItem[]>([]);
@@ -205,9 +210,13 @@ export default function ProfileScreen() {
           text: 'Se déconnecter',
           style: 'destructive',
           onPress: async () => {
-            await supabase.auth.signOut();
+            const { isGuest: wasGuest } = useAuthStore.getState();
+            if (!wasGuest) {
+              await supabase.auth.signOut();
+            }
+            useAuthStore.getState().clearUser();
             posthogReset();
-            router.replace('/(onboarding)/step1' as never);
+            router.replace('/auth-choice' as never);
           },
         },
       ],
@@ -220,8 +229,9 @@ export default function ProfileScreen() {
   }
 
   const dailyGoalStr = String(userData?.daily_goal_minutes ?? 10);
-  const initial = userData?.display_name?.[0]?.toUpperCase() ?? 'A';
-  const displayName = userData?.display_name ?? 'Apprenant';
+  const resolvedName = userData?.display_name ?? storeDisplayName;
+  const initial = resolvedName?.[0]?.toUpperCase() ?? 'A';
+  const displayName = resolvedName ?? 'Apprenant';
   const memberSince = formatMemberSince(userData?.created_at);
 
   const sectionTitleStyle = {
@@ -327,12 +337,51 @@ export default function ProfileScreen() {
           <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary, marginTop: spacing.base }}>
             {displayName}
           </Text>
+          {!isGuest && authEmail ? (
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, marginTop: spacing.micro }}>
+              {authEmail}
+            </Text>
+          ) : null}
           {memberSince ? (
             <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, marginTop: spacing.micro }}>
               {memberSince}
             </Text>
           ) : null}
         </View>
+
+        {/* ── Bannière conversion Guest → Auth ── */}
+        {isGuest && (
+          <View style={{
+            marginHorizontal: spacing.lg,
+            marginBottom: spacing.base,
+            backgroundColor: colors.brand.light,
+            borderRadius: borderRadius.lg,
+            padding: spacing.base,
+            borderWidth: 1,
+            borderColor: colors.brand.primary + '33',
+            gap: spacing.sm,
+          }}>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.brand.dark }}>
+              ☁️ Sauvegarde ta progression
+            </Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary, lineHeight: 20 }}>
+              Crée un compte pour ne rien perdre et synchroniser tes appareils.
+            </Text>
+            <Pressable
+              style={({ pressed }) => ({
+                backgroundColor: pressed ? colors.brand.dark : colors.brand.primary,
+                borderRadius: borderRadius.md,
+                paddingVertical: spacing.sm,
+                alignItems: 'center',
+              })}
+              onPress={() => router.push('/auth-screen?mode=convert' as any)}
+            >
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.small, color: colors.text.inverse }}>
+                Créer un compte
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* ── Zone Dashboard SRS ── */}
         <View style={{
@@ -579,6 +628,36 @@ export default function ProfileScreen() {
                   </Text>
                 </Pressable>
 
+                <View style={separatorStyle} />
+                <Pressable
+                  style={accountRowStyle}
+                  onPress={async () => {
+                    Alert.alert(
+                      'Reset onboarding',
+                      'Vide AsyncStorage et repart depuis le début (onboarding). Les données SQLite sont conservées.',
+                      [
+                        { text: 'Annuler', style: 'cancel' },
+                        {
+                          text: 'Reset',
+                          style: 'destructive',
+                          onPress: async () => {
+                            // Reset isCompleted EN PREMIER — avant clearUser() qui déclenche le routing
+                            useOnboardingStore.setState({ isCompleted: false, isLoading: false });
+                            useAuthStore.getState().clearUser();
+                            await AsyncStorage.clear();
+                            router.replace('/(onboarding)/step1');
+                          },
+                        },
+                      ],
+                    );
+                  }}
+                >
+                  <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.status.error }}>
+                    Reset onboarding (dev)
+                  </Text>
+                </Pressable>
+
+                <View style={separatorStyle} />
                 <Pressable
                   style={accountRowStyle}
                   onPress={async () => {

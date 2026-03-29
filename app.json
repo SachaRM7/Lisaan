@@ -46,15 +46,14 @@
       "expo-font",
       "expo-secure-store",
       "expo-sqlite",
-      [
-        "expo-av",
-        {
-          "microphonePermission": false
-        }
-      ],
       "expo-localization",
-      "./plugins/withPrivacyManifest"
+      "./plugins/withPrivacyManifest",
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
+    "web": {
+      "bundler": "metro"
+    },
     "experiments": {
       "typedRoutes": true
     },

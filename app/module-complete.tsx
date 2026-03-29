@@ -6,6 +6,8 @@ import { ModuleCompleteScreen } from '../src/screens/ModuleCompleteScreen';
 export default function ModuleCompletePage() {
   const params = useLocalSearchParams<{
     moduleTitle: string;
+    moduleTitleAr: string;
+    moduleNumber: string;
     moduleIcon: string;
     totalXP: string;
     lessonsCount: string;
@@ -15,7 +17,9 @@ export default function ModuleCompletePage() {
   return (
     <ModuleCompleteScreen
       moduleTitle={params.moduleTitle ?? 'Module complété'}
-      moduleIcon={params.moduleIcon ?? '🎓'}
+      moduleTitleAr={params.moduleTitleAr || undefined}
+      moduleNumber={params.moduleNumber ? parseInt(params.moduleNumber) : undefined}
+      moduleIcon={params.moduleIcon ?? ''}
       totalXP={parseInt(params.totalXP ?? '0')}
       lessonsCount={parseInt(params.lessonsCount ?? '0')}
       timeMinutes={parseInt(params.timeMinutes ?? '0')}

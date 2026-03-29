@@ -11,18 +11,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native';
 import { Colors } from '../src/constants/theme';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOnboardingStore } from '../src/stores/useOnboardingStore';
 import { useSettingsStore } from '../src/stores/useSettingsStore';
 import { useAuthStore } from '../src/stores/useAuthStore';
+import { supabase } from '../src/db/remote';
 import { openLocalDB } from '../src/db/local';
 import { initLocalSchema } from '../src/db/schema-local';
 import { needsContentSync, syncContentFromCloud } from '../src/engines/content-sync';
 import { startSyncListener } from '../src/engines/sync-manager';
 import { ContentDownloadScreen } from '../src/components/ui/ContentDownloadScreen';
 import { NetworkErrorScreen } from '../src/components/NetworkErrorScreen';
-
-const DEVICE_ID_KEY = 'lisaan_device_id';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -36,13 +34,20 @@ const queryClient = new QueryClient({
   },
 });
 
+function detectProvider(user: any): 'email' | 'google' | 'apple' {
+  const provider = user?.app_metadata?.provider;
+  if (provider === 'google') return 'google';
+  if (provider === 'apple') return 'apple';
+  return 'email';
+}
+
 export default function RootLayout() {
   const router = useRouter();
   const { isCompleted, isLoading, checkOnboardingStatus } = useOnboardingStore();
   const loadSettings = useSettingsStore((s) => s.loadSettings);
-
-  const setUserId = useAuthStore((s) => s.setUserId);
-  const userId = useAuthStore((s) => s.userId);
+  const isGuest = useAuthStore((s) => s.isGuest);
+  const authUserId = useAuthStore((s) => s.userId);
+  const effectiveUserId = useAuthStore((s) => s.effectiveUserId());
 
   const [dbReady, setDbReady] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -57,9 +62,9 @@ export default function RootLayout() {
     'NotoNaskhArabic': require('../assets/fonts/NotoNaskhArabic-Variable.ttf'),
   });
 
-  // 0. Initialiser Sentry + PostHog
+  // 0. Initialiser PostHog
   useEffect(() => { getPostHog(); }, []);
-  useEffect(() => { if (userId) identify(userId); }, [userId]);
+  useEffect(() => { if (effectiveUserId) identify(effectiveUserId); }, [effectiveUserId]);
 
   // 1. Initialiser SQLite au démarrage
   useEffect(() => {
@@ -67,11 +72,8 @@ export default function RootLayout() {
 
     async function initDB() {
       try {
-        // Ouvrir la base SQLite
         await openLocalDB();
-        // Créer les tables si besoin
         await initLocalSchema();
-        // Sync contenu si premier lancement
         if (await needsContentSync()) {
           setSyncing(true);
           try {
@@ -84,120 +86,129 @@ export default function RootLayout() {
           setSyncing(false);
         }
         setDbReady(true);
-        // Lancer le listener de sync réseau
         unsubscribeSync = startSyncListener();
       } catch (err) {
         console.error('[DB] Init error:', err);
-        // Mode dégradé : continuer même en cas d'erreur
         setSyncing(false);
         setDbReady(true);
       }
     }
 
     initDB();
-
-    return () => {
-      unsubscribeSync?.();
-    };
+    return () => { unsubscribeSync?.(); };
   }, []);
 
-  // 2. Initialiser le device_id local (pas besoin de Supabase Auth)
+  // 3. Listener de session Supabase (Auth)
   useEffect(() => {
-    if (!dbReady) return;
+    // Récupérer une session existante au démarrage
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        useAuthStore.getState().setAuthUser(
+          session.user.id,
+          session.user.email ?? '',
+          detectProvider(session.user),
+        );
+      }
+    });
 
-    async function initDeviceId() {
-      let deviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
-      if (!deviceId) {
-        deviceId = crypto.randomUUID();
-        await AsyncStorage.setItem(DEVICE_ID_KEY, deviceId);
-        }
-      setUserId(deviceId);
-    }
+    // Écouter les changements de session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        useAuthStore.getState().setAuthUser(
+          session.user.id,
+          session.user.email ?? '',
+          detectProvider(session.user),
+        );
+      } else if (event === 'SIGNED_OUT') {
+        useAuthStore.getState().clearUser();
+      }
+    });
 
-    initDeviceId().catch(err => console.error('[Auth] device_id error:', err));
-  }, [dbReady]);
+    return () => subscription.unsubscribe();
+  }, []);
 
-  // 3. Vérifier le statut d'onboarding et charger les réglages
+  // 4. Vérifier le statut d'onboarding et charger les réglages
   useEffect(() => {
     if (!dbReady) return;
     checkOnboardingStatus();
     loadSettings();
   }, [dbReady]);
 
-  // 4. Cacher le splash screen une fois polices + DB + statut chargés
+  // 5. Cacher le splash screen une fois tout prêt
+  const allReady = fontsLoaded && dbReady && !isLoading;
   useEffect(() => {
-    if (fontsLoaded && dbReady && !isLoading) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, dbReady, isLoading]);
+    if (allReady) SplashScreen.hideAsync();
+  }, [allReady]);
 
-  // 5. Rediriger selon le statut d'onboarding
+  // 6. Routing conditionnel
   useEffect(() => {
-    if (!fontsLoaded || !dbReady || isLoading) return;
+    if (!allReady) return;
+
     if (!isCompleted) {
+      // Onboarding pas encore fait
       router.replace('/(onboarding)/step1');
+    } else if (!isGuest && !authUserId) {
+      // Onboarding fait mais pas encore choisi Guest/Auth
+      router.replace('/auth-choice' as any);
     } else {
+      // Guest ou Auth → Home
       router.replace('/(tabs)/learn');
     }
-  }, [fontsLoaded, dbReady, isLoading, isCompleted]);
-
-  if (syncError) {
-    return <NetworkErrorScreen onRetry={() => { setSyncError(false); setSyncing(false); setDbReady(false); }} />;
-  }
-
-  if (syncing) {
-    return <ContentDownloadScreen />;
-  }
-
-  // Garder le splash visible pendant le chargement
-  if (!fontsLoaded || !dbReady || isLoading) {
-    return null;
-  }
+  }, [allReady, isCompleted, isGuest, authUserId]);
 
   return (
     <GestureHandlerRootView style={styles.root}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-        <ErrorBoundary>
-        <StatusBar style="dark" backgroundColor={Colors.bg} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: Colors.bg },
-            animation: 'slide_from_right',
-          }}
-        >
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="(onboarding)"
-            options={{ animation: 'fade', gestureEnabled: false }}
-          />
-          <Stack.Screen
-            name="onboarding"
-            options={{ animation: 'fade', gestureEnabled: false }}
-          />
-          {/* Transition premium drill-down : fade + slide up */}
-          <Stack.Screen
-            name="module/[id]"
-            options={{
-              animation: 'fade_from_bottom',
-              contentStyle: { backgroundColor: Colors.bg },
-            }}
-          />
-          <Stack.Screen
-            name="lesson/[id]"
-            options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
-          />
-          <Stack.Screen
-            name="exercise/[id]"
-            options={{ animation: 'slide_from_right' }}
-          />
-          <Stack.Screen
-            name="review-session"
-            options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
-          />
-        </Stack>
-        </ErrorBoundary>
+          {syncError ? (
+            <NetworkErrorScreen onRetry={() => { setSyncError(false); setSyncing(false); setDbReady(false); }} />
+          ) : syncing ? (
+            <ContentDownloadScreen />
+          ) : !allReady ? null : (
+            <ErrorBoundary>
+              <StatusBar style="dark" backgroundColor={Colors.bg} />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: Colors.bg },
+                  animation: 'slide_from_right',
+                }}
+              >
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen
+                  name="(onboarding)"
+                  options={{ animation: 'fade', gestureEnabled: false }}
+                />
+                <Stack.Screen
+                  name="auth-choice"
+                  options={{ animation: 'fade', gestureEnabled: false }}
+                />
+                <Stack.Screen
+                  name="auth-screen"
+                  options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+                />
+                <Stack.Screen
+                  name="module/[id]"
+                  options={{
+                    animation: 'fade_from_bottom',
+                    contentStyle: { backgroundColor: Colors.bg },
+                  }}
+                />
+                <Stack.Screen
+                  name="lesson/[id]"
+                  options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+                />
+                <Stack.Screen
+                  name="exercise/[id]"
+                  options={{ animation: 'slide_from_right' }}
+                />
+                <Stack.Screen
+                  name="review-session"
+                  options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
+                />
+              </Stack>
+            </ErrorBoundary>
+          )}
         </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>

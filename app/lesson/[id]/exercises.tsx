@@ -30,9 +30,12 @@ import { useSettingsStore } from '../../../src/stores/useSettingsStore';
 import { updateStreak } from '../../../src/engines/streak';
 import { addXP, calculateLessonXP } from '../../../src/engines/xp';
 import { Colors, Spacing, Radius, Layout, FontSizes } from '../../../src/constants/theme';
+import { useTheme } from '../../../src/contexts/ThemeContext';
+import { Button } from '../../../src/components/ui';
 import { XPFloatingLabel } from '../../../src/components/XPFloatingLabel';
 import { BadgeUnlockModal } from '../../../src/components/BadgeUnlockModal';
 import { StreakCelebration } from '../../../src/components/StreakCelebration';
+import { Ionicons } from '@expo/vector-icons';
 import { useBadges } from '../../../src/hooks/useBadges';
 import { BadgeUnlock } from '../../../src/engines/badge-engine';
 import { useAuthStore } from '../../../src/stores/useAuthStore';
@@ -49,14 +52,15 @@ const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
 };
 
 function getEncouragement(pct: number): string {
-  if (pct === 100) return 'Parfait ! 🎉';
-  if (pct >= 70) return 'Bien joué ! Continue comme ça.';
-  return 'Pas mal ! Refais la leçon pour consolider.';
+  if (pct === 100) return 'Parfait !';
+  if (pct >= 70) return 'Bien joué !';
+  return 'Continue tes efforts !';
 }
 
 export default function ExercisesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<ExerciseResult[]>([]);
   const [phase, setPhase] = useState<'exercises' | 'results'>('exercises');
@@ -299,7 +303,7 @@ export default function ExercisesScreen() {
 
     async function handleContinue() {
       if (!id) { router.replace('/(tabs)/learn'); return; }
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().effectiveUserId();
 
       // 1. Marquer la leçon complétée
       await completeLesson.mutateAsync({
@@ -332,6 +336,8 @@ export default function ExercisesScreen() {
           pathname: '/module-complete',
           params: {
             moduleTitle: stats.title_fr,
+            moduleTitleAr: stats.title_ar ?? '',
+            moduleNumber: stats.sort_order.toString(),
             moduleIcon: stats.icon,
             totalXP: stats.total_xp.toString(),
             lessonsCount: stats.lessons_count.toString(),
@@ -360,55 +366,100 @@ export default function ExercisesScreen() {
       }
     }
 
+    const streakDays = updatedStreakCurrent ?? 0;
+    const timeLabel = totalTime < 60 ? `${totalTime}s` : `${Math.floor(totalTime / 60)}min ${totalTime % 60}s`;
+
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
         <XPFloatingLabel
           xp={earnedXP}
           visible={showXP}
           onAnimationEnd={() => setShowXP(false)}
         />
         <StreakCelebration
-          streakDays={updatedStreakCurrent ?? 0}
+          streakDays={streakDays}
           visible={showStreak}
           onHide={() => setShowStreak(false)}
         />
         <BadgeUnlockModal badge={currentBadge} onDismiss={handleBadgeDismiss} />
-        <ScrollView contentContainerStyle={styles.resultsScroll}>
-          <Text style={styles.resultsTitle}>Leçon terminée !</Text>
-          <Text style={styles.encouragement}>{getEncouragement(pct)}</Text>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 48, paddingBottom: 48, alignItems: 'center', gap: 16 }}>
 
-          <View style={styles.scoreBox}>
-            <Text style={styles.scoreNumber}>{correct}/{total}</Text>
-            <Text style={styles.scoreLabel}>bonnes réponses</Text>
-            <View style={styles.scoreBarTrack}>
-              <View style={[styles.scoreBarFill, { width: `${pct}%` }]} />
-            </View>
-            <Text style={styles.scorePct}>{pct}%</Text>
+          {/* Médaillon doré */}
+          <View style={{
+            width: 120, height: 120, borderRadius: 60,
+            backgroundColor: colors.background.card,
+            borderWidth: 2, borderColor: colors.accent.gold,
+            alignItems: 'center', justifyContent: 'center',
+            ...shadows.medium,
+          }}>
+            <Ionicons name="star" size={48} color={colors.accent.gold} />
           </View>
 
-          <View style={styles.xpBox}>
-            <Text style={styles.xpText}>
-              {isPerfect ? `+${earnedXP} XP 🎯` : `+${earnedXP} XP`}
-            </Text>
-            {isPerfect && (
-              <Text style={styles.xpBonus}>Bonus score parfait ×1,5 !</Text>
-            )}
-            {updatedStreakCurrent !== null && (
-              <Text style={styles.streakText}>🔥 Streak : {updatedStreakCurrent} jour{updatedStreakCurrent > 1 ? 's' : ''}</Text>
-            )}
-          </View>
-
-          <Text style={styles.timeText}>
-            Temps total : {totalTime < 60 ? `${totalTime}s` : `${Math.floor(totalTime / 60)}min ${totalTime % 60}s`}
+          {/* Titre */}
+          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary }}>
+            Leçon Terminée !
           </Text>
 
-          <TouchableOpacity
-            style={styles.ctaBtn}
+          {/* Sous-titre conditionnel */}
+          <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.brand.primary, textAlign: 'center' }}>
+            {getEncouragement(pct)}
+          </Text>
+
+          {/* Carte score */}
+          <View style={{
+            width: '100%', backgroundColor: colors.background.card,
+            borderRadius: borderRadius.md, padding: 24,
+            alignItems: 'center', gap: 8,
+            ...shadows.subtle,
+          }}>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.brand.primary }}>
+              {correct}/{total}
+            </Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+              bonnes réponses
+            </Text>
+            <View style={{ width: '100%', height: 6, backgroundColor: colors.background.group, borderRadius: 9999, overflow: 'hidden', marginTop: 8 }}>
+              <View style={{ height: '100%', width: `${pct}%`, backgroundColor: colors.brand.primary, borderRadius: 9999 }} />
+            </View>
+            <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.small, color: colors.brand.primary }}>
+              {pct}%
+            </Text>
+          </View>
+
+          {/* Carte stats XP + Streak */}
+          <View style={{
+            width: '100%', backgroundColor: colors.background.group,
+            borderRadius: borderRadius.md, padding: 16,
+            flexDirection: 'row',
+            ...shadows.subtle,
+          }}>
+            <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+              <Ionicons name="star" size={20} color={colors.brand.primary} />
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.brand.dark }}>
+                +{earnedXP} XP
+              </Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: colors.border.subtle }} />
+            <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+              <Ionicons name="flame" size={20} color={colors.accent.gold} />
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.brand.dark }}>
+                {streakDays} jour{streakDays !== 1 ? 's' : ''}
+              </Text>
+            </View>
+          </View>
+
+          {/* Temps */}
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+            Temps total : {timeLabel}
+          </Text>
+
+          {/* CTA */}
+          <Button
+            label="Continuer →"
+            variant="primary"
             onPress={handleContinue}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.ctaLabel}>Continuer →</Text>
-          </TouchableOpacity>
+            style={{ width: '100%', marginTop: 8 }}
+          />
         </ScrollView>
       </SafeAreaView>
     );
@@ -449,7 +500,7 @@ export default function ExercisesScreen() {
 /** Crée les cartes SRS pour un lot d'items (diacritics ou words) dans SQLite local */
 async function createSRSCardsForItems(itemIds: string[], itemType: 'diacritic' | 'word' | 'sentence'): Promise<void> {
   const { useAuthStore } = await import('../../../src/stores/useAuthStore');
-  const userId = useAuthStore.getState().userId;
+  const userId = useAuthStore.getState().effectiveUserId();
   if (!userId) return;
 
   const { upsertSRSCard } = await import('../../../src/db/local-queries');

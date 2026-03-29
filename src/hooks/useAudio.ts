@@ -1,10 +1,9 @@
 // src/hooks/useAudio.ts
+// Note: expo-av retiré (incompatible Expo Go SDK 50+) — audio via expo-speech uniquement
 
 import { useCallback, useRef, useState } from 'react';
-import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import { useSettingsStore } from '../stores/useSettingsStore';
-import { downloadAndCacheAudio } from '../services/audio-cache-service';
 
 export type AudioState = 'idle' | 'loading' | 'playing' | 'error';
 
@@ -23,8 +22,8 @@ const stripHarakats = (text: string) =>
   text.replace(/[\u064B-\u065F\u0670]/g, '');
 
 export function useAudio(options: UseAudioOptions) {
-  const { audioUrl, fallbackText, fallbackLanguage = 'ar', autoPlay } = options;
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const { audioUrl: _audioUrl, fallbackText, fallbackLanguage = 'ar', autoPlay } = options;
+  const soundRef = useRef<any>(null);
   const [audioState, setAudioState] = useState<AudioState>('idle');
 
   const isEnabled = useSettingsStore(s => s.audio_enabled);
@@ -39,25 +38,10 @@ export function useAudio(options: UseAudioOptions) {
 
     try {
       if (soundRef.current) {
-        await soundRef.current.unloadAsync();
         soundRef.current = null;
       }
 
-      if (audioUrl) {
-        const localPath = await downloadAndCacheAudio(audioUrl);
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: localPath },
-          { shouldPlay: true, rate: rateForSpeed(speed), volume: 1.0 }
-        );
-        soundRef.current = sound;
-        setAudioState('playing');
-        sound.setOnPlaybackStatusUpdate(status => {
-          if (status.isLoaded && status.didJustFinish) {
-            setAudioState('idle');
-          }
-        });
-      } else if (fallbackText) {
+      if (fallbackText) {
         setAudioState('playing');
         Speech.speak(stripHarakats(fallbackText), {
           language: fallbackLanguage,
@@ -72,12 +56,9 @@ export function useAudio(options: UseAudioOptions) {
       console.warn('[useAudio] play error:', e);
       setAudioState('error');
     }
-  }, [audioUrl, fallbackText, fallbackLanguage, speed]);
+  }, [fallbackText, fallbackLanguage, speed]);
 
   const stop = useCallback(async () => {
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-    }
     Speech.stop();
     setAudioState('idle');
   }, []);

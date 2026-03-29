@@ -160,7 +160,7 @@ export default function Recommendation() {
       }).catch(() => {/* silencieux */});
     }
 
-    router.replace('/(tabs)/learn');
+    router.replace('/auth-choice' as any);
   }
 
   const ctaLabel = available

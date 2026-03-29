@@ -22,7 +22,7 @@ export interface LessonProgress {
 const PROGRESS_QUERY_KEY = ['user_progress'];
 
 export function useProgress() {
-  const userId = useAuthStore((s) => s.userId);
+  const userId = useAuthStore((s) => s.effectiveUserId());
   return useQuery({
     queryKey: PROGRESS_QUERY_KEY,
     queryFn: async (): Promise<LessonProgress[]> => {
@@ -42,7 +42,7 @@ export function useCompleteLesson() {
       score: number;
       timeSpentSeconds: number;
     }) => {
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().effectiveUserId();
       if (!userId) throw new Error('Not authenticated');
 
       // Marquer la leçon comme complétée (local)
@@ -107,7 +107,7 @@ export function useInitFirstLesson() {
 
   return useMutation({
     mutationFn: async (lessonId: string) => {
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().effectiveUserId();
       if (!userId) return;
 
       await upsertProgress({

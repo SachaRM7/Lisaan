@@ -582,8 +582,8 @@ export async function checkIfModuleComplete(moduleId: string, userId: string): P
 
 export async function getModuleStats(moduleId: string, userId: string) {
   const db = getLocalDB();
-  const module = await db.getFirstAsync<{ title_fr: string; icon: string }>(
-    `SELECT title_fr, icon FROM modules WHERE id = ?`,
+  const module = await db.getFirstAsync<{ title_fr: string; title_ar: string | null; icon: string; sort_order: number }>(
+    `SELECT title_fr, title_ar, icon, sort_order FROM modules WHERE id = ?`,
     [moduleId]
   );
   const stats = await db.getFirstAsync<{ total_xp: number; lessons_count: number; total_seconds: number }>(
@@ -598,7 +598,9 @@ export async function getModuleStats(moduleId: string, userId: string) {
   );
   return {
     title_fr: module?.title_fr ?? 'Module',
+    title_ar: module?.title_ar ?? null,
     icon: module?.icon ?? '📚',
+    sort_order: module?.sort_order ?? 1,
     total_xp: stats?.total_xp ?? 0,
     lessons_count: stats?.lessons_count ?? 0,
     total_seconds: stats?.total_seconds ?? 0,

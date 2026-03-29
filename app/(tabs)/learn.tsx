@@ -49,7 +49,7 @@ function useUnlockModule() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (firstLessonId: string) => {
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().effectiveUserId();
       if (!userId) return;
       const { upsertProgress } = await import('../../src/db/local-queries');
       const { runSync } = await import('../../src/engines/sync-manager');
@@ -84,7 +84,7 @@ export default function LearnScreen() {
   const { data: module6Lessons } = useLessons(modules?.[5]?.id ?? '');
   const initFirstLesson = useInitFirstLesson();
   const unlockModule = useUnlockModule();
-  const userId = useAuthStore((s) => s.userId);
+  const userId = useAuthStore((s) => s.effectiveUserId());
   const [bannerMsg, setBannerMsg] = useState<string | null>(null);
   const [newlyUnlocked, setNewlyUnlocked] = useState<number | null>(null);
   const prevUnlocked = useRef<Record<number, boolean>>({});
@@ -100,7 +100,7 @@ export default function LearnScreen() {
   });
 
   useEffect(() => {
-    const currentUserId = useAuthStore.getState().userId;
+    const currentUserId = useAuthStore.getState().effectiveUserId();
     if (!currentUserId || !progressLoaded || !module1Lessons || module1Lessons.length === 0) return;
     const firstLesson = module1Lessons[0];
     const firstLessonProgress = progress.find(p => p.lesson_id === firstLesson.id);

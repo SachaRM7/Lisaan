@@ -23,7 +23,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadSettings: async () => {
     try {
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().effectiveUserId();
       if (!userId) {
         set({ isLoaded: true });
         return;
@@ -61,7 +61,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // Écriture SQLite + sync vers Cloud en arrière-plan
     (async () => {
       try {
-        const userId = useAuthStore.getState().userId;
+        const userId = useAuthStore.getState().effectiveUserId();
         if (!userId) return;
 
         const allSettings = get();
@@ -78,7 +78,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     (async () => {
       try {
-        const userId = useAuthStore.getState().userId;
+        const userId = useAuthStore.getState().effectiveUserId();
         if (!userId) return;
 
         await upsertSettings(userId, DEFAULT_SETTINGS);

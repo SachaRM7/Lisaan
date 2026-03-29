@@ -15,7 +15,7 @@ const SRS_QUERY_KEY = ['srs_cards'];
  * Charge toutes les cartes SRS de l'utilisateur courant.
  */
 export function useSRSCards() {
-  const userId = useAuthStore((s) => s.userId);
+  const userId = useAuthStore((s) => s.effectiveUserId());
   return useQuery({
     queryKey: SRS_QUERY_KEY,
     queryFn: async (): Promise<SRSCard[]> => {
@@ -30,7 +30,7 @@ export function useSRSCards() {
  * Charge uniquement les cartes dues pour révision.
  */
 export function useDueCards() {
-  const userId = useAuthStore((s) => s.userId);
+  const userId = useAuthStore((s) => s.effectiveUserId());
   return useQuery({
     queryKey: [...SRS_QUERY_KEY, 'due'],
     queryFn: async (): Promise<SRSCard[]> => {
@@ -55,7 +55,7 @@ export function useUpdateSRSCard() {
       itemId: string;
       update: SRSUpdate;
     }) => {
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().effectiveUserId();
       if (!userId) throw new Error('Not authenticated');
 
       await upsertSRSCard({
@@ -83,7 +83,7 @@ export function useCreateSRSCardsForLesson() {
 
   return useMutation({
     mutationFn: async (params: { letterIds: string[] }) => {
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().effectiveUserId();
       if (!userId) throw new Error('Not authenticated');
 
       for (const letterId of params.letterIds) {

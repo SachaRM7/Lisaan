@@ -21,7 +21,7 @@ export interface UserBadgeDisplay {
 }
 
 export function useBadges() {
-  const userId = useAuthStore(s => s.userId);
+  const userId = useAuthStore(s => s.effectiveUserId());
   const [allUnlockedBadges, setAllUnlockedBadges] = useState<UserBadgeDisplay[]>([]);
   const [unseenBadges, setUnseenBadges] = useState<BadgeUnlock[]>([]);
 

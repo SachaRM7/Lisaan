@@ -2,6 +2,7 @@
 
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../db/remote';
+import { useAuthStore } from '../stores/useAuthStore';
 import {
   getUnsyncedProgress, markProgressSynced,
   getUnsyncedSRSCards, markSRSCardsSynced,
@@ -32,6 +33,12 @@ export async function runSync(): Promise<SyncResult> {
     pulled: { content: false },
     errors: [],
   };
+
+  // Guest mode — PUSH désactivé
+  if (useAuthStore.getState().isGuest) {
+    console.log('[SyncManager] Guest mode — PUSH skipped');
+    return result;
+  }
 
   // Vérifier la connectivité
   const netState = await NetInfo.fetch();
@@ -169,6 +176,9 @@ export function startSyncListener(): () => void {
 
   const unsubscribe = NetInfo.addEventListener(state => {
     if (state.isConnected && wasDisconnected) {
+      // Guest mode — pas de sync PUSH au retour réseau
+      if (useAuthStore.getState().isGuest) return;
+
       // Le réseau vient de revenir → sync
       console.log('[SyncManager] Network restored — syncing...');
       runSync().then(result => {

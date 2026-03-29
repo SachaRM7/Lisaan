@@ -90,7 +90,7 @@ export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const userId = useAuthStore((s) => s.userId);
+  const userId = useAuthStore((s) => s.effectiveUserId());
 
   // ── Mode & session ───────────────────────────────────────
   const [mode, setMode] = useState<LessonScreenMode>('loading');
@@ -560,7 +560,7 @@ export default function LessonScreen() {
   // ── Résultat de leçon ─────────────────────────────────────
   async function handleContinue() {
     if (!id) { router.replace('/(tabs)/learn'); return; }
-    const uid = useAuthStore.getState().userId;
+    const uid = useAuthStore.getState().effectiveUserId();
 
     await completeLesson.mutateAsync({
       lessonId: id,
@@ -750,7 +750,7 @@ async function createSRSCardsForItems(
   itemType: 'letter' | 'diacritic' | 'word' | 'sentence',
 ): Promise<void> {
   const { useAuthStore } = await import('../../src/stores/useAuthStore');
-  const userId = useAuthStore.getState().userId;
+  const userId = useAuthStore.getState().effectiveUserId();
   if (!userId) return;
   const { upsertSRSCard } = await import('../../src/db/local-queries');
   for (const itemId of itemIds) {

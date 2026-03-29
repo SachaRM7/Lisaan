@@ -5,6 +5,7 @@ import type { Lesson } from '../../types';
 import type { LessonSection, SectionProgress } from '../../types/section';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../ui';
+import { Ionicons } from '@expo/vector-icons';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -108,9 +109,19 @@ export function LessonHub({
                   }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                    <Text style={{ fontSize: 20 }}>
-                      {status === 'completed' ? '✅' : status === 'in_progress' ? '◐' : '🔒'}
-                    </Text>
+                    {status === 'completed' ? (
+                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.status.successLight, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="checkmark" size={14} color={colors.status.success} />
+                      </View>
+                    ) : status === 'in_progress' ? (
+                      <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.brand.primary, alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand.primary }} />
+                      </View>
+                    ) : (
+                      <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: colors.border.medium, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="lock-closed" size={12} color={colors.text.secondary} />
+                      </View>
+                    )}
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={{
                         fontFamily: typography.family.uiMedium,
@@ -142,9 +153,19 @@ export function LessonHub({
         {/* Mode COMPLÉTÉE */}
         {lessonStatus === 'completed' && (
           <>
-            <View style={{ alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs }}>
-              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.brand.primary }}>
-                Leçon complétée !
+            {/* Médaillon doré + titre */}
+            <View style={{ alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm }}>
+              <View style={{
+                width: 120, height: 120, borderRadius: 60,
+                backgroundColor: colors.background.card,
+                borderWidth: 2, borderColor: colors.accent.gold,
+                alignItems: 'center', justifyContent: 'center',
+                ...shadows.medium,
+              }}>
+                <Ionicons name="star" size={48} color={colors.accent.gold} />
+              </View>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary, marginTop: spacing.xs }}>
+                Leçon Complétée !
               </Text>
             </View>
 
@@ -158,9 +179,15 @@ export function LessonHub({
                 gap: spacing.sm,
                 ...shadows.subtle,
               }}>
-                <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.body, color: colors.text.primary }}>
-                  {section.title_fr}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary, flex: 1, marginRight: spacing.sm }}>
+                    {section.title_fr}
+                  </Text>
+                  <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.status.successLight, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="checkmark" size={14} color={colors.status.success} />
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border.subtle }} />
                 <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                   <Button
                     label="Relire"
@@ -180,9 +207,9 @@ export function LessonHub({
 
             <Button
               label="Tout refaire depuis le début"
-              variant="secondary"
+              variant="ghost"
               onPress={onStartFromBeginning}
-              style={{ marginTop: spacing.sm }}
+              style={{ marginTop: spacing.sm, alignSelf: 'center' }}
             />
           </>
         )}

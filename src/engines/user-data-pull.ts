@@ -5,12 +5,20 @@ import {
   upsertProgress, upsertSRSCard, upsertSettings,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
+import { useAuthStore } from '../stores/useAuthStore';
 
 /**
  * Récupère la progression utilisateur depuis Supabase Cloud → SQLite.
  * Appelé UNE FOIS au premier lancement ou quand l'utilisateur se connecte.
+ * Ne fait rien en Guest mode (pas de données cloud).
  */
 export async function pullUserDataFromCloud(userId: string): Promise<void> {
+  // Guest mode — pas de données cloud
+  if (useAuthStore.getState().isGuest) {
+    console.log('[UserDataPull] Guest mode — pull skipped');
+    return;
+  }
+
   // Vérifier si déjà fait
   const meta = await getSyncMetadata('user_data_initial_pull');
   if (meta) return; // Déjà pull

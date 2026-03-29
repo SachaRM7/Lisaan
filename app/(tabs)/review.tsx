@@ -5,6 +5,7 @@ import { useDueCards, useSRSCards } from '../../src/hooks/useSRSCards';
 import { track } from '../../src/analytics/posthog';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Button } from '../../src/components/ui';
+import { Ionicons } from '@expo/vector-icons';
 
 function formatNextReview(isoDate: string): string {
   const diff = new Date(isoDate).getTime() - Date.now();
@@ -54,8 +55,10 @@ export default function ReviewScreen() {
           <Text style={titleStyle}>Réviser</Text>
         </View>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, paddingBottom: 120, gap: spacing.base }}>
-          <Text style={{ fontSize: 56 }}>📚</Text>
-          <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center' }}>
+          <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="star-outline" size={72} color={colors.brand.primary} style={{ opacity: 0.18 }} />
+          </View>
+          <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.h2, color: colors.text.primary, textAlign: 'center' }}>
             Rien à réviser pour l'instant
           </Text>
           <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center', lineHeight: 24 }}>
@@ -81,7 +84,9 @@ export default function ReviewScreen() {
         </View>
         <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 120, gap: spacing.xl }}>
           <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xl }}>
-            <Text style={{ fontSize: 56 }}>✅</Text>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.status.successLight, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="checkmark" size={32} color={colors.status.success} />
+            </View>
             <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.text.primary }}>
               Tu es à jour !
             </Text>
@@ -122,7 +127,7 @@ export default function ReviewScreen() {
           borderWidth: 1,
           borderColor: colors.border.subtle,
         }}>
-          <Text style={{ fontSize: 40 }}>🔄</Text>
+          <Ionicons name="sync-outline" size={36} color={colors.brand.primary} />
           <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary }}>
             {dueCards.length} carte{dueCards.length > 1 ? 's' : ''} à réviser
           </Text>
