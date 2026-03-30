@@ -174,7 +174,7 @@ export function LessonHub({
                 <Ionicons name="star" size={48} color={colors.accent.gold} />
               </View>
               <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary, marginTop: spacing.xs }}>
-                Leçon Complétée !
+                Leçon complétée !
               </Text>
             </View>
 

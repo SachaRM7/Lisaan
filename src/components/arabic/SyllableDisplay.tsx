@@ -1,7 +1,7 @@
 // src/components/arabic/SyllableDisplay.tsx
 
 import { View, Text, ScrollView, Pressable, Animated } from 'react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ArabicText from './ArabicText';
 import type { Diacritic } from '../../hooks/useDiacritics';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -95,12 +95,11 @@ function SingleDiacriticView({
   );
 }
 
-// ── Mode compare_diacritics ─────────────────────────────────
+// ── Mode compare_diacritics — Matrice phonétique compacte ───
 
 function CompareDiacriticsView({
   diacritics,
   baseLetters,
-  showTransliteration,
   onSyllableTap,
 }: {
   diacritics: Diacritic[];
@@ -108,75 +107,134 @@ function CompareDiacriticsView({
   showTransliteration?: boolean;
   onSyllableTap?: (syllable: string, diacriticId: string) => void;
 }) {
-  const { colors, typography, spacing, borderRadius } = useTheme();
-  const letters = baseLetters.length > 0 ? baseLetters : ['ب', 'ت', 'س', 'ن'];
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const letters = (baseLetters.length > 0 ? baseLetters : ['ب', 'ت', 'س', 'ن']).slice(0, 4);
+  const [flashedCell, setFlashedCell] = useState<string | null>(null);
+
+  function handleCellPress(syllable: string, diacriticId: string, cellKey: string) {
+    setFlashedCell(cellKey);
+    setTimeout(() => setFlashedCell(null), 400);
+    onSyllableTap?.(syllable, diacriticId);
+  }
+
+  const arabicLH28 = Math.round(28 * 1.9);
+  const HEADER_W = 60;
+  const SEP = 1;
 
   return (
-    <View style={{ gap: spacing.sm }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View>
-          {/* En-tête : lettres de base */}
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 80 }} />
-            {letters.map((letter, i) => (
-              <View key={i} style={{ width: 72, alignItems: 'center', padding: spacing.xs }}>
-                <ArabicText size="medium" showTransliteration={false}>
-                  {letter}
-                </ArabicText>
-              </View>
-            ))}
+    <View style={{
+      backgroundColor: colors.background.card,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.background.group,
+      overflow: 'hidden',
+      ...shadows.subtle,
+    }}>
+      {/* En-tête : lettres de base (colonnes) */}
+      <View style={{ flexDirection: 'row', borderBottomWidth: SEP, borderBottomColor: colors.background.group }}>
+        {/* Coin vide en haut à gauche */}
+        <View style={{ width: HEADER_W, borderRightWidth: SEP, borderRightColor: colors.background.group }} />
+        {letters.map((letter, i) => (
+          <View
+            key={i}
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              paddingVertical: spacing.xs,
+              borderRightWidth: i < letters.length - 1 ? SEP : 0,
+              borderRightColor: colors.background.group,
+            }}
+          >
+            <Text style={{
+              fontFamily: typography.family.arabic,
+              fontSize: 28,
+              lineHeight: arabicLH28,
+              color: colors.text.heroArabic,
+              textAlign: 'center',
+            }}>
+              {letter}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Lignes : diacritique × lettres */}
+      {diacritics.map((diacritic, rowIdx) => (
+        <View
+          key={diacritic.id}
+          style={{
+            flexDirection: 'row',
+            borderTopWidth: rowIdx === 0 ? 0 : SEP,
+            borderTopColor: colors.background.group,
+          }}
+        >
+          {/* En-tête de ligne : nom du diacritique */}
+          <View style={{
+            width: HEADER_W,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingVertical: spacing.sm,
+            paddingHorizontal: spacing.xs,
+            backgroundColor: colors.brand.light + '4D', // 30% opacity
+            borderRightWidth: SEP,
+            borderRightColor: colors.background.group,
+          }}>
+            <Text style={{
+              fontFamily: typography.family.uiMedium,
+              fontSize: typography.size.tiny,
+              color: colors.text.secondary,
+              textAlign: 'center',
+            }}>
+              {diacritic.name_fr}
+            </Text>
           </View>
 
-          {/* Séparateur */}
-          <View style={{ height: 1, backgroundColor: colors.border.medium, marginVertical: spacing.xs }} />
+          {/* Cellules */}
+          {letters.map((baseLetter, colIdx) => {
+            const syllable =
+              diacritic.example_letters.find((ex) => ex.startsWith(baseLetter)) ??
+              `${baseLetter}${diacritic.symbol}`;
+            const translit = `${baseLetter[0]?.toLowerCase() ?? ''}${diacritic.transliteration ?? ''}`;
+            const cellKey = `${diacritic.id}-${colIdx}`;
+            const isFlashed = flashedCell === cellKey;
 
-          {/* Lignes : diacritique × lettres */}
-          {diacritics.map((diacritic) => (
-            <View key={diacritic.id} style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}>
-              {/* Label diacritique */}
-              <View style={{ width: 80, justifyContent: 'center', paddingRight: spacing.xs }}>
+            return (
+              <Pressable
+                key={colIdx}
+                onPress={() => handleCellPress(syllable, diacritic.id, cellKey)}
+                style={{
+                  flex: 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: spacing.sm,
+                  gap: 2,
+                  backgroundColor: isFlashed ? colors.brand.light : 'transparent',
+                  borderLeftWidth: colIdx === 0 ? 0 : SEP,
+                  borderLeftColor: colors.background.group,
+                }}
+              >
                 <Text style={{
-                  fontFamily: typography.family.uiMedium,
-                  fontSize: typography.size.small,
-                  color: colors.brand.primary,
+                  fontFamily: typography.family.arabic,
+                  fontSize: 28,
+                  lineHeight: arabicLH28,
+                  color: colors.text.heroArabic,
+                  textAlign: 'center',
                 }}>
-                  {diacritic.name_fr}
+                  {syllable}
                 </Text>
-              </View>
-              {/* Syllabes */}
-              {letters.map((baseLetter, i) => {
-                const syllable =
-                  diacritic.example_letters.find((ex) => ex.startsWith(baseLetter)) ??
-                  `${baseLetter}${diacritic.symbol}`;
-                return (
-                  <Pressable
-                    key={i}
-                    style={{
-                      width: 72,
-                      alignItems: 'center',
-                      backgroundColor: colors.background.group,
-                      borderRadius: borderRadius.sm,
-                      padding: spacing.xs,
-                      margin: 2,
-                      gap: 2,
-                    }}
-                    onPress={onSyllableTap ? () => onSyllableTap(syllable, diacritic.id) : undefined}
-                  >
-                    <ArabicText size="large" showTransliteration={false}>
-                      {syllable}
-                    </ArabicText>
-                    {showTransliteration && diacritic.transliteration ? (
-                      <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny - 2, color: colors.text.secondary }}>
-                        {baseLetter[0]?.toLowerCase()}{diacritic.transliteration}
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
+                <Text style={{
+                  fontFamily: typography.family.ui,
+                  fontSize: typography.size.tiny,
+                  color: colors.text.secondary,
+                  textAlign: 'center',
+                }}>
+                  {translit}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
-      </ScrollView>
+      ))}
     </View>
   );
 }

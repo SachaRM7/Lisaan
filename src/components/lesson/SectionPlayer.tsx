@@ -1,6 +1,6 @@
 // src/components/lesson/SectionPlayer.tsx
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -106,6 +106,17 @@ export function SectionPlayer({
 
   const [phase, setPhase] = useState<'teaching' | 'exercises'>(initialPhase);
   const [teachingIndex, setTeachingIndex] = useState(0);
+  const [subStep, setSubStep] = useState(0);
+
+  // Réinitialiser le sous-step quand on passe à l'item suivant
+  useEffect(() => { setSubStep(0); }, [teachingIndex]);
+
+  // Nombre max de sous-steps pour les diacritiques (format story 3 slides)
+  // slide 0 : DiacriticCard seule — slide 1 : PedagogyBox + SyllableDisplay — slide 2 : CompareDiacritics
+  const maxSubStep = contentType === 'diacritics'
+    ? ((contentData.lessonSortOrder ?? 0) >= 2 ? 2 : 1)
+    : 0;
+
   const [exerciseIndex, setExerciseIndex] = useState(
     replayMode === 'exercises_only' ? 0 : initialProgress.nextExerciseIndex,
   );
@@ -154,6 +165,11 @@ export function SectionPlayer({
   // ── Handlers ────────────────────────────────────────────────
 
   function handleTeachingNext() {
+    // Format story diacritiques : avancer par sous-step avant de passer à l'item suivant
+    if (subStep < maxSubStep) {
+      setSubStep(subStep + 1);
+      return;
+    }
     if (!isLastTeaching) {
       setTeachingIndex(teachingIndex + 1);
     } else {
@@ -244,7 +260,9 @@ export function SectionPlayer({
             {section.title_fr}
           </Text>
           <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary }}>
-            {teachingIndex + 1} / {totalTeaching}
+            {maxSubStep > 0
+              ? `${teachingIndex + 1}/${totalTeaching} · ${subStep + 1}/${maxSubStep + 1}`
+              : `${teachingIndex + 1} / ${totalTeaching}`}
           </Text>
         </View>
 
@@ -284,6 +302,7 @@ export function SectionPlayer({
             <DiacriticTeachingContent
               item={item as Diacritic | null}
               lessonSortOrder={contentData.lessonSortOrder}
+              subStep={subStep}
             />
           )}
           {contentType === 'words' && (
@@ -303,9 +322,11 @@ export function SectionPlayer({
         {/* Footer */}
         <View style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border.subtle, backgroundColor: colors.background.main }}>
           <Button
-            label={isLastTeaching
-              ? (replayMode === 'teaching_only' ? 'Terminer ✓' : 'Commencer les exercices →')
-              : 'Suivant →'}
+            label={subStep < maxSubStep
+              ? 'Suivant →'
+              : isLastTeaching
+                ? (replayMode === 'teaching_only' ? 'Terminer ✓' : 'Commencer les exercices →')
+                : 'Suivant →'}
             variant="primary"
             onPress={handleTeachingNext}
           />
@@ -465,24 +486,37 @@ function LetterTeachingContent({
 function DiacriticTeachingContent({
   item,
   lessonSortOrder,
-}: { item: Diacritic | null; lessonSortOrder?: number }) {
+  subStep,
+}: { item: Diacritic | null; lessonSortOrder?: number; subStep: number }) {
   if (!item) return null;
-  return (
-    <>
-      <DiacriticCard diacritic={item} mode="full" fontSize="xlarge" />
-      {item.pedagogy_notes ? (
-        <PedagogyBox>{item.pedagogy_notes}</PedagogyBox>
-      ) : null}
-      <SyllableDisplay
-        mode="single_diacritic"
-        diacritics={[item]}
-        letterForms={(item as any).example_letters}
-      />
-      {lessonSortOrder !== undefined && lessonSortOrder >= 2 && (
-        <CompareDiacriticsSection lessonSortOrder={lessonSortOrder} />
-      )}
-    </>
-  );
+
+  // Slide 0 — concept de base : la DiacriticCard seule
+  if (subStep === 0) {
+    return <DiacriticCard diacritic={item} mode="full" fontSize="xlarge" />;
+  }
+
+  // Slide 1 — contexte : note pédagogique + exemples syllabiques
+  if (subStep === 1) {
+    return (
+      <>
+        {item.pedagogy_notes ? (
+          <PedagogyBox>{item.pedagogy_notes}</PedagogyBox>
+        ) : null}
+        <SyllableDisplay
+          mode="single_diacritic"
+          diacritics={[item]}
+          letterForms={(item as any).example_letters}
+        />
+      </>
+    );
+  }
+
+  // Slide 2 — maîtrise : comparaison avec les diacritiques précédents
+  if (subStep === 2 && lessonSortOrder !== undefined && lessonSortOrder >= 2) {
+    return <CompareDiacriticsSection lessonSortOrder={lessonSortOrder} />;
+  }
+
+  return null;
 }
 
 function WordPresentationContent({ item }: { item: WordPresentationItem | null }) {

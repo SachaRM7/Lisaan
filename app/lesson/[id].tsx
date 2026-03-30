@@ -897,7 +897,7 @@ const styles = StyleSheet.create({
   xpText: { fontSize: FontSizes.heading, fontWeight: '700', color: Colors.primary },
   xpBonus: { fontSize: FontSizes.caption, color: Colors.primary },
   streakText: { fontSize: FontSizes.caption, color: Colors.textSecondary, marginTop: 2 },
-  timeText: { fontSize: FontSizes.caption, color: Colors.textMuted },
+  timeText: { fontSize: FontSizes.caption, color: Colors.textSecondary },
   ctaBtn: {
     width: '100%',
     height: Layout.buttonHeight,

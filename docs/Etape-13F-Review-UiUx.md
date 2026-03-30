@@ -56,7 +56,7 @@ The current "Comparaison" section uses stacked rows of individual large cards. T
 
 ## 2. The Grid Layout
 
-- Implement a strict Grid/Table layout (Columns = Base Letters like Ba, Ta, Sa; Rows = Harakats like Fatha, Kasra, Damma).
+- Implement a strict Grid/Table layout (Columns = Base LetteDrs like Ba, Ta, Sa; Rows = Harakats like Fatha, Kasra, Damma).
 - **Row Headers (Left column):** Display the Harakat name (e.g., "Fatha") in `text.secondary`, `uiSmall`, vertical-align center. Add a very subtle light background tint (e.g., `brand.light` at 30% opacity) just for this header column to separate it from the data.
 - **Cells (The combinations):** Center the content. Large Arabic letter (`arabicBody` ~28px, `text.primary`), with the transliteration (e.g., "ba", "bi", "bu") directly below it in `uiTiny` (`text.secondary`).
 - **Separators:** Use ultra-thin 1px lines (`background.group` / #F5F2EA) between rows and columns to create a clean spreadsheet look without visual clutter.

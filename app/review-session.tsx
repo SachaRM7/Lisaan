@@ -180,13 +180,16 @@ export default function ReviewSession() {
     })();
   }, [isFreeMode, userId]);
 
-  const initialQueue = useMemo(() => {
-    if (isFreeMode) return [];
+  // ── CORRECTIF queue shrinking : on gèle la queue daily au premier chargement ──
+  // Sans gel, chaque updateSRSCard.mutate invalide useSRSCards → recompute → queue réduite.
+  const [frozenDailyQueue, setFrozenDailyQueue] = useState<SRSCard[] | null>(null);
+  useEffect(() => {
+    if (isFreeMode || frozenDailyQueue !== null || allCards.length === 0) return;
     const capped = applyConfusionPairCap(allCards, CONFUSION_PAIRS);
-    return getCardsDueForReview(capped);
+    setFrozenDailyQueue(getCardsDueForReview(capped));
   }, [allCards, isFreeMode]);
 
-  const activeQueue = isFreeMode ? (freeCards ?? []) : initialQueue;
+  const activeQueue = isFreeMode ? (freeCards ?? []) : (frozenDailyQueue ?? []);
 
   // Mode selector par carte
   const modeMap = useMemo(() => {
@@ -325,8 +328,17 @@ export default function ReviewSession() {
       );
     }
 
-    const correct = results.filter(r => r.correct).length;
-    const wrong = results.length - correct;
+    // Compter seulement la première tentative par carte (correct + wrong = totalCards)
+    const seenCardIds = new Set<string>();
+    let firstAttemptCorrect = 0;
+    for (const r of results) {
+      if (!seenCardIds.has(r.card.id)) {
+        seenCardIds.add(r.card.id);
+        if (r.correct) firstAttemptCorrect++;
+      }
+    }
+    const correct = firstAttemptCorrect;
+    const wrong = totalCards - correct;
     const totalTime = Math.round((Date.now() - startTime) / 1000);
     const earnedXP = calculateReviewXP(totalCards);
 
@@ -372,16 +384,16 @@ export default function ReviewSession() {
             ...shadows.subtle,
           }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body }}>✓</Text>
-              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.status.success }}>
-                {correct} correctes
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.status.success, width: 20, textAlign: 'center', lineHeight: 20 }}>✓</Text>
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.status.success, flex: 1 }}>
+                {correct} correctes du premier coup
               </Text>
             </View>
             {wrong > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body }}>↻</Text>
-                <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.accent.gold }}>
-                  {wrong} à revoir
+                <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.accent.gold, width: 20, textAlign: 'center', lineHeight: 20 }}>↻</Text>
+                <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.accent.gold, flex: 1 }}>
+                  {wrong} à revoir bientôt
                 </Text>
               </View>
             )}

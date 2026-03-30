@@ -174,8 +174,9 @@ export default function LearnScreen() {
 
   // ── Modules de la grille (tous sauf hero) ──
 
+  // Modules non-hero, du plus récent au plus ancien (actifs en tête, complétés en bas)
   const gridModules = useMemo(
-    () => allModules.filter(m => m.id !== heroModule?.id),
+    () => [...allModules.filter(m => m.id !== heroModule?.id)].reverse(),
     [allModules, heroModule],
   );
 
@@ -327,7 +328,7 @@ export default function LearnScreen() {
 
               return (
                 <View key={`pair-${pairIndex}`} style={{ flexDirection: 'row', gap: spacing.base }}>
-                  {m1Done ? (
+                  {m1Unlocked ? (
                     <CompletedModuleCard
                       module={m1}
                       number={m1.sort_order}
@@ -338,7 +339,7 @@ export default function LearnScreen() {
                   )}
 
                   {m2 ? (
-                    m2Done ? (
+                    m2Unlocked ? (
                       <CompletedModuleCard
                         module={m2}
                         number={m2.sort_order}

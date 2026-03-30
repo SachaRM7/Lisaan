@@ -265,7 +265,7 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
     <View style={{ flex: 1 }}>
       {/* Contenu scrollable */}
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg }}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
         {config.instruction_fr ? (
@@ -316,13 +316,17 @@ export function MCQExercise({ config, onComplete }: ExerciseComponentProps) {
           <View style={{
             borderRadius: borderRadius.md,
             padding: spacing.base,
+            marginBottom: spacing.base,
             alignItems: 'center',
             backgroundColor: isCorrectAnswer ? colors.status.successLight : colors.status.errorLight,
+            borderWidth: 1,
+            borderColor: isCorrectAnswer ? colors.status.success : colors.status.error,
           }}>
             <Text style={{
               fontFamily: typography.family.uiBold,
               fontSize: typography.size.body,
               color: isCorrectAnswer ? colors.status.success : colors.status.error,
+              textAlign: 'center',
             }}>
               {isCorrectAnswer
                 ? '✓ Bravo !'

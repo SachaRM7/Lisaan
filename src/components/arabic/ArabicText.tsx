@@ -32,6 +32,11 @@ interface ArabicTextProps {
    */
   harakatsMode?: 'always' | 'adaptive' | 'never' | 'tap_reveal';
   /**
+   * Force l'affichage statique : harakats toujours visibles, aucun tap interactif.
+   * Utile pour les exercices enseignant les harakats eux-mêmes.
+   */
+  forceStaticDisplay?: boolean;
+  /**
    * Afficher la translittération.
    * Si non passé → déterminé par useSettingsStore.transliteration_mode
    */
@@ -66,12 +71,14 @@ export default function ArabicText({
   showTranslation,
   size,
   style,
+  forceStaticDisplay,
 }: ArabicTextProps) {
   const globalSettings = useSettingsStore();
   const { colors, typography } = useTheme();
 
   // ─── Mode effectif ────────────────────────────────────────────
-  const effectiveHarakatsMode = harakatsMode ?? globalSettings.harakats_mode;
+  // forceStaticDisplay bypasse tous les réglages utilisateur : harakats always, pas d'interactivité
+  const effectiveHarakatsMode = forceStaticDisplay ? 'always' : (harakatsMode ?? globalSettings.harakats_mode);
   const effectiveSize = (size ?? globalSettings.font_size) as keyof typeof SIZES;
 
   const translitMode = showTransliteration !== undefined
@@ -101,7 +108,7 @@ export default function ArabicText({
 
   // ─── Handlers tap ────────────────────────────────────────────
   function handleHarakatsTap() {
-    if (effectiveHarakatsMode !== 'tap_reveal') return;
+    if (forceStaticDisplay || effectiveHarakatsMode !== 'tap_reveal') return;
     const isRevealed = harakatsOpacity.value > 0.5;
     harakatsOpacity.value = withTiming(isRevealed ? 0 : 1, { duration: 200 });
   }

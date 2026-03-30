@@ -42,7 +42,7 @@ export default function DiacriticCard({
   if (mode === 'compact') {
     return (
       <View style={[cardBase, { padding: spacing.base, minWidth: 110, gap: spacing.xs }]}>
-        <ArabicText size="large" showTransliteration={false}>
+        <ArabicText size="large" showTransliteration={false} forceStaticDisplay>
           {displaySyllable}
         </ArabicText>
         <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.primary }}>
@@ -70,6 +70,7 @@ export default function DiacriticCard({
           size={fontSize}
           transliteration={showTransliteration !== false ? (diacritic.transliteration ?? undefined) : undefined}
           showTransliteration={showTransliteration}
+          forceStaticDisplay
         >
           {displaySyllable}
         </ArabicText>

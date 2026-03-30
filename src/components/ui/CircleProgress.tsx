@@ -1,10 +1,15 @@
 // src/components/ui/CircleProgress.tsx
 //
 // Cercle de progression en pur React Native (sans react-native-svg).
-// Technique "deux demi-cercles" :
-//   right clip : θ = 180° − min(ratio, 0.5)×360°   → révèle l'arc 0°→180°
-//   left clip  : θ = 180° − max(ratio−0.5, 0)×360° → révèle l'arc 180°→360°
-// Le clip gauche masque naturellement la portion hors [180°, 360°].
+// Technique "deux demi-cercles pleins" (D-shapes) :
+//   right clip : demi-cercle solide droit (bords droits arrondis, gauche plat)
+//                tourné de rightRotation = 180° → 0° pour ratio 0% → 50%
+//   left clip  : demi-cercle solide gauche (bords gauches arrondis, droit plat)
+//                tourné de leftRotation = 180° → 0° pour ratio 50% → 100%
+//   centre     : trou blanc (backgroundColor card) pour créer l'apparence d'anneau
+//
+// IMPORTANT : utiliser des D-shapes (demi-cercles pleins) et NON des cercles complets.
+// Un cercle complet clipé sur la moitié montre toujours 50% quel que soit la rotation.
 
 import { View, Text } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -28,9 +33,12 @@ export function CircleProgress({
   const rightRotation = 180 - Math.min(ratio, 0.5) * 360;
   const leftRotation  = 180 - Math.max(ratio - 0.5, 0) * 360;
 
+  // Taille du trou central (crée l'apparence d'anneau à partir des D-shapes pleins)
+  const holeSize = size - 2 * strokeWidth;
+
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      {/* Track */}
+      {/* Track gris (anneau de fond) */}
       <View style={{
         position: 'absolute',
         width: size,
@@ -40,7 +48,7 @@ export function CircleProgress({
         borderColor: colors.background.group,
       }} />
 
-      {/* Moitié droite */}
+      {/* Moitié droite — D-shape plein droit (bords droits arrondis, bord gauche plat) */}
       {ratio > 0 && (
         <View style={{
           position: 'absolute',
@@ -54,15 +62,17 @@ export function CircleProgress({
             right: 0,
             width: size,
             height: size,
-            borderRadius: size / 2,
-            borderWidth: strokeWidth,
-            borderColor: colors.brand.primary,
+            borderTopLeftRadius: 0,
+            borderBottomLeftRadius: 0,
+            borderTopRightRadius: size / 2,
+            borderBottomRightRadius: size / 2,
+            backgroundColor: colors.brand.primary,
             transform: [{ rotate: `${rightRotation}deg` }],
           }} />
         </View>
       )}
 
-      {/* Moitié gauche (seulement > 50 %) */}
+      {/* Moitié gauche — D-shape plein gauche (seulement si > 50 %) */}
       {ratio > 0.5 && (
         <View style={{
           position: 'absolute',
@@ -76,15 +86,26 @@ export function CircleProgress({
             left: 0,
             width: size,
             height: size,
-            borderRadius: size / 2,
-            borderWidth: strokeWidth,
-            borderColor: colors.brand.primary,
+            borderTopRightRadius: 0,
+            borderBottomRightRadius: 0,
+            borderTopLeftRadius: size / 2,
+            borderBottomLeftRadius: size / 2,
+            backgroundColor: colors.brand.primary,
             transform: [{ rotate: `${leftRotation}deg` }],
           }} />
         </View>
       )}
 
-      {/* Texte centré */}
+      {/* Trou central : crée l'aspect anneau en cachant le remplissage des D-shapes */}
+      <View style={{
+        position: 'absolute',
+        width: holeSize,
+        height: holeSize,
+        borderRadius: holeSize / 2,
+        backgroundColor: colors.background.card,
+      }} />
+
+      {/* Texte centré (z-index au-dessus du trou) */}
       <Text style={{
         fontFamily: typography.family.uiMedium,
         fontSize: size < 40 ? 10 : 11,
