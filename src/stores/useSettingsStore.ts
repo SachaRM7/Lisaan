@@ -46,6 +46,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           font_size: data.font_size ?? DEFAULT_SETTINGS.font_size,
           haptic_feedback: !!data.haptic_feedback,
           analytics_enabled: analyticsEnabled,
+          write_tolerance: data.write_tolerance ?? DEFAULT_SETTINGS.write_tolerance,
           isLoaded: true,
         });
         setAnalyticsEnabled(analyticsEnabled);

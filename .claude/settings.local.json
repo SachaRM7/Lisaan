@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(claude remote-control:*)"
+      "Bash(claude remote-control:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

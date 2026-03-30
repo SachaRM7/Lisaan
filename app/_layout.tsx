@@ -19,6 +19,7 @@ import { openLocalDB } from '../src/db/local';
 import { initLocalSchema } from '../src/db/schema-local';
 import { needsContentSync, syncContentFromCloud } from '../src/engines/content-sync';
 import { startSyncListener } from '../src/engines/sync-manager';
+import { pullUserDataFromCloud } from '../src/engines/user-data-pull';
 import { ContentDownloadScreen } from '../src/components/ui/ContentDownloadScreen';
 import { NetworkErrorScreen } from '../src/components/NetworkErrorScreen';
 
@@ -108,6 +109,7 @@ export default function RootLayout() {
           session.user.email ?? '',
           detectProvider(session.user),
         );
+        pullUserDataFromCloud(session.user.id).catch(console.warn);
       }
     });
 
@@ -119,6 +121,7 @@ export default function RootLayout() {
           session.user.email ?? '',
           detectProvider(session.user),
         );
+        pullUserDataFromCloud(session.user.id).catch(console.warn);
       } else if (event === 'SIGNED_OUT') {
         useAuthStore.getState().clearUser();
       }

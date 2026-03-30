@@ -120,6 +120,7 @@ export async function runSync(): Promise<SyncResult> {
           audio_speed: s.audio_speed,
           font_size: s.font_size,
           haptic_feedback: !!s.haptic_feedback,
+          write_tolerance: s.write_tolerance ?? 'normal',
         }, { onConflict: 'user_id' });
       if (error) throw error;
       await markSettingsSynced(s.user_id);

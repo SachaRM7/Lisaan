@@ -375,10 +375,12 @@ export default function LessonScreen() {
         getLessonSession(lessonId, userId!),
       ]);
 
-      const status = (progress?.status ?? 'not_started') as 'not_started' | 'in_progress' | 'completed';
-      setLessonStatus(status);
+      let status = (progress?.status ?? 'not_started') as string;
+      if (status === 'available' || status === 'locked') status = 'not_started';
+      const normalizedStatus = status as 'not_started' | 'in_progress' | 'completed';
+      setLessonStatus(normalizedStatus);
 
-      if (status === 'not_started' && !session) {
+      if (normalizedStatus === 'not_started' && !session) {
         // Première fois → démarrer directement en mode 'playing', section 0
         const freshProgress: SectionProgress[] = lessonSections.sections.map(s => ({
           sectionId: s.id,
@@ -403,7 +405,7 @@ export default function LessonScreen() {
         setSessionState(session);
         setCurrentSectionIndex(session.currentSectionIndex);
         setMode('hub');
-      } else if (status === 'completed') {
+      } else if (normalizedStatus === 'completed') {
         // Déjà complétée, pas de session → hub mode replay
         setMode('hub');
       } else {

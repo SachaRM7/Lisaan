@@ -67,6 +67,12 @@ const DIRECTION_OPTIONS = [
   { value: 'both',     label: 'Les deux en alternance', subtitle: 'Combinaison des deux directions' },
 ];
 
+const TOLERANCE_OPTIONS = [
+  { value: 'strict',    label: 'Strict',    subtitle: 'La réponse doit être exacte' },
+  { value: 'normal',    label: 'Normal',    subtitle: '1 faute tolérée' },
+  { value: 'indulgent', label: 'Indulgent', subtitle: '2 fautes + synonymes' },
+];
+
 const SPEED_OPTIONS = [
   { value: 'slow',   label: 'Lent',   subtitle: 'Idéal pour bien distinguer chaque son' },
   { value: 'normal', label: 'Normal', subtitle: 'Vitesse naturelle de conversation' },
@@ -528,6 +534,12 @@ export default function ProfileScreen() {
               sheetKey="direction"
             />
             <View style={separatorStyle} />
+            <SheetRow
+              label="Tolérance (réponse écrite)"
+              valueLabel={findLabel(TOLERANCE_OPTIONS, store.write_tolerance)}
+              sheetKey="tolerance"
+            />
+            <View style={separatorStyle} />
             <SettingRow
               label="Vibrations"
               type="toggle"
@@ -749,6 +761,22 @@ export default function ProfileScreen() {
             subtitle={opt.subtitle}
             selected={store.exercise_direction === opt.value}
             onPress={() => selectAndClose('exercise_direction', opt.value)}
+          />
+        ))}
+      </BottomSheet>
+
+      <BottomSheet
+        visible={openSheet === 'tolerance'}
+        onClose={() => setOpenSheet(null)}
+        title="Tolérance (réponse écrite)"
+      >
+        {TOLERANCE_OPTIONS.map(opt => (
+          <RichSelectionRow
+            key={opt.value}
+            title={opt.label}
+            subtitle={opt.subtitle}
+            selected={store.write_tolerance === opt.value}
+            onPress={() => selectAndClose('write_tolerance', opt.value)}
           />
         ))}
       </BottomSheet>

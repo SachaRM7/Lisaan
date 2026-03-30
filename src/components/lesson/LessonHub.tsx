@@ -83,6 +83,15 @@ export function LessonHub({
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xl, gap: spacing.sm }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Fallback — statut inattendu (ex: 'available' non normalisé) */}
+        {lessonStatus !== 'in_progress' && lessonStatus !== 'completed' && (
+          <Button
+            label="Commencer la leçon"
+            variant="primary"
+            onPress={onStartFromBeginning}
+          />
+        )}
+
         {/* Mode EN COURS */}
         {lessonStatus === 'in_progress' && (
           <>

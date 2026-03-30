@@ -6,6 +6,7 @@ export type TranslationMode = 'always' | 'tap_reveal' | 'never';
 export type ExerciseDirection = 'ar_to_fr' | 'fr_to_ar' | 'both';
 export type AudioSpeed = 'slow' | 'normal' | 'native';
 export type FontSizePreference = 'small' | 'medium' | 'large' | 'xlarge';
+export type WriteTolerance = 'strict' | 'normal' | 'indulgent';
 
 export interface UserSettings {
   harakats_mode: HarakatsMode;
@@ -18,6 +19,7 @@ export interface UserSettings {
   font_size: FontSizePreference;
   haptic_feedback: boolean;
   analytics_enabled: boolean;
+  write_tolerance: WriteTolerance;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -31,4 +33,5 @@ export const DEFAULT_SETTINGS: UserSettings = {
   font_size: 'large',
   haptic_feedback: true,
   analytics_enabled: true,
+  write_tolerance: 'normal',
 };

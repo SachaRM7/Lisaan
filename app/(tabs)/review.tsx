@@ -97,6 +97,11 @@ export default function ReviewScreen() {
               </Text>
             )}
           </View>
+          <Button
+            label="Entraînement libre →"
+            variant="primary"
+            onPress={() => router.push('/free-training' as never)}
+          />
           <StatsSection mastered={mastered.length} learning={learning.length} newCount={newCards.length} total={allCards.length} />
         </ScrollView>
       </SafeAreaView>
@@ -146,6 +151,11 @@ export default function ReviewScreen() {
             track('srs_session_started', { cards_due: dueCards.length });
             router.push('/review-session' as never);
           }}
+        />
+        <Button
+          label="Entraînement libre →"
+          variant="secondary"
+          onPress={() => router.push('/free-training' as never)}
         />
 
         <StatsSection mastered={mastered.length} learning={learning.length} newCount={newCards.length} total={allCards.length} />

@@ -20,9 +20,9 @@ export async function pullUserDataFromCloud(userId: string): Promise<void> {
     return;
   }
 
-  // Vérifier si déjà fait
-  const meta = await getSyncMetadata('user_data_initial_pull');
-  if (meta) return; // Déjà pull
+  // Vérifier si déjà fait pour cet utilisateur spécifique
+  const meta = await getSyncMetadata(`user_data_pull_${userId}`);
+  if (meta) return; // Déjà pull pour ce compte
 
   // --- Progress ---
   const { data: progressData } = await supabase
@@ -79,6 +79,6 @@ export async function pullUserDataFromCloud(userId: string): Promise<void> {
     await upsertSettings(userId, settingsData);
   }
 
-  // Marquer le pull initial comme fait
-  await updateSyncMetadata('user_data_initial_pull', 1);
+  // Marquer le pull comme fait pour cet utilisateur
+  await updateSyncMetadata(`user_data_pull_${userId}`, 1);
 }

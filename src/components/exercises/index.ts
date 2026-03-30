@@ -7,6 +7,8 @@ import { MatchExercise } from './MatchExercise';
 import { FillBlankExercise } from './FillBlankExercise';
 import { ReorderExercise } from './ReorderExercise';
 import { DialogueExercise } from './DialogueExercise';
+import { FlashcardExercise } from './FlashcardExercise';
+import { WriteExercise } from './WriteExercise';
 
 /** Registry des composants d'exercice par type */
 const exerciseRegistry = new Map<ExerciseType, ComponentType<ExerciseComponentProps>>();
@@ -16,6 +18,8 @@ exerciseRegistry.set('match', MatchExercise);
 exerciseRegistry.set('fill_blank', FillBlankExercise);
 exerciseRegistry.set('reorder', ReorderExercise);
 exerciseRegistry.set('dialogue', DialogueExercise);
+exerciseRegistry.set('flashcard', FlashcardExercise);
+exerciseRegistry.set('write', WriteExercise);
 // exerciseRegistry.set('trace', TraceExercise);    // TODO: Étape future
 
 export function getExerciseComponent(

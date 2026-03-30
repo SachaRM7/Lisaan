@@ -8,7 +8,9 @@ export type ExerciseType =
   | 'trace'
   | 'listen_select'
   | 'reorder'
-  | 'dialogue';
+  | 'dialogue'
+  | 'flashcard'      // auto-évaluation flip
+  | 'write';         // réponse écrite libre
 
 /** Texte localisé (arabe + français) */
 export interface LocalizedText {
@@ -69,6 +71,12 @@ export interface ExerciseConfig {
   context_fr?: string;
   turns?: DialogueTurn[];
   choices?: DialogueChoice[];
+  // flashcard specific
+  flashcard_back?: LocalizedText;
+  flashcard_back_vocalized?: string;
+  // write specific
+  write_accepted_answers?: string[];
+  write_answer_lang?: 'ar' | 'fr';
 }
 
 // ── Reorder ──────────────────────────────────────────────────

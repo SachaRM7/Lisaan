@@ -191,6 +191,19 @@ export function applyConfusionPairCap(
   });
 }
 
+export function flashcardResultToQuality(userAnswer: string, timeMs: number): number {
+  if (userAnswer === 'knew_it') return timeMs > 10000 ? 4 : 5;
+  if (userAnswer === 'almost') return 3;
+  return 1; // missed
+}
+
+export function writeResultToQuality(isCorrect: boolean, isExact: boolean, timeMs: number): number {
+  if (!isCorrect) return 1;
+  if (isExact && timeMs < 5000) return 5;
+  if (isExact) return 4;
+  return 3; // correct mais tolérance appliquée
+}
+
 // --- Helpers ---
 
 function addDays(date: Date, days: number): Date {

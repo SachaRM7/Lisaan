@@ -254,6 +254,54 @@ export async function getSRSCardsForUser(userId: string) {
   );
 }
 
+export async function getSRSCardsByModules(userId: string, moduleIds: string[]) {
+  const db = getLocalDB();
+  const placeholders = moduleIds.map(() => '?').join(',');
+  const results: any[] = [];
+
+  // letters → lessons → modules
+  const letterCards = await db.getAllAsync<any>(
+    `SELECT sc.* FROM srs_cards sc
+     JOIN letters le ON le.id = sc.item_id
+     JOIN lessons l ON l.id = le.lesson_id
+     WHERE sc.user_id = ? AND sc.item_type = 'letter' AND l.module_id IN (${placeholders})`,
+    [userId, ...moduleIds]
+  ).catch(() => [] as any[]);
+  results.push(...letterCards);
+
+  // diacritics → lessons → modules
+  const diacriticCards = await db.getAllAsync<any>(
+    `SELECT sc.* FROM srs_cards sc
+     JOIN diacritics d ON d.id = sc.item_id
+     JOIN lessons l ON l.id = d.lesson_id
+     WHERE sc.user_id = ? AND sc.item_type = 'diacritic' AND l.module_id IN (${placeholders})`,
+    [userId, ...moduleIds]
+  ).catch(() => [] as any[]);
+  results.push(...diacriticCards);
+
+  // words (direct module_id)
+  const wordCards = await db.getAllAsync<any>(
+    `SELECT sc.* FROM srs_cards sc
+     JOIN words w ON w.id = sc.item_id
+     WHERE sc.user_id = ? AND sc.item_type = 'word' AND w.module_id IN (${placeholders})`,
+    [userId, ...moduleIds]
+  ).catch(() => [] as any[]);
+  results.push(...wordCards);
+
+  // sentences (direct module_id)
+  const sentenceCards = await db.getAllAsync<any>(
+    `SELECT sc.* FROM srs_cards sc
+     JOIN sentences s ON s.id = sc.item_id
+     WHERE sc.user_id = ? AND sc.item_type = 'sentence' AND s.module_id IN (${placeholders})`,
+    [userId, ...moduleIds]
+  ).catch(() => [] as any[]);
+  results.push(...sentenceCards);
+
+  // Dédoublonner par id
+  const seen = new Set<string>();
+  return results.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+}
+
 export async function getDueCards(userId: string) {
   const db = getLocalDB();
   const now = new Date().toISOString();
@@ -320,8 +368,8 @@ export async function upsertSettings(userId: string, settings: Record<string, an
   await db.runAsync(
     `INSERT INTO user_settings (user_id, harakats_mode, transliteration_mode, translation_mode,
       exercise_direction, audio_enabled, audio_autoplay, audio_speed, font_size, haptic_feedback,
-      analytics_enabled, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      analytics_enabled, write_tolerance, updated_at, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
      ON CONFLICT(user_id) DO UPDATE SET
        harakats_mode = excluded.harakats_mode,
        transliteration_mode = excluded.transliteration_mode,
@@ -333,12 +381,13 @@ export async function upsertSettings(userId: string, settings: Record<string, an
        font_size = excluded.font_size,
        haptic_feedback = excluded.haptic_feedback,
        analytics_enabled = excluded.analytics_enabled,
+       write_tolerance = excluded.write_tolerance,
        updated_at = ?,
        synced_at = NULL`,
     [userId, settings.harakats_mode, settings.transliteration_mode, settings.translation_mode,
      settings.exercise_direction, settings.audio_enabled ? 1 : 0, settings.audio_autoplay ? 1 : 0,
      settings.audio_speed, settings.font_size, settings.haptic_feedback ? 1 : 0,
-     settings.analytics_enabled !== false ? 1 : 0, now, now]
+     settings.analytics_enabled !== false ? 1 : 0, settings.write_tolerance ?? 'normal', now, now]
   );
 }
 

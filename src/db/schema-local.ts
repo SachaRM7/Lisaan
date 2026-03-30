@@ -387,6 +387,7 @@ export async function initLocalSchema(): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_words_theme ON words(theme)`,
     `ALTER TABLE lessons ADD COLUMN content_refs TEXT DEFAULT '[]'`,
     `ALTER TABLE user_settings ADD COLUMN analytics_enabled INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE user_settings ADD COLUMN write_tolerance TEXT NOT NULL DEFAULT 'normal'`,
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch (_) { /* colonne déjà présente */ }
