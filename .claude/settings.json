@@ -1,0 +1,53 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write(*.ts)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsc --noEmit 2>&1 | tail -20; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Write(*.tsx)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx tsc --noEmit 2>&1 | tail -20; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Write(src/hooks/*.ts)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -l 'from.*db/remote\\|from.*supabase' src/hooks/*.ts 2>/dev/null && echo '❌ VIOLATION: hook importe remote.ts!' || echo '✅ Hooks clean'; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Write(src/engines/*.ts)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo $CLAUDE_TOOL_INPUT | grep -o '\"file_path\":\"[^\"]*\"' | cut -d'\"' -f4); if echo $FILE | grep -qE 'content-sync|sync-manager|user-data-pull|guest-migration'; then echo '✅ Sync file OK'; else grep -l 'from.*db/remote\\|from.*supabase' \"$FILE\" 2>/dev/null && echo \"❌ VIOLATION: $FILE importe remote.ts!\" || echo '✅ Engine clean'; fi; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo $CLAUDE_TOOL_INPUT | grep -qiE 'rm.*-rf.*src|drop.*table|supabase.*db.*reset|DELETE.*FROM.*(?!WHERE)' && echo '❌ BLOCKED: Commande potentiellement destructrice détectée' && exit 2; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
