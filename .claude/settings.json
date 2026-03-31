@@ -47,7 +47,16 @@
             "command": "echo $CLAUDE_TOOL_INPUT | grep -qiE 'rm.*-rf.*src|drop.*table|supabase.*db.*reset|DELETE.*FROM.*(?!WHERE)' && echo '❌ BLOCKED: Commande potentiellement destructrice détectée' && exit 2; exit 0"
           }
         ]
-      }
+      },
+      {
+        "matcher": "Write(src/db/remote.ts)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '❌ BLOCKED: remote.ts ne doit quasi jamais être modifié. Si c'est intentionnel, confirme explicitement.' && exit 2"
+          }
+        ]
+       }
     ]
   }
 }

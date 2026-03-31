@@ -42,6 +42,7 @@ import { updateStreak } from '../src/engines/streak';
 import { addXP, calculateReviewXP } from '../src/engines/xp';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { Button } from '../src/components/ui';
+import { Ionicons } from '@expo/vector-icons';
 import { ExamResultScreen } from '../src/components/review/ExamResultScreen';
 
 function formatTime(seconds: number): string {
@@ -345,8 +346,18 @@ export default function ReviewSession() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }}>
         <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xxxl, paddingBottom: spacing.xl, alignItems: 'center', gap: spacing.xl }}>
+          {/* Icône célébration */}
+          <View style={{
+            width: 80, height: 80, borderRadius: 40,
+            backgroundColor: colors.background.card,
+            borderWidth: 2, borderColor: colors.accent.gold,
+            alignItems: 'center', justifyContent: 'center',
+            ...shadows.medium,
+          }}>
+            <Ionicons name="trophy" size={40} color={colors.accent.gold} />
+          </View>
           <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary, textAlign: 'center' }}>
-            Session terminée ! 🎉
+            Session terminée !
           </Text>
 
           <View style={{
