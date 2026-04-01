@@ -1,11 +1,23 @@
 // app/(tabs)/review.tsx
-import { View, Text, ScrollView, SafeAreaView } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, SafeAreaView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useDueCards, useSRSCards } from '../../src/hooks/useSRSCards';
 import { track } from '../../src/analytics/posthog';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Button } from '../../src/components/ui';
 import { Ionicons } from '@expo/vector-icons';
+
+type SRSFilter = 'all' | 'letter' | 'diacritic' | 'word' | 'conjugation' | 'grammar_rule';
+
+const FILTER_LABELS: Record<SRSFilter, string> = {
+  all: 'Tout',
+  letter: 'Lettres',
+  diacritic: 'Harakats',
+  word: 'Mots',
+  conjugation: 'Conjugaisons',
+  grammar_rule: 'Grammaire',
+};
 
 function formatNextReview(isoDate: string): string {
   const diff = new Date(isoDate).getTime() - Date.now();
@@ -20,6 +32,7 @@ function formatNextReview(isoDate: string): string {
 export default function ReviewScreen() {
   const { colors, typography, spacing, borderRadius } = useTheme();
   const router = useRouter();
+  const [activeFilter, setActiveFilter] = useState<SRSFilter>('all');
   const { data: dueCards = [] } = useDueCards();
   const { data: allCards = [] } = useSRSCards();
 
@@ -31,9 +44,24 @@ export default function ReviewScreen() {
     .filter((c) => new Date(c.next_review_at) > new Date())
     .sort((a, b) => new Date(a.next_review_at).getTime() - new Date(b.next_review_at).getTime())[0];
 
-  const dueLetters = dueCards.filter((c) => c.item_type === 'letter').length;
-  const dueDiacritics = dueCards.filter((c) => c.item_type === 'diacritic').length;
-  const dueWords = dueCards.filter((c) => c.item_type === 'word').length;
+  const dueCounts: Record<SRSFilter, number> = {
+    all: dueCards.length,
+    letter: dueCards.filter((c) => c.item_type === 'letter').length,
+    diacritic: dueCards.filter((c) => c.item_type === 'diacritic').length,
+    word: dueCards.filter((c) => c.item_type === 'word').length,
+    conjugation: dueCards.filter((c) => c.item_type === 'conjugation').length,
+    grammar_rule: dueCards.filter((c) => c.item_type === 'grammar_rule').length,
+  };
+
+  const dueLetters = dueCounts.letter;
+  const dueDiacritics = dueCounts.diacritic;
+  const dueWords = dueCounts.word;
+  const dueConjugations = dueCounts.conjugation;
+  const dueGrammar = dueCounts.grammar_rule;
+
+  const visibleFilters = (Object.keys(FILTER_LABELS) as SRSFilter[]).filter(
+    f => f === 'all' || dueCounts[f] > 0,
+  );
 
   const headerStyle = {
     paddingHorizontal: spacing.lg,
@@ -109,10 +137,16 @@ export default function ReviewScreen() {
   }
 
   // ── État 2 : cartes dues ────────────────────────────────
+  const filteredDue = activeFilter === 'all'
+    ? dueCards
+    : dueCards.filter(c => c.item_type === activeFilter);
+
   const dueDetail = [
     dueLetters > 0 ? `Lettres : ${dueLetters}` : '',
     dueDiacritics > 0 ? `Harakats : ${dueDiacritics}` : '',
     dueWords > 0 ? `Mots : ${dueWords}` : '',
+    dueConjugations > 0 ? `Conjugaisons : ${dueConjugations}` : '',
+    dueGrammar > 0 ? `Grammaire : ${dueGrammar}` : '',
   ].filter(Boolean).join('  ·  ');
 
   return (
@@ -121,6 +155,40 @@ export default function ReviewScreen() {
         <Text style={titleStyle}>Réviser</Text>
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 120, gap: spacing.xl }}>
+        {/* Filtres par type */}
+        {visibleFilters.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs, paddingBottom: 2 }}>
+            {visibleFilters.map(f => {
+              const active = activeFilter === f;
+              return (
+                <Pressable
+                  key={f}
+                  onPress={() => {
+                    setActiveFilter(f);
+                    track('reviser_filter_changed', { filter: f, cards_due: dueCounts[f] });
+                  }}
+                  style={{
+                    paddingHorizontal: spacing.base,
+                    paddingVertical: 6,
+                    borderRadius: borderRadius.pill,
+                    backgroundColor: active ? colors.brand.primary : colors.background.card,
+                    borderWidth: 1,
+                    borderColor: active ? colors.brand.primary : colors.border.subtle,
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: active ? typography.family.uiBold : typography.family.ui,
+                    fontSize: typography.size.small,
+                    color: active ? colors.text.inverse : colors.text.secondary,
+                  }}>
+                    {FILTER_LABELS[f]}{f !== 'all' ? ` (${dueCounts[f]})` : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {/* Compteur hero */}
         <View style={{
           backgroundColor: colors.background.group,
@@ -134,7 +202,7 @@ export default function ReviewScreen() {
         }}>
           <Ionicons name="sync-outline" size={36} color={colors.brand.primary} />
           <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h1, color: colors.text.primary }}>
-            {dueCards.length} carte{dueCards.length > 1 ? 's' : ''} à réviser
+            {filteredDue.length} carte{filteredDue.length > 1 ? 's' : ''} à réviser
           </Text>
           {dueDetail ? (
             <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
@@ -148,7 +216,7 @@ export default function ReviewScreen() {
           label="Commencer la révision →"
           variant="primary"
           onPress={() => {
-            track('srs_session_started', { cards_due: dueCards.length });
+            track('srs_session_started', { cards_due: filteredDue.length, filter: activeFilter });
             router.push('/review-session' as never);
           }}
         />

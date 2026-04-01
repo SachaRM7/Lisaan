@@ -5,6 +5,7 @@ import { TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudio, type UseAudioOptions } from '../hooks/useAudio';
 import { Colors } from '../constants/theme';
+import { track } from '../analytics/posthog';
 
 interface AudioButtonProps extends UseAudioOptions {
   size?: number;
@@ -19,9 +20,18 @@ export function AudioButton({ size = 24, color, style, ...audioOptions }: AudioB
 
   const iconColor = color ?? Colors.primary;
 
+  const handlePress = () => {
+    play();
+    track('audio_played', {
+      text_length: (audioOptions.fallbackText ?? '').length,
+      language: audioOptions.fallbackLanguage ?? 'ar',
+      auto_play: false,
+    });
+  };
+
   return (
     <TouchableOpacity
-      onPress={play}
+      onPress={handlePress}
       style={[styles.button, style]}
       accessibilityLabel="Écouter la prononciation"
       disabled={audioState === 'loading' || audioState === 'playing'}

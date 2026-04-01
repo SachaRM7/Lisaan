@@ -20,6 +20,7 @@ import { initLocalSchema } from '../src/db/schema-local';
 import { needsContentSync, syncContentFromCloud } from '../src/engines/content-sync';
 import { startSyncListener } from '../src/engines/sync-manager';
 import { pullUserDataFromCloud } from '../src/engines/user-data-pull';
+import { seedConjugationSRSCards, seedGrammarSRSCards } from '../src/services/srs-seed';
 import { ContentDownloadScreen } from '../src/components/ui/ContentDownloadScreen';
 import { NetworkErrorScreen } from '../src/components/NetworkErrorScreen';
 
@@ -85,6 +86,18 @@ export default function RootLayout() {
             return;
           }
           setSyncing(false);
+          // Seed SRS cards pour conjugaisons et grammaire (fire-and-forget)
+          const uid = useAuthStore.getState().effectiveUserId();
+          if (uid) {
+            Promise.all([
+              seedConjugationSRSCards(uid),
+              seedGrammarSRSCards(uid),
+            ]).then(([conj, gram]) => {
+              if (conj > 0 || gram > 0) {
+                console.log(`[SRS Seed] +${conj} conjugaisons, +${gram} grammaire`);
+              }
+            }).catch(console.warn);
+          }
         }
         setDbReady(true);
         unsubscribeSync = startSyncListener();

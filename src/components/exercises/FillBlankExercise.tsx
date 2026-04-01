@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import type { ExerciseComponentProps, ExerciseOption } from '../../types/exercise';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { useTheme } from '../../contexts/ThemeContext';
+import { AudioButton } from '../AudioButton';
 
 export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps) {
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
@@ -155,6 +156,14 @@ export function FillBlankExercise({ config, onComplete }: ExerciseComponentProps
         ...shadows.subtle,
       }}>
         {renderSentence()}
+        {(sentence?.ar || config.prompt.ar) && (
+          <AudioButton
+            fallbackText={sentence?.ar ?? config.prompt.ar}
+            fallbackLanguage="ar"
+            size={20}
+            style={{ alignSelf: 'center' }}
+          />
+        )}
         {sentence && (
           <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.secondary, textAlign: 'center' }}>
             {sentence.fr}

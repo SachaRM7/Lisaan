@@ -2,6 +2,7 @@
 
 import { View, Text, ScrollView } from 'react-native';
 import ArabicText from './ArabicText';
+import { AudioButton } from '../AudioButton';
 import type { Diacritic } from '../../hooks/useDiacritics';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -74,6 +75,12 @@ export default function DiacriticCard({
         >
           {displaySyllable}
         </ArabicText>
+        <AudioButton
+          fallbackText={displaySyllable}
+          fallbackLanguage="ar"
+          size={22}
+          style={{ marginTop: 6 }}
+        />
       </View>
 
       {/* Nom arabe + français */}

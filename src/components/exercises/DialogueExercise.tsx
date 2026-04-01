@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import type { ExerciseComponentProps, DialogueExerciseConfig } from '../../types/exercise';
 import ArabicText from '../arabic/ArabicText';
+import { AudioButton } from '../AudioButton';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../ui';
 
@@ -75,7 +76,14 @@ export function DialogueExercise({ config: rawConfig, onComplete }: ExerciseComp
                 {turn.speaker_name}
               </Text>
             )}
-            <ArabicText size="small">{turn.arabic_vocalized}</ArabicText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <ArabicText size="small">{turn.arabic_vocalized}</ArabicText>
+              <AudioButton
+                fallbackText={turn.arabic_vocalized}
+                fallbackLanguage="ar"
+                size={16}
+              />
+            </View>
             {config.show_transliteration && turn.transliteration && (
               <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary, marginTop: 2 }}>
                 {turn.transliteration}

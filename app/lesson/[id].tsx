@@ -487,6 +487,7 @@ export default function LessonScreen() {
       setSessionState(newSession);
       await upsertLessonSession(newSession);
       setCurrentSectionIndex(nextIndex);
+      setPlayerKey(k => k + 1); // Force le remontage du SectionPlayer pour réinitialiser exerciseIndex
       setReplayMode(undefined);
     }
   }
@@ -527,26 +528,30 @@ export default function LessonScreen() {
     });
 
     // SRS
-    if (contentType === 'letters' && lessonLetters?.length) {
-      await createSRSCardsForItems(lessonLetters.map(l => l.id), 'letter');
-      queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
-    }
-    if (contentType === 'diacritics' && lessonDiacritics?.length) {
-      await createSRSCardsForItems(lessonDiacritics.map(d => d.id), 'diacritic');
-      queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
-    }
-    if (contentType === 'words' && lessonWords.length) {
-      await createSRSCardsForItems(lessonWords.map(w => w.id), 'word');
-      queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
-    }
-    if (contentType === 'sentences' && sentenceConfig) {
-      const sentenceIds = sentenceConfig.type === 'fill_blank'
-        ? (allSentences ?? []).filter(s => s.difficulty <= 2).map(s => s.id)
-        : (sentenceConfig.sentenceIds ?? []);
-      if (sentenceIds.length > 0) {
-        await createSRSCardsForItems(sentenceIds, 'sentence');
+    try {
+      if (contentType === 'letters' && lessonLetters?.length) {
+        await createSRSCardsForItems(lessonLetters.map(l => l.id), 'letter');
         queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
       }
+      if (contentType === 'diacritics' && lessonDiacritics?.length) {
+        await createSRSCardsForItems(lessonDiacritics.map(d => d.id), 'diacritic');
+        queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+      }
+      if (contentType === 'words' && lessonWords.length) {
+        await createSRSCardsForItems(lessonWords.map(w => w.id), 'word');
+        queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+      }
+      if (contentType === 'sentences' && sentenceConfig) {
+        const sentenceIds = sentenceConfig.type === 'fill_blank'
+          ? (allSentences ?? []).filter(s => s.difficulty <= 2).map(s => s.id)
+          : (sentenceConfig.sentenceIds ?? []);
+        if (sentenceIds.length > 0) {
+          await createSRSCardsForItems(sentenceIds, 'sentence');
+          queryClient.invalidateQueries({ queryKey: ['srs_cards'] });
+        }
+      }
+    } catch (e) {
+      console.error('[lesson] SRS creation failed:', e);
     }
 
     setMode('lesson_complete');

@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../contexts/ThemeContext';
 import ArabicText from '../arabic/ArabicText';
+import { AudioButton } from '../AudioButton';
 import type { ExerciseComponentProps, SpeedRoundResult, SpeedRoundQuestion } from '../../types/exercise';
 
 interface Props extends ExerciseComponentProps {
@@ -129,9 +130,17 @@ export function SpeedRoundExercise({
       {/* Question */}
       <View style={[styles.questionCard, { backgroundColor: colors.background.card, borderRadius: borderRadius.xl, padding: spacing.lg }]}>
         {q.prompt_ar && (
-          <ArabicText size="xlarge" harakatsMode="always" style={[styles.questionAr, { marginBottom: spacing.xs }]}>
-            {q.prompt_ar}
-          </ArabicText>
+          <>
+            <ArabicText size="xlarge" harakatsMode="always" style={[styles.questionAr, { marginBottom: spacing.xs }]}>
+              {q.prompt_ar}
+            </ArabicText>
+            <AudioButton
+              fallbackText={q.prompt_ar}
+              fallbackLanguage="ar"
+              size={18}
+              style={{ alignSelf: 'center', marginBottom: spacing.xs }}
+            />
+          </>
         )}
         {q.prompt_fr && (
           <Text style={{ fontSize: typography.size.body, fontFamily: typography.family.ui, color: colors.text.secondary }}>

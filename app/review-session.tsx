@@ -37,7 +37,7 @@ import type { SRSCard } from '../src/engines/srs';
 import type { ReviewSessionConfig, ExamQuestionResult } from '../src/types/review';
 import { CONFUSION_PAIRS } from '../src/constants/confusion-pairs';
 import { ExerciseRenderer } from '../src/components/exercises/ExerciseRenderer';
-import { getSRSCardsByModules, getSRSCardsForUser } from '../src/db/local-queries';
+import { getSRSCardsByModules, getSRSCardsForUser, getAllConjugations, getAllGrammarRules } from '../src/db/local-queries';
 import { updateStreak } from '../src/engines/streak';
 import { addXP, calculateReviewXP } from '../src/engines/xp';
 import { useTheme } from '../src/contexts/ThemeContext';
@@ -58,6 +58,8 @@ function resolveItemData(
   allDiacritics: any[],
   allWords: any[],
   allSentences: any[],
+  allConjugations: any[],
+  allGrammarRules: any[],
 ): ItemData | null {
   switch (card.item_type) {
     case 'letter': {
@@ -79,6 +81,24 @@ function resolveItemData(
       const s = allSentences.find(x => x.id === card.item_id);
       if (!s) return null;
       return { arabic: s.arabic_vocalized, french: s.translation_fr, transliteration: s.transliteration };
+    }
+    case 'conjugation': {
+      const c = allConjugations.find(x => x.id === card.item_id);
+      if (!c) return null;
+      return {
+        arabic: c.conjugated_ar_vocalized,
+        french: `${c.pronoun_fr} — ${c.conjugated_transliteration}`,
+        transliteration: c.conjugated_transliteration,
+      };
+    }
+    case 'grammar_rule': {
+      const g = allGrammarRules.find(x => x.id === card.item_id);
+      if (!g) return null;
+      return {
+        arabic: g.example_ar_vocalized,
+        french: g.concept_fr,
+        transliteration: g.example_transliteration,
+      };
     }
     default:
       return null;
@@ -155,10 +175,18 @@ export default function ReviewSession() {
   const { data: allDiacritics = [] } = useDiacritics();
   const { data: allWords = [] } = useWords();
   const { data: allSentences = [] } = useSentences();
+  const [allConjugations, setAllConjugations] = useState<any[]>([]);
+  const [allGrammarRules, setAllGrammarRules] = useState<any[]>([]);
   const updateSRSCard = useUpdateSRSCard();
   const startTime = useMemo(() => Date.now(), []);
 
   const [freeCards, setFreeCards] = useState<SRSCard[] | null>(null);
+
+  // Charger conjugaisons et règles de grammaire pour resolveItemData
+  useEffect(() => {
+    getAllConjugations().then(setAllConjugations).catch(console.warn);
+    getAllGrammarRules().then(setAllGrammarRules).catch(console.warn);
+  }, []);
 
   // Charger les cartes en mode free
   useEffect(() => {
@@ -451,7 +479,7 @@ export default function ReviewSession() {
   let currentExercise: ExerciseConfig | null = null;
 
   if (item.kind === 'single') {
-    const itemData = resolveItemData(item.card, allLetters, allDiacritics, allWords, allSentences);
+    const itemData = resolveItemData(item.card, allLetters, allDiacritics, allWords, allSentences, allConjugations, allGrammarRules);
     if (itemData) {
       const type = (forcedType ?? modeMap.get(item.card.id) ?? 'mcq') as ExerciseType;
       const distractors = (() => {
@@ -477,6 +505,13 @@ export default function ReviewSession() {
             .slice(0, 3)
             .map((s): ItemData => ({ arabic: s.arabic_vocalized, french: s.translation_fr }));
         }
+        if (sameType === 'conjugation') {
+          return allConjugations
+            .filter(c => c.id !== item.card.item_id)
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 3)
+            .map((c): ItemData => ({ arabic: c.conjugated_ar_vocalized, french: `${c.pronoun_fr} — ${c.conjugated_transliteration}` }));
+        }
         return [];
       })();
 
@@ -489,7 +524,7 @@ export default function ReviewSession() {
   } else {
     // Match groupé
     const itemsData = item.cards.map(c =>
-      resolveItemData(c, allLetters, allDiacritics, allWords, allSentences)
+      resolveItemData(c, allLetters, allDiacritics, allWords, allSentences, allConjugations, allGrammarRules)
     ).filter(Boolean) as ItemData[];
     if (itemsData.length >= 2) {
       currentExercise = generateMatchReviewExercise(item.cards, itemsData);

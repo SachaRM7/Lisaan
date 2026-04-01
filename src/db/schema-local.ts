@@ -416,6 +416,10 @@ export async function initLocalSchema(): Promise<void> {
     `ALTER TABLE lessons ADD COLUMN content_refs TEXT DEFAULT '[]'`,
     `ALTER TABLE user_settings ADD COLUMN analytics_enabled INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE user_settings ADD COLUMN write_tolerance TEXT NOT NULL DEFAULT 'normal'`,
+    // É16 — grammar_rules audio_key
+    `ALTER TABLE grammar_rules ADD COLUMN audio_key TEXT`,
+    // É16 — index srs_cards par item_type pour les filtres Réviser
+    `CREATE INDEX IF NOT EXISTS idx_srs_item_type ON srs_cards(user_id, item_type)`,
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch (_) { /* colonne déjà présente */ }

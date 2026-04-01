@@ -42,8 +42,8 @@ export default function LetterCard({
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const { play, shouldAutoPlay } = useAudio({
     audioUrl: letter.audio_url,
-    fallbackText: letter.name_fr,
-    fallbackLanguage: 'fr',
+    fallbackText: letter.form_isolated,
+    fallbackLanguage: 'ar',
   });
 
   useEffect(() => {
@@ -135,8 +135,8 @@ export default function LetterCard({
         <ArabicText size="xlarge">{letter.form_isolated}</ArabicText>
         <AudioButton
           audioUrl={letter.audio_url}
-          fallbackText={letter.name_fr}
-          fallbackLanguage="fr"
+          fallbackText={letter.form_isolated}
+          fallbackLanguage="ar"
           size={28}
           style={{ marginTop: spacing.xs }}
         />

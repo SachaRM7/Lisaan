@@ -24,6 +24,7 @@ import { useAuthStore } from '../../src/stores/useAuthStore';
 import { useOnboardingStore } from '../../src/stores/useOnboardingStore';
 import { getLocalDB } from '../../src/db/local';
 import { devCompleteAllLessons, getCompletedLessonsCount } from '../../src/db/local-queries';
+import { useSRSCards } from '../../src/hooks/useSRSCards';
 import { runSync } from '../../src/engines/sync-manager';
 import { syncContentFromCloud } from '../../src/engines/content-sync';
 import { checkAndUnlockBadges } from '../../src/engines/badge-engine';
@@ -109,6 +110,109 @@ function findLabel(options: { value: string; label: string }[], value: string): 
 }
 
 // ─── Séparateur vertical (stats card) ────────────────────
+
+// ─── SRS Stats Section ───────────────────────────────────────
+
+const SRS_TYPE_CONFIG = [
+  { type: 'letter',       label: 'Lettres',        icon: 'ا' },
+  { type: 'word',         label: 'Mots',           icon: 'كلمة' },
+  { type: 'conjugation',  label: 'Conjugaisons',   icon: 'فعل' },
+  { type: 'grammar_rule', label: 'Grammaire',      icon: 'قاعدة' },
+] as const;
+
+function SRSStatsSection() {
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { data: allCards = [] } = useSRSCards();
+
+  if (allCards.length === 0) return null;
+
+  const typeTotals = SRS_TYPE_CONFIG.map(({ type, label, icon }) => {
+    const cards = allCards.filter(c => c.item_type === type);
+    const total = cards.length;
+    if (total === 0) return null;
+    const mastered = cards.filter(c => c.interval_days >= 21).length;
+    const due = cards.filter(c => new Date(c.next_review_at) <= new Date()).length;
+    const pct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+    return { type, label, icon, total, mastered, due, pct };
+  }).filter(Boolean) as { type: string; label: string; icon: string; total: number; mastered: number; due: number; pct: number }[];
+
+  if (typeTotals.length === 0) return null;
+
+  return (
+    <View style={{
+      backgroundColor: colors.background.group,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.xl,
+      gap: spacing.base,
+    }}>
+      <Text style={{
+        fontFamily: typography.family.uiBold,
+        fontSize: typography.size.tiny,
+        color: colors.text.secondary,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+        marginBottom: spacing.xs,
+      }}>
+        Progression SRS
+      </Text>
+
+      {typeTotals.map(({ type, label, icon, total, mastered, due, pct }) => (
+        <View key={type} style={{
+          backgroundColor: colors.background.card,
+          borderRadius: borderRadius.md,
+          padding: spacing.base,
+          gap: spacing.xs,
+          borderWidth: 1,
+          borderColor: colors.border.subtle,
+          ...shadows.subtle,
+        }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <Text style={{ fontFamily: typography.family.arabic, fontSize: typography.size.body, color: colors.text.heroArabic }}>
+                {icon}
+              </Text>
+              <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.body, color: colors.text.primary }}>
+                {label}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
+              {due > 0 && (
+                <View style={{
+                  backgroundColor: colors.accent.gold + '22',
+                  borderRadius: borderRadius.pill,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                }}>
+                  <Text style={{ fontFamily: typography.family.uiMedium, fontSize: typography.size.tiny, color: colors.accent.gold }}>
+                    {due} à réviser
+                  </Text>
+                </View>
+              )}
+              <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.small, color: colors.text.secondary }}>
+                {mastered}/{total}
+              </Text>
+            </View>
+          </View>
+
+          {/* Barre de progression */}
+          <View style={{ height: 4, backgroundColor: colors.border.subtle, borderRadius: 2, overflow: 'hidden' }}>
+            <View style={{
+              width: `${pct}%`,
+              height: 4,
+              backgroundColor: pct >= 80 ? colors.status.success : colors.brand.primary,
+              borderRadius: 2,
+            }} />
+          </View>
+          <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary }}>
+            {pct}% maîtrisées (≥ 21j)
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function StatDivider({ height }: { height: number }) {
   const { colors } = useTheme();
@@ -405,6 +509,9 @@ export default function ProfileScreen() {
           <StatDivider height={48} />
           <StatColumn icon="🏆" iconColor={colors.accent.gold} value={userData?.streak_longest ?? 0} label="record" />
         </View>
+
+        {/* ── PROGRESSION SRS ── */}
+        <SRSStatsSection />
 
         {/* ── MES ACCOMPLISSEMENTS ── */}
         <View style={{

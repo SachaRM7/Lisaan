@@ -816,6 +816,16 @@ export async function getConjugationsByWord(wordId: string, tense: string): Prom
   );
 }
 
+export async function getAllConjugations(): Promise<any[]> {
+  const db = getLocalDB();
+  return db.getAllAsync('SELECT * FROM conjugation_entries ORDER BY word_id, tense, pronoun_code ASC');
+}
+
+export async function getAllGrammarRules(): Promise<any[]> {
+  const db = getLocalDB();
+  return db.getAllAsync('SELECT * FROM grammar_rules ORDER BY module_id, sort_order ASC');
+}
+
 export async function upsertConjugationEntries(entries: any[]): Promise<void> {
   const db = getLocalDB();
   const now = new Date().toISOString();

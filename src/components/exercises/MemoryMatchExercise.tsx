@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
 import { useTheme } from '../../contexts/ThemeContext';
 import ArabicText from '../arabic/ArabicText';
 import type { ExerciseComponentProps, MemoryMatchResult, LocalizedText } from '../../types/exercise';
@@ -101,6 +102,10 @@ export function MemoryMatchExercise({
     if (isLocked || isFinished) return;
     const card = cards.find(c => c.id === cardId);
     if (!card || card.isFlipped || card.isMatched) return;
+
+    if (card.isArabic && card.content) {
+      Speech.speak(card.contentVocalized || card.content, { language: 'ar', rate: 0.7 });
+    }
 
     const newFlipped = [...flippedIds, cardId];
     setFlipCount(f => f + 1);
