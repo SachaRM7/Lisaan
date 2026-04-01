@@ -7,7 +7,7 @@ import {
   upsertSentences, upsertDialogues, upsertDialogueTurns,
   upsertBadges,
   upsertGrammarRules, upsertConjugationEntries,
-  upsertDialogueScenarios,
+  upsertDialogueScenarios, upsertDailyChallenges,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
 import { prefetchAudio } from '../services/audio-cache-service';
@@ -254,6 +254,22 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
     result.errors.push(`dialogue_scenarios: ${e.message}`);
   }
 
+  // --- Daily Challenges (É15) ---
+  try {
+    const { data, error } = await supabase
+      .from('daily_challenges')
+      .select('*')
+      .order('challenge_date');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertDailyChallenges(data);
+      await updateSyncMetadata('daily_challenges', data.length);
+      result.tables.daily_challenges = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`daily_challenges: ${e.message}`);
+  }
+
   // Pré-téléchargement audio en arrière-plan (fire-and-forget)
   prefetchAudio().catch(err => console.warn('[content-sync] prefetch audio failed:', err));
 
@@ -271,7 +287,7 @@ export async function needsContentSync(): Promise<boolean> {
     'sentences', 'dialogues', 'dialogue_turns',
     'badges',
     'grammar_rules', 'conjugation_entries',
-    'dialogue_scenarios',
+    'dialogue_scenarios', 'daily_challenges',
   ];
   for (const table of tables) {
     const meta = await getSyncMetadata(table);

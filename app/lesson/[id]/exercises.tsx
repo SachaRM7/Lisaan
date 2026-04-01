@@ -211,8 +211,8 @@ export default function ExercisesScreen() {
       );
     }
     if (contentType === 'words') {
-      if (!lesson || !allRoots) return [];
-      return generateWordExercises(lesson.sort_order, lessonWords, allWords ?? [], allRoots);
+      if (!lesson || !allWords || allWords.length === 0) return [];
+      return generateWordExercises(lesson.sort_order, lessonWords, allWords, allRoots ?? []);
     }
 
     // sentences
@@ -288,6 +288,20 @@ export default function ExercisesScreen() {
     } else {
       setPhase('results');
     }
+  }
+
+  // Debug: afficher si lesson pas chargé
+  if (!lesson) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: typography.size.body, fontFamily: typography.family.ui, color: colors.text.secondary }}>
+          Chargement de la leçon...
+        </Text>
+        <Text style={{ fontSize: typography.size.caption, fontFamily: typography.family.ui, color: colors.text.secondary, marginTop: 8 }}>
+          ID: {id}
+        </Text>
+      </SafeAreaView>
+    );
   }
 
   // ── Écran de résultats ─────────────────────────────────────

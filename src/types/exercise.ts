@@ -10,7 +10,9 @@ export type ExerciseType =
   | 'reorder'
   | 'dialogue'
   | 'flashcard'      // auto-évaluation flip
-  | 'write';         // réponse écrite libre
+  | 'write'          // réponse écrite libre
+  | 'speed_round'   // mini-jeu chronométré
+  | 'memory_match'; // memory game
 
 /** Texte localisé (arabe + français) */
 export interface LocalizedText {
@@ -142,4 +144,52 @@ export interface ExerciseResult {
 export interface ExerciseComponentProps {
   config: ExerciseConfig;
   onComplete: (result: ExerciseResult) => void;
+}
+
+// ── Speed Round ─────────────────────────────────────────────────
+
+export interface SpeedRoundQuestion {
+  prompt_ar?: string;
+  prompt_fr?: string;
+  options: string[];
+  correct_index: number;
+}
+
+export interface SpeedRoundExerciseConfig extends ExerciseConfig {
+  type: 'speed_round';
+  source_module_ids?: string[];
+  question_count?: number;
+  duration_seconds?: number;
+}
+
+export interface SpeedRoundResult extends ExerciseResult {
+  type: 'speed_round';
+  questions_answered: number;
+  questions_correct: number;
+  time_used_seconds: number;
+  speed_multiplier: number;
+  final_score: number;
+}
+
+// ── Memory Match ────────────────────────────────────────────────
+
+export interface MemoryCard {
+  id: string;
+  content: LocalizedText;
+  content_vocalized?: string;
+  match_id: string;  // Les cartes avec le même match_id forment une paire
+}
+
+export interface MemoryMatchExerciseConfig extends ExerciseConfig {
+  type: 'memory_match';
+  cards: MemoryCard[];
+  time_limit_seconds?: number;
+}
+
+export interface MemoryMatchResult extends ExerciseResult {
+  type: 'memory_match';
+  matches_found: number;
+  total_pairs: number;
+  time_used_seconds: number;
+  moves_count: number;
 }

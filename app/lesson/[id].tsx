@@ -119,6 +119,9 @@ export default function LessonScreen() {
   // ── Hooks ────────────────────────────────────────────────
   const { data: lesson, isLoading: lessonLoading } = useLesson(id ?? '');
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
+  const lessonInModuleSortOrder = lesson?.sort_order != null && moduleSortOrder != null
+    ? Math.max(1, lesson.sort_order - ((moduleSortOrder - 1) * 6))
+    : 1;
   const moduleId = lesson?.module_id ?? '';
   const contentType: LessonSections['contentType'] =
     moduleId === MODULE_GRAMMAR_ID     ? 'grammar'      :
@@ -141,7 +144,7 @@ export default function LessonScreen() {
 
   // ── Module 1 : lettres ───────────────────────────────────
   const letterRange = contentType === 'letters' && lesson
-    ? (LESSON_LETTER_RANGES[lesson.sort_order] ?? null)
+    ? (LESSON_LETTER_RANGES[lessonInModuleSortOrder] ?? null)
     : null;
   const { data: lessonLetters, isLoading: lettersLoading } = useLettersForLesson(
     letterRange?.[0] ?? 0,
@@ -151,7 +154,7 @@ export default function LessonScreen() {
 
   // ── Module 2 : diacritiques ──────────────────────────────
   const diacriticSortOrders = contentType === 'diacritics' && lesson
-    ? (LESSON_DIACRITIC_RANGES[lesson.sort_order] ?? [])
+    ? (LESSON_DIACRITIC_RANGES[lessonInModuleSortOrder] ?? [])
     : [];
   const { data: lessonDiacritics, isLoading: diacriticsLoading } = useDiacriticsForLesson(diacriticSortOrders);
   const { data: allDiacritics } = useDiacritics();
@@ -163,14 +166,14 @@ export default function LessonScreen() {
 
   const wordTheme = useMemo(() => {
     if (contentType !== 'words' || !lesson) return null;
-    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
+    const wordConfig = LESSON_WORD_CONFIG[lessonInModuleSortOrder];
     return wordConfig?.type === 'theme' ? (wordConfig.theme ?? null) : null;
   }, [contentType, lesson?.sort_order]);
   const { data: themeWords, isLoading: themeWordsLoading } = useWordsByTheme(wordTheme);
 
   const lessonWords = useMemo(() => {
     if (contentType !== 'words' || !lesson) return [];
-    const wordConfig = LESSON_WORD_CONFIG[lesson.sort_order];
+    const wordConfig = LESSON_WORD_CONFIG[lessonInModuleSortOrder];
     if (!wordConfig) return [];
     if (wordConfig.type === 'simple' || wordConfig.type === 'solar_lunar') return simpleWords ?? [];
     if (wordConfig.type === 'theme') return themeWords ?? [];
@@ -220,7 +223,7 @@ export default function LessonScreen() {
   const syncAttempted = useRef(false);
 
   const sentenceConfig = contentType === 'sentences' && lesson
-    ? LESSON_SENTENCE_CONFIG[lesson.sort_order]
+    ? LESSON_SENTENCE_CONFIG[lessonInModuleSortOrder]
     : null;
   const dial0Id = sentenceConfig?.dialogueIds?.[0] ?? null;
   const dial1Id = sentenceConfig?.dialogueIds?.[1] ?? null;
@@ -273,11 +276,11 @@ export default function LessonScreen() {
     }
     if (contentType === 'diacritics') {
       if (!lessonDiacritics?.length || !allDiacritics?.length || !lesson) return { contentType: 'diacritics', sections: [] };
-      return generateHarakatLessonSections(lesson.sort_order, lessonDiacritics, allDiacritics, allLetters ?? []);
+      return generateHarakatLessonSections(lessonInModuleSortOrder, lessonDiacritics, allDiacritics, allLetters ?? []);
     }
     if (contentType === 'words') {
       if (!lesson || !allRoots) return { contentType: 'words', sections: [] };
-      return generateWordLessonSections(lesson.sort_order, lessonWords, allWords ?? [], allRoots);
+      return generateWordLessonSections(lessonInModuleSortOrder, lessonWords, allWords ?? [], allRoots);
     }
     if (contentType === 'grammar') {
       if (!grammarRules.length) return { contentType: 'grammar', sections: [] };
@@ -607,7 +610,7 @@ export default function LessonScreen() {
   }
 
   // ── ContentData pour SectionPlayer ───────────────────────
-  const wordConfig = contentType === 'words' && lesson ? LESSON_WORD_CONFIG[lesson.sort_order] : null;
+  const wordConfig = contentType === 'words' && lesson ? LESSON_WORD_CONFIG[lessonInModuleSortOrder] : null;
 
   const contentData = useMemo(() => ({
     letters: lessonLetters,

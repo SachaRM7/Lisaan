@@ -6,6 +6,7 @@ import {
   Text,
   ScrollView,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useModules } from '../../src/hooks/useModules';
 import { useLessons } from '../../src/hooks/useLessons';
 import { useProgress, useInitFirstLesson } from '../../src/hooks/useProgress';
+import { useDailyChallenges } from '../../src/hooks/useDailyChallenges';
 import { useAuthStore } from '../../src/stores/useAuthStore';
 import { supabase } from '../../src/db/remote';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -220,6 +222,8 @@ export default function LearnScreen() {
   useEffect(() => { handleModuleUnlock(3, module5Lessons, '🎉 Module 5 débloqué ! Découvre la grammaire essentielle.')(module5Unlocked); }, [module5Unlocked]);
   useEffect(() => { handleModuleUnlock(4, module6Lessons, '🎉 Module 6 débloqué ! Conjugue tes premiers verbes.')(module6Unlocked); }, [module6Unlocked]);
 
+  const { todayChallenge, isTodayCompleted } = useDailyChallenges();
+
   if (isLoading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background.main }} edges={['top']}>
@@ -272,25 +276,54 @@ export default function LearnScreen() {
             Lisaan
           </Text>
 
-          {/* Chip streak */}
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.xs,
-            backgroundColor: colors.background.card,
-            borderRadius: borderRadius.md,
-            paddingHorizontal: spacing.sm,
-            paddingVertical: spacing.micro,
-            ...shadows.subtle,
-          }}>
-            <Text style={{ fontSize: 14 }}>🔥</Text>
-            <Text style={{
-              fontFamily: typography.family.uiBold,
-              fontSize: typography.size.small,
-              color: colors.accent.gold,
+          {/* Chip streak + Daily Challenge */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            {/* Daily Challenge Button */}
+            {todayChallenge && (
+              <TouchableOpacity
+                onPress={() => router.push('/daily-challenge')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.xs,
+                  backgroundColor: isTodayCompleted ? colors.status.successLight : colors.accent.gold,
+                  borderRadius: borderRadius.md,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: spacing.micro,
+                  ...shadows.subtle,
+                }}
+              >
+                <Text style={{ fontSize: 14 }}>⚡</Text>
+                <Text style={{
+                  fontFamily: typography.family.uiBold,
+                  fontSize: typography.size.small,
+                  color: isTodayCompleted ? colors.status.success : colors.text.primary,
+                }}>
+                  {isTodayCompleted ? '✓' : 'Défi'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Streak */}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.xs,
+              backgroundColor: colors.background.card,
+              borderRadius: borderRadius.md,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: spacing.micro,
+              ...shadows.subtle,
             }}>
-              {userStats?.streak_current ?? 0}
-            </Text>
+              <Text style={{ fontSize: 14 }}>🔥</Text>
+              <Text style={{
+                fontFamily: typography.family.uiBold,
+                fontSize: typography.size.small,
+                color: colors.accent.gold,
+              }}>
+                {userStats?.streak_current ?? 0}
+              </Text>
+            </View>
           </View>
         </View>
 

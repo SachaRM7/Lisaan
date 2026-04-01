@@ -1,0 +1,40 @@
+361:   }, [contentType, lesson, lessonLetters, allLetters, exercise_direction,
+362:       lessonDiacritics, allDiacritics, lessonWords, allWords, allRoots,
+363:       lessonSentences, allSentences, sentenceConfig, dialoguesWithTurns,
+364:       grammarRules, contentRefs, lessonConjugations, allConjugations,
+365:       isPastConjugation, isPresentConjugation, presentConjugations,
+366:       dialogueScenarios]);
+367: 
+368:   // ── Init : détecter mode au chargement ───────────────────
+369:   const initDone = useRef(false);
+370:   useEffect(() => {
+371:     if (isLoading || !lesson || !userId || lessonSections.sections.length === 0 || initDon
+372:     initDone.current = true;
+373: 
+374:     async function init() {
+375:       const lessonId = id ?? '';
+376:       const [progress, session] = await Promise.all([
+377:         getLessonProgress(lessonId, userId!),
+378:         getLessonSession(lessonId, userId!),
+379:       ]);
+380: 
+381:       let status = (progress?.status ?? 'not_started') as string;
+382:       if (status === 'available' || status === 'locked') status = 'not_started';
+383:       const normalizedStatus = status as 'not_started' | 'in_progress' | 'completed';
+384:       setLessonStatus(normalizedStatus);
+385: 
+386:       if (normalizedStatus === 'not_started' && !session) {
+387:         // Première fois → démarrer directement en mode 'playing', section 0
+388:         const freshProgress: SectionProgress[] = lessonSections.sections.map(s => ({
+389:           sectionId: s.id,
+390:           teachingCompleted: false,
+391:           nextExerciseIndex: 0,
+392:           exerciseResults: [],
+393:           status: 'not_started' as const,
+394:         }));
+395:         const newSession: LessonSessionState = {
+396:           lessonId,
+397:           userId: userId!,
+398:           currentSectionIndex: 0,
+399:           sectionProgress: freshProgress,
+400:           updatedAt: new Date().toISOString(),

@@ -858,6 +858,80 @@ export async function upsertDialogueScenarios(scenarios: any[]): Promise<void> {
   }
 }
 
+// ── Daily Challenges (É15) ─────────────────────────────────────────
+
+export async function upsertDailyChallenges(challenges: any[]): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  for (const c of challenges) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO daily_challenges
+         (id, challenge_date, title_fr, title_ar, theme, exercise_refs, xp_reward, badge_reward, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        c.id,
+        c.challenge_date,
+        c.title_fr,
+        c.title_ar ?? null,
+        c.theme,
+        JSON.stringify(c.exercise_refs),
+        c.xp_reward ?? 100,
+        c.badge_reward ?? null,
+        c.created_at ?? now,
+      ]
+    );
+  }
+}
+
+export async function getTodayChallenge(): Promise<any | null> {
+  const db = getLocalDB();
+  const today = new Date().toISOString().split('T')[0];
+  const row = await db.getFirstAsync<any>(
+    'SELECT * FROM daily_challenges WHERE challenge_date = ?',
+    [today]
+  );
+  if (!row) return null;
+  return {
+    ...row,
+    exercise_refs: JSON.parse(row.exercise_refs ?? '{}'),
+  };
+}
+
+export async function getAllChallenges(): Promise<any[]> {
+  const db = getLocalDB();
+  const rows = await db.getAllAsync<any>(
+    'SELECT * FROM daily_challenges ORDER BY challenge_date ASC'
+  );
+  return rows.map(r => ({
+    ...r,
+    exercise_refs: JSON.parse(r.exercise_refs ?? '{}'),
+  }));
+}
+
+export async function getDailyChallengeProgress(userId: string, challengeId: string): Promise<any | null> {
+  const db = getLocalDB();
+  return db.getFirstAsync<any>(
+    'SELECT * FROM daily_challenge_progress WHERE user_id = ? AND challenge_id = ?',
+    [userId, challengeId]
+  );
+}
+
+export async function upsertDailyChallengeProgress(
+  userId: string,
+  challengeId: string,
+  score: number,
+  xpEarned: number
+): Promise<void> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO daily_challenge_progress
+       (challenge_id, user_id, completed_at, score, xp_earned, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [challengeId, userId, now, score, xpEarned, now]
+  );
+}
+
 export async function getDialogueScenariosByLesson(lessonId: string): Promise<any[]> {
   const db = getLocalDB();
   const rows = await db.getAllAsync<any>(

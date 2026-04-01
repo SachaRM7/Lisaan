@@ -1,0 +1,50 @@
+601:   // ── SectionPlayer back ────────────────────────────────────
+602:   function handleSectionBack() {
+603:     // La session est déjà sauvegardée en continu → on affiche le hub
+604:     if (lessonStatus === 'completed') {
+605:       setMode('hub');
+606:     } else {
+607:       setLessonStatus('in_progress');
+608:       setMode('hub');
+609:     }
+610:   }
+611: 
+612:   // ── ContentData pour SectionPlayer ───────────────────────
+613:   const wordConfig = contentType === 'words' && lesson ? LESSON_WORD_CONFIG[less
+614: 
+615:   const contentData = useMemo(() => ({
+616:     letters: lessonLetters,
+617:     diacritics: lessonDiacritics,
+618:     words: lessonWords,
+619:     roots: allRoots ?? [],
+620:     sentences: lessonSentences,
+621:     dialogues: dialoguesWithTurns,
+622:     grammarRules: grammarRules,
+623:     conjugationEntries: lessonConjugations,
+624:     wordConfigType: wordConfig?.type,
+625:     sentenceConfigType: sentenceConfig?.type,
+626:     lessonSortOrder: lesson?.sort_order,
+627:   }), [lessonLetters, lessonDiacritics, lessonWords, allRoots, lessonSentences,
+628:        dialoguesWithTurns, grammarRules, lessonConjugations,
+629:        wordConfig?.type, sentenceConfig?.type, lesson?.sort_order]);
+630: 
+631:   // ── Résultat de leçon ─────────────────────────────────────
+632:   async function handleContinue() {
+633:     if (!id) { router.replace('/(tabs)/learn'); return; }
+634:     const uid = useAuthStore.getState().effectiveUserId();
+635: 
+636:     await completeLesson.mutateAsync({
+637:       lessonId: id,
+638:       score: finalScore,
+639:       timeSpentSeconds: finalTime,
+640:     });
+641: 
+642:     if (!uid) { router.replace('/(tabs)/learn'); return; }
+643: 
+644:     const moduleId = lesson?.module_id;
+645:     const isModuleComplete = moduleId ? await checkIfModuleComplete(moduleId, ui
+646:     const completedCount = await getCompletedLessonsCount(uid);
+647:     const newBadges = await checkBadges({
+648:       lessonCount: completedCount,
+649:       completedModuleId: isModuleComplete && moduleId ? moduleId : undefined,
+650:       isPerfectScore: finalScore === 100,

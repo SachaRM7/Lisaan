@@ -1,0 +1,16 @@
+
+  // ── Génération des sections ───────────────────────────────
+  const lessonSections = useMemo<LessonSections>(() => {
+    if (contentType === 'letters') {
+      if (!lessonLetters?.length || !allLetters?.length) return { contentType: 'letters', sections: [] };
+      return generateLetterLessonSections(lessonLetters, allLetters, exercise_direction);
+    }
+    if (contentType === 'diacritics') {
+      if (!lessonDiacritics?.length || !allDiacritics?.length || !lesson) return { contentType: 'diacritics', sections: [] };
+      return generateHarakatLessonSections(lessonInModuleSortOrder, lessonDiacritics, allDiacritics, allLetters ?? []);
+    }
+    if (contentType === 'words') {
+      if (!lesson || !allRoots) return { contentType: 'words', sections: [] };
+      return generateWordLessonSections(lessonInModuleSortOrder, lessonWords, allWords ?? [], allRoots);
+    }
+    if (contentType === 'grammar') {

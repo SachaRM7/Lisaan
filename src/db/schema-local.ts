@@ -377,6 +377,34 @@ export async function initLocalSchema(): Promise<void> {
       UNIQUE(lesson_id, user_id)
     );
 
+    -- ============================================================
+    -- TABLE DÉFI QUOTIDIEN (É15)
+    -- ============================================================
+    CREATE TABLE IF NOT EXISTS daily_challenges (
+      id              TEXT PRIMARY KEY,
+      challenge_date  TEXT NOT NULL UNIQUE,
+      title_fr        TEXT NOT NULL,
+      title_ar        TEXT,
+      theme           TEXT NOT NULL,
+      exercise_refs   TEXT NOT NULL,   -- JSON stringifié
+      xp_reward       INTEGER NOT NULL DEFAULT 100,
+      badge_reward    TEXT,
+      created_at      TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_dc_date ON daily_challenges(challenge_date);
+
+    CREATE TABLE IF NOT EXISTS daily_challenge_progress (
+      id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
+      challenge_id    TEXT NOT NULL,
+      user_id         TEXT NOT NULL,
+      completed_at    TEXT,
+      score           INTEGER DEFAULT 0,
+      xp_earned       INTEGER DEFAULT 0,
+      synced_at       TEXT,
+      UNIQUE(challenge_id, user_id)
+    );
+
   `);
 
   // ── Migrations additives (colonnes ajoutées après création initiale) ──
