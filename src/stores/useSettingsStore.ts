@@ -47,6 +47,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           haptic_feedback: !!data.haptic_feedback,
           analytics_enabled: analyticsEnabled,
           write_tolerance: data.write_tolerance ?? DEFAULT_SETTINGS.write_tolerance,
+          // É17 — notifications
+          notif_review_enabled: data.notif_review_enabled !== undefined
+            ? !!data.notif_review_enabled
+            : DEFAULT_SETTINGS.notif_review_enabled,
+          notif_hour: data.notif_hour ?? DEFAULT_SETTINGS.notif_hour,
+          notif_minute: data.notif_minute ?? DEFAULT_SETTINGS.notif_minute,
+          notif_challenge_enabled: data.notif_challenge_enabled !== undefined
+            ? !!data.notif_challenge_enabled
+            : DEFAULT_SETTINGS.notif_challenge_enabled,
+          notif_streak_risk_enabled: data.notif_streak_risk_enabled !== undefined
+            ? !!data.notif_streak_risk_enabled
+            : DEFAULT_SETTINGS.notif_streak_risk_enabled,
           isLoaded: true,
         });
         setAnalyticsEnabled(analyticsEnabled);

@@ -15,20 +15,20 @@ import { borderRadius as br, getShadows } from '../../src/constants/theme';
 // ─── Types ────────────────────────────────────────────────
 
 type TabIconName =
+  | 'home-outline' | 'home'
   | 'book-outline' | 'book'
-  | 'refresh-outline' | 'refresh'
   | 'person-outline' | 'person';
 
 const ICON_MAP: Record<string, [TabIconName, TabIconName]> = {
-  learn:   ['book-outline',   'book'],
-  review:  ['refresh-outline','refresh'],
-  profile: ['person-outline', 'person'],
+  index:    ['home-outline', 'home'],
+  parcours: ['book-outline',  'book'],
+  profile:  ['person-outline',  'person'],
 };
 
 const TAB_LABELS: Record<string, string> = {
-  learn:   'Apprendre',
-  review:  'Réviser',
-  profile: 'Profil',
+  index:    "Aujourd'hui",
+  parcours: 'Parcours',
+  profile:  'Profil',
 };
 
 // ─── Custom Floating Tab Bar ──────────────────────────────
@@ -54,7 +54,7 @@ function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
         style={[
           styles.pill,
           {
-            backgroundColor: `${colors.background.card}F2`, // ~95% opacité
+            backgroundColor: `${colors.background.card}F2`,
             borderRadius: br.pill,
             ...prominentShadow,
           },
@@ -86,14 +86,11 @@ function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               accessibilityState={{ selected: isFocused }}
               accessibilityLabel={label}
             >
-              {/* Icône */}
               <Ionicons
                 name={iconName}
                 size={24}
                 color={isFocused ? colors.brand.primary : colors.text.secondary}
               />
-
-              {/* Label */}
               <Text
                 style={[
                   styles.label,
@@ -109,8 +106,6 @@ function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
               >
                 {label}
               </Text>
-
-              {/* Dot or sous l'icône active */}
               {isFocused && (
                 <View
                   style={[
@@ -135,8 +130,8 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <FloatingTabBar {...props} />}
     >
-      <Tabs.Screen name="learn" />
-      <Tabs.Screen name="review" />
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="parcours" />
       <Tabs.Screen name="profile" />
     </Tabs>
   );
@@ -149,7 +144,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    // bottom est défini dynamiquement
   },
   pill: {
     height: 72,

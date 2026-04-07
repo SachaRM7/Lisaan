@@ -154,11 +154,9 @@ export function SpeedRoundExercise({
         {q.options.map((option, idx) => {
           const isSelected = selectedIndex === idx;
           const isCorrect = idx === q.correct_index;
-          let bgColor = colors.background.card;
-
-          if (isSelected) {
-            bgColor = isCorrect ? '#10B981' : '#EF4444';
-          }
+          const bgColor: string = isSelected
+            ? (isCorrect ? '#10B981' : '#EF4444')
+            : colors.background.card;
 
           return (
             <TouchableOpacity
@@ -177,13 +175,9 @@ export function SpeedRoundExercise({
               activeOpacity={0.7}
               disabled={selectedIndex !== null}
             >
-              <ArabicText
-                size="large"
-                harakatsMode="always"
-                style={{ color: isSelected ? colors.text.inverse : colors.text.heroArabic, textAlign: 'center' }}
-              >
+              <Text style={{ fontFamily: typography.family.arabic, fontSize: 36, lineHeight: 68, color: isSelected ? colors.text.inverse : colors.text.heroArabic, textAlign: 'center' }}>
                 {option}
-              </ArabicText>
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -229,7 +223,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   questionAr: {
-    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   optionsGrid: {
     flexDirection: 'row',

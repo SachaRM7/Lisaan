@@ -20,6 +20,12 @@ export interface UserSettings {
   haptic_feedback: boolean;
   analytics_enabled: boolean;
   write_tolerance: WriteTolerance;
+  // É17 — notifications
+  notif_review_enabled: boolean;
+  notif_hour: number;
+  notif_minute: number;
+  notif_challenge_enabled: boolean;
+  notif_streak_risk_enabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -34,4 +40,10 @@ export const DEFAULT_SETTINGS: UserSettings = {
   haptic_feedback: true,
   analytics_enabled: true,
   write_tolerance: 'normal',
+  // É17 — notifications
+  notif_review_enabled: true,
+  notif_hour: 18,
+  notif_minute: 0,
+  notif_challenge_enabled: true,
+  notif_streak_risk_enabled: true,
 };

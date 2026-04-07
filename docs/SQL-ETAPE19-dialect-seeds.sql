@@ -1,0 +1,71 @@
+-- ============================================================
+-- ÉTAPE 19 — Seed word_variants : dialectes levantin + khaliji
+-- ============================================================
+
+-- Levantin (شامي) — 30 entrées
+INSERT INTO word_variants (id, word_id, variant, arabic, arabic_vocalized, transliteration, notes_fr) VALUES
+(gen_random_uuid(), 'word-ana',      'levantine', 'أنا',    'أَنَا',     'ana',         'Identique MSA — accent différent'),
+(gen_random_uuid(), 'word-inta',     'levantine', 'إنتَ',   'إِنْتَ',    'inta',        'Masc. 2e pers. — MSA : أنتَ'),
+(gen_random_uuid(), 'word-inti',     'levantine', 'إنتِ',   'إِنْتِ',    'inti',        'Fém. 2e pers. — MSA : أنتِ'),
+(gen_random_uuid(), 'word-huwa',     'levantine', 'هوّه',   'هُوِّهْ',   'huwwe',       'MSA : هو (huwa)'),
+(gen_random_uuid(), 'word-hiya',     'levantine', 'هيّه',   'هِيِّهْ',   'hiyye',       'MSA : هي (hiya)'),
+(gen_random_uuid(), 'word-nahnu',    'levantine', 'نحنا',   'نِحْنَا',   'niḥna',       'MSA : نحن (naḥnu)'),
+(gen_random_uuid(), 'word-urid',     'levantine', 'بدّي',   'بَدِّي',    'baddī',       'Je veux — MSA : أريد (urīdu)'),
+(gen_random_uuid(), 'word-dhahab',   'levantine', 'راح',    'رَاحْ',     'rāḥ',         'Il est parti / Il va (futur) — MSA : ذهب / سيذهب'),
+(gen_random_uuid(), 'word-qadim',    'levantine', 'جاي',    'جَايْ',     'jāy',         'Qui vient / venant — MSA : قادم (qādim)'),
+(gen_random_uuid(), 'word-akala',    'levantine', 'آكل',    'آكُلْ',     'ākul',        'Je mange — MSA : آكل (āakulu)'),
+(gen_random_uuid(), 'word-uhibb',    'levantine', 'بحبّ',   'بْحَبّْ',   'bḥabb',       'J''aime — MSA : أحب (uḥibbu)'),
+(gen_random_uuid(), 'word-taarif',   'levantine', 'بتعرف',  'بْتْعَرَّفْ','btʕarraf',    'Tu connais — MSA : تعرف (taʕrifu)'),
+(gen_random_uuid(), 'word-amil',     'levantine', 'عبشتغل', 'عَمْبِشْتَغِلْ','ʕam-bištaghl','En train de travailler — MSA : أعمل'),
+(gen_random_uuid(), 'word-madha',    'levantine', 'شو',     'شُو',       'šū',          'Quoi — MSA : ماذا (mādhā)'),
+(gen_random_uuid(), 'word-kayfa',    'levantine', 'كيف',    'كِيفْ',     'kīf',         'Comment — MSA : كيف (accent différent)'),
+(gen_random_uuid(), 'word-ayna',     'levantine', 'وين',    'وِينْ',     'wēn',         'Où — MSA : أين (ayna)'),
+(gen_random_uuid(), 'word-limadha',  'levantine', 'ليش',    'لِيشْ',     'lēš',         'Pourquoi — MSA : لماذا (limādhā)'),
+(gen_random_uuid(), 'word-ism',      'levantine', 'شو اسمك','شُو إِسْمَكْ','šū ismak',   'Comment tu t''appelles — MSA : ما اسمك'),
+(gen_random_uuid(), 'word-kam',      'levantine', 'أدّيش',  'أَدِّيشْ',  'addēš',       'Combien — MSA : كم (kam)'),
+(gen_random_uuid(), 'word-jayyid',   'levantine', 'منيح',   'مْنِيحْ',   'mníḥ',        'Bien / bon — MSA : جيد (jayyid)'),
+(gen_random_uuid(), 'word-kathir',   'levantine', 'كتير',   'كْتِيرْ',   'ktīr',        'Beaucoup — MSA : كثير (kathīr)'),
+(gen_random_uuid(), 'word-qalil',    'levantine', 'شوي',    'شْوَيّ',    'šwayy',       'Un peu — MSA : قليل (qalīl)'),
+(gen_random_uuid(), 'word-alan',     'levantine', 'هلق',    'هَلَّقْ',   'halla''',     'Maintenant — MSA : الآن (al-ān)'),
+(gen_random_uuid(), 'word-lakin',    'levantine', 'بس',     'بَسْ',      'bas',         'Mais / seulement — MSA : لكن / فقط'),
+(gen_random_uuid(), 'word-hayya',    'levantine', 'يلا',    'يَلَّا',    'yalla',       'Allez ! On y va ! — MSA : هيا (hayā)'),
+(gen_random_uuid(), 'word-tafaddal', 'levantine', 'تفضّل',  'تْفَضَّلْ', 'tfaḍḍal',     'Je vous en prie / Entrez — MSA : تفضّل'),
+(gen_random_uuid(), 'word-laysa',    'levantine', 'ما في',  'مَا فِي',   'mā fī',       'Il n''y a pas — MSA : ليس هناك'),
+(gen_random_uuid(), 'word-indi',     'levantine', 'عندي',   'عِنْدِي',   'ʕandī',       'J''ai (possession) — MSA : عندي'),
+(gen_random_uuid(), 'word-taal',     'levantine', 'تعا',    'تَعَا',     'taʕa',        'Viens ! — MSA : تعال (taʕāl)'),
+(gen_random_uuid(), 'word-shukran',  'levantine', 'يسلمو',  'يِسْلَمُو', 'yislamu',     'Merci (levantin typique) — MSA : شكراً')
+ON CONFLICT DO NOTHING;
+
+-- Khaliji (خليجي) — 30 entrées
+INSERT INTO word_variants (id, word_id, variant, arabic, arabic_vocalized, transliteration, notes_fr) VALUES
+(gen_random_uuid(), 'word-ana',      'khaliji', 'أنا',    'أَنَا',     'ana',      'Identique MSA'),
+(gen_random_uuid(), 'word-inta',     'khaliji', 'إنتَ',   'إِنْتَ',    'inta',     'Masc. — MSA : أنت'),
+(gen_random_uuid(), 'word-inti',     'khaliji', 'إنتِ',   'إِنْتِ',    'inti',     'Fém. — aussi "چِ" (chi) dans certains pays du Golfe'),
+(gen_random_uuid(), 'word-huwa',     'khaliji', 'هو',     'هُوْ',      'hū',       'Identique MSA, prononciation tendue'),
+(gen_random_uuid(), 'word-nahnu',    'khaliji', 'إحنا',   'إِحْنَا',   'iḥna',     'Nous — MSA : نحن (naḥnu)'),
+(gen_random_uuid(), 'word-qala',     'khaliji', 'قال',    'قَالْ',     'gāl',      'Il a dit — Qaf → G (trait khaliji majeur)'),
+(gen_random_uuid(), 'word-astatia',  'khaliji', 'أقدر',   'أَقْدَرْ',  'agdar',    'Je peux — MSA : أستطيع (astaṭīʕu)'),
+(gen_random_uuid(), 'word-urid',     'khaliji', 'أبي',    'أَبِي',     'abī',      'Je veux — MSA : أريد (urīdu)'),
+(gen_random_uuid(), 'word-qama',     'khaliji', 'قام',    'قَامْ',     'gām',      'Il s''est levé / il a commencé à — MSA : قام'),
+(gen_random_uuid(), 'word-raa',      'khaliji', 'شايف',   'شَايِفْ',   'šāyif',    'Voyant / je vois — MSA : رأى (raʼā)'),
+(gen_random_uuid(), 'word-yurid',    'khaliji', 'يبي',    'يِبِي',     'yibī',     'Il veut — MSA : يريد (yurīdu)'),
+(gen_random_uuid(), 'word-madha',    'khaliji', 'إيش',    'إِيشْ',     'ēš',       'Quoi — MSA : ماذا (mādhā) — variante Golfe'),
+(gen_random_uuid(), 'word-ayna',     'khaliji', 'وين',    'وِينْ',     'wēn',      'Où — MSA : أين — commun Golfe et Levantin'),
+(gen_random_uuid(), 'word-limadha',  'khaliji', 'ليش',    'لِيشْ',     'lēš',      'Pourquoi — MSA : لماذا'),
+(gen_random_uuid(), 'word-kam',      'khaliji', 'قدّيش',  'قِدِّيشْ',  'giddēš',   'Combien — MSA : كم (kam)'),
+(gen_random_uuid(), 'word-min-ayna', 'khaliji', 'من وين', 'مِنْ وِينْ', 'min wēn',  'D''où — MSA : من أين (min ayna)'),
+(gen_random_uuid(), 'word-ahlan',    'khaliji', 'هالا',   'هَالَا',    'hālā',     'Bienvenue (affectueux) — MSA : أهلاً'),
+(gen_random_uuid(), 'word-ʕayal',    'khaliji', 'عيال',   'عَيَالْ',   'ʕayāl',    'Enfants / famille (Khaliji)'),
+(gen_random_uuid(), 'word-jayyid',   'khaliji', 'زين',    'زِينْ',     'zēn',      'Bien / bon — MSA : جيد (jayyid)'),
+(gen_random_uuid(), 'word-layujad',  'khaliji', 'ماكو',   'مَاكُو',    'māku',     'Il n''y a pas (Golfe) — MSA : لا يوجد'),
+(gen_random_uuid(), 'word-yujad',    'khaliji', 'آكو',    'آكُو',      'āku',      'Il y a (Golfe/Irak) — MSA : يوجد'),
+(gen_random_uuid(), 'word-hayya',    'khaliji', 'يلا',    'يَلَّا',    'yallah',   'Allez ! — commun à tous les dialectes'),
+(gen_random_uuid(), 'word-marhaba',  'khaliji', 'حيّاك',  'حَيَّاكْ',  'ḥayyāk',   'Bienvenue / Dieu vous salue — Golfe'),
+(gen_random_uuid(), 'word-hasan',    'khaliji', 'ماشي',   'مَاشِي',    'māšī',     'D''accord / OK — MSA : حسناً'),
+(gen_random_uuid(), 'word-undhur',   'khaliji', 'چوب',    'چُوبْ',     'čūb',      'Regarde / attention (Émiratis) — argotique'),
+(gen_random_uuid(), 'word-firash',   'khaliji', 'دوشك',   'دُوشَكْ',   'dūšak',    'Matelas (persan intégré) — MSA : فراش'),
+(gen_random_uuid(), 'word-shay',     'khaliji', 'شاي',    'شَايْ',     'šāy',      'Thé — identique MSA, boisson sociale centrale'),
+(gen_random_uuid(), 'word-qahwa',    'khaliji', 'قهوة',   'قَهْوَة',   'gahwa',    'Café (khaliji : café arabe cardamome) — Qaf → G'),
+(gen_random_uuid(), 'word-amsi',     'khaliji', 'البارحة', 'الْبَارِحَة', 'al-bārḥa', 'Hier — MSA : أمس (amsi)'),
+(gen_random_uuid(), 'word-ghadan',   'khaliji', 'باكر',   'بَاكِرْ',   'bākir',    'Demain (Golfe) — MSA : غداً (ghadan)')
+ON CONFLICT DO NOTHING;

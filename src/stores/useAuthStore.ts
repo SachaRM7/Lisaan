@@ -12,6 +12,7 @@ interface AuthState {
   email: string | null;         // email du compte auth (null si guest)
   authProvider: 'email' | 'google' | 'apple' | null;
   displayName: string | null;   // Pseudo/prénom saisi lors de l'inscription
+  isBetaTester: boolean;        // true si code bêta activé
 
   // Computed — source de vérité unique pour les opérations de données
   effectiveUserId: () => string | null;
@@ -25,6 +26,7 @@ interface AuthState {
     provider: 'email' | 'google' | 'apple'
   ) => void;
   setDisplayName: (name: string | null) => void;
+  setBetaTester: (value: boolean) => void;
   clearUser: () => void;
 }
 
@@ -37,6 +39,7 @@ export const useAuthStore = create<AuthState>()(
       email: null,
       authProvider: null,
       displayName: null,
+      isBetaTester: false,
 
       effectiveUserId: () => {
         const { isGuest, guestId, userId } = get();
@@ -65,6 +68,8 @@ export const useAuthStore = create<AuthState>()(
 
       setDisplayName: (name) => set({ displayName: name }),
 
+      setBetaTester: (value: boolean) => set({ isBetaTester: value }),
+
       clearUser: () =>
         set({
           userId: null,
@@ -73,6 +78,7 @@ export const useAuthStore = create<AuthState>()(
           email: null,
           authProvider: null,
           displayName: null,
+          isBetaTester: false,
         }),
     }),
     {
@@ -86,6 +92,7 @@ export const useAuthStore = create<AuthState>()(
         email: state.email,
         authProvider: state.authProvider,
         displayName: state.displayName,
+        isBetaTester: state.isBetaTester,
       }),
     }
   )

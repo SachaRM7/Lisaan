@@ -19,6 +19,7 @@ export interface BadgeCheckContext {
   streakDays?: number;         // Streak actuel en jours
   isPerfectScore?: boolean;    // Leçon complétée avec score 100%
   exerciseTimeMs?: number;     // Temps du dernier exercice MCQ en ms
+  lessonId?: string;          // ID de la leçon fraîchement terminée
 }
 
 interface BadgeRow {
@@ -71,6 +72,33 @@ export async function checkAndUnlockBadges(ctx: BadgeCheckContext): Promise<Badg
         // condition_value est le temps max en ms (ex: 3000 = 3s)
         shouldUnlock = ctx.exerciseTimeMs !== undefined && ctx.exerciseTimeMs <= badge.condition_value;
         break;
+
+      case 'lesson_complete': {
+        // Débloqué quand une leçon d'un module spécifique est terminée
+        // condition_target = module_id (ex: 'mod-levantine')
+        if (!ctx.lessonId || !badge.condition_target) break;
+        const lessonRow = await db.getFirstAsync<{ module_id: string }>(
+          `SELECT module_id FROM lessons WHERE id = ?`,
+          [ctx.lessonId]
+        );
+        shouldUnlock = lessonRow?.module_id === badge.condition_target;
+        break;
+      }
+
+      case 'dialect_count': {
+        // Débloqué quand N dialectes différents ont au moins 1 leçon terminée
+        // Nécessite une requête pour compter les modules dialectes distincts complétés
+        const dialectModules = await db.getAllAsync<{ module_id: string }>(`
+          SELECT DISTINCT l.module_id
+          FROM user_progress up
+          JOIN lessons l ON l.id = up.lesson_id
+          JOIN modules m ON m.id = l.module_id
+          WHERE up.user_id = ? AND up.completed = 1
+            AND m.id IN ('mod-darija', 'mod-egyptian', 'mod-levantine', 'mod-khaliji')
+        `, [userId]);
+        shouldUnlock = dialectModules.length >= badge.condition_value;
+        break;
+      }
     }
 
     if (shouldUnlock) {

@@ -8,7 +8,7 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { Colors } from '../src/constants/theme';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
 import { useOnboardingStore } from '../src/stores/useOnboardingStore';
@@ -20,7 +20,15 @@ import { initLocalSchema } from '../src/db/schema-local';
 import { needsContentSync, syncContentFromCloud } from '../src/engines/content-sync';
 import { startSyncListener } from '../src/engines/sync-manager';
 import { pullUserDataFromCloud } from '../src/engines/user-data-pull';
-import { seedConjugationSRSCards, seedGrammarSRSCards } from '../src/services/srs-seed';
+import { seedConjugationSRSCards, seedGrammarSRSCards, seedQuranSRSCards } from '../src/services/srs-seed';
+import {
+  requestNotificationPermissions,
+  scheduleReviewNotification,
+  scheduleChallengeReminder,
+  cancelNotificationsByType,
+  type NotificationType,
+} from '../src/services/notification-service';
+import * as Notifications from 'expo-notifications';
 import { ContentDownloadScreen } from '../src/components/ui/ContentDownloadScreen';
 import { NetworkErrorScreen } from '../src/components/NetworkErrorScreen';
 
@@ -47,6 +55,10 @@ export default function RootLayout() {
   const router = useRouter();
   const { isCompleted, isLoading, checkOnboardingStatus } = useOnboardingStore();
   const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const notifReviewEnabled = useSettingsStore((s) => s.notif_review_enabled);
+  const notifHour = useSettingsStore((s) => s.notif_hour);
+  const notifMinute = useSettingsStore((s) => s.notif_minute);
+  const notifChallengeEnabled = useSettingsStore((s) => s.notif_challenge_enabled);
   const isGuest = useAuthStore((s) => s.isGuest);
   const authUserId = useAuthStore((s) => s.userId);
   const effectiveUserId = useAuthStore((s) => s.effectiveUserId());
@@ -68,7 +80,7 @@ export default function RootLayout() {
   useEffect(() => { getPostHog(); }, []);
   useEffect(() => { if (effectiveUserId) identify(effectiveUserId); }, [effectiveUserId]);
 
-  // 1. Initialiser SQLite au démarrage
+  // 1. Initialiser SQLite au demarrage
   useEffect(() => {
     let unsubscribeSync: (() => void) | undefined;
 
@@ -92,9 +104,10 @@ export default function RootLayout() {
             Promise.all([
               seedConjugationSRSCards(uid),
               seedGrammarSRSCards(uid),
-            ]).then(([conj, gram]) => {
-              if (conj > 0 || gram > 0) {
-                console.log(`[SRS Seed] +${conj} conjugaisons, +${gram} grammaire`);
+              seedQuranSRSCards(uid),
+            ]).then(([conj, gram, quran]) => {
+              if (conj > 0 || gram > 0 || quran > 0) {
+                console.log(`[SRS Seed] +${conj} conjugaisons, +${gram} grammaire, +${quran} coran`);
               }
             }).catch(console.warn);
           }
@@ -114,7 +127,7 @@ export default function RootLayout() {
 
   // 3. Listener de session Supabase (Auth)
   useEffect(() => {
-    // Récupérer une session existante au démarrage
+    // Recuperer une session existante au demarrage
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         useAuthStore.getState().setAuthUser(
@@ -126,7 +139,7 @@ export default function RootLayout() {
       }
     });
 
-    // Écouter les changements de session
+    // Ecouter les changements de session
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         useAuthStore.getState().setAuthUser(
@@ -143,14 +156,50 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 4. Vérifier le statut d'onboarding et charger les réglages
+  // 4. Verifier le statut d'onboarding et charger les reglages
   useEffect(() => {
     if (!dbReady) return;
     checkOnboardingStatus();
     loadSettings();
   }, [dbReady]);
 
-  // 5. Cacher le splash screen une fois tout prêt
+  // 4b. Initialiser les notifications apres chargement des settings
+  useEffect(() => {
+    const settings = useSettingsStore.getState();
+    if (!settings.isLoaded) return;
+
+    (async () => {
+      const granted = await requestNotificationPermissions();
+      if (!granted) return;
+
+      if (notifReviewEnabled) {
+        await scheduleReviewNotification(notifHour, notifMinute);
+      } else {
+        await cancelNotificationsByType('daily_review');
+      }
+      if (notifChallengeEnabled) {
+        await scheduleChallengeReminder();
+      } else {
+        await cancelNotificationsByType('daily_challenge');
+      }
+    })();
+  }, [notifReviewEnabled, notifHour, notifMinute, notifChallengeEnabled]);
+
+  // 4c. Listener deep-link sur tap notification
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const type = response.notification.request.content.data?.type as NotificationType;
+      if (type === 'daily_review') {
+        router.push('/review-session');
+      } else if (type === 'daily_challenge') {
+        router.push('/(tabs)');
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // 5. Cacher le splash screen une fois tout pret
+  console.log('DEBUG ready:', { fontsLoaded, dbReady, isLoading });
   const allReady = fontsLoaded && dbReady && !isLoading;
   useEffect(() => {
     if (allReady) SplashScreen.hideAsync();
@@ -167,8 +216,8 @@ export default function RootLayout() {
       // Onboarding fait mais pas encore choisi Guest/Auth
       router.replace('/auth');
     } else {
-      // Guest ou Auth → Home
-      router.replace('/(tabs)/learn');
+      // Guest ou Auth -> Home
+      router.replace('/(tabs)');
     }
   }, [allReady, isCompleted, isGuest, authUserId]);
 
@@ -180,7 +229,11 @@ export default function RootLayout() {
             <NetworkErrorScreen onRetry={() => { setSyncError(false); setSyncing(false); setDbReady(false); }} />
           ) : syncing ? (
             <ContentDownloadScreen />
-          ) : !allReady ? null : (
+          ) : !allReady ? (
+            <View style={{flex:1,backgroundColor:Colors.bg,justifyContent:"center",alignItems:"center"}}>
+              <ActivityIndicator size="large" color={Colors.brand?.primary ?? "#2D6A4F"} />
+            </View>
+          ) : (
             <ErrorBoundary>
               <StatusBar style="dark" backgroundColor={Colors.bg} />
               <Stack

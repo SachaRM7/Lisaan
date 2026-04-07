@@ -8,6 +8,7 @@ import {
   upsertBadges,
   upsertGrammarRules, upsertConjugationEntries,
   upsertDialogueScenarios, upsertDailyChallenges,
+  upsertQuranEntries,
   getSyncMetadata, updateSyncMetadata,
 } from '../db/local-queries';
 import { prefetchAudio } from '../services/audio-cache-service';
@@ -270,6 +271,24 @@ export async function syncContentFromCloud(): Promise<ContentSyncResult> {
     result.errors.push(`daily_challenges: ${e.message}`);
   }
 
+  // --- Quran Entries (É17) ---
+  try {
+    const { data, error } = await supabase
+      .from('quran_entries')
+      .select('*')
+      .order('surah_number', { ascending: true })
+      .order('ayah_number', { ascending: true })
+      .order('word_position', { ascending: true });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      await upsertQuranEntries(data);
+      await updateSyncMetadata('quran_entries', data.length);
+      result.tables.quran_entries = { synced: data.length, skipped: false };
+    }
+  } catch (e: any) {
+    result.errors.push(`quran_entries: ${e.message}`);
+  }
+
   // Pré-téléchargement audio en arrière-plan (fire-and-forget)
   prefetchAudio().catch(err => console.warn('[content-sync] prefetch audio failed:', err));
 
@@ -288,6 +307,7 @@ export async function needsContentSync(): Promise<boolean> {
     'badges',
     'grammar_rules', 'conjugation_entries',
     'dialogue_scenarios', 'daily_challenges',
+    'quran_entries',
   ];
   for (const table of tables) {
     const meta = await getSyncMetadata(table);

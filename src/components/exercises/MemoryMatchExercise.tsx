@@ -1,10 +1,9 @@
 // src/components/exercises/MemoryMatchExercise.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useTheme } from '../../contexts/ThemeContext';
-import ArabicText from '../arabic/ArabicText';
 import type { ExerciseComponentProps, MemoryMatchResult, LocalizedText } from '../../types/exercise';
 
 interface MemoryMatchPair {
@@ -167,13 +166,9 @@ export function MemoryMatchExercise({
       >
         {isRevealed ? (
           card.isArabic ? (
-            <ArabicText
-              size="medium"
-              harakatsMode="always"
-              style={{ color: colors.text.heroArabic, textAlign: 'center' }}
-            >
+            <Text style={{ fontFamily: typography.family.arabic, fontSize: 28, color: colors.text.heroArabic, textAlign: 'center', lineHeight: 53 }}>
               {card.contentVocalized || card.content}
-            </ArabicText>
+            </Text>
           ) : (
             <Text style={{ fontSize: typography.size.body, fontFamily: typography.family.ui, color: colors.text.primary, textAlign: 'center' }}>
               {card.content}

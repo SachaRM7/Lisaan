@@ -71,7 +71,7 @@ export function ModuleCompleteScreen({
 
   const handleContinue = () => {
     if (onContinue) onContinue();
-    else router.replace('/(tabs)/learn');
+    else router.replace('/(tabs)');
   };
 
   return (

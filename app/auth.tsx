@@ -86,7 +86,7 @@ export default function AuthScreen() {
       router.replace('/(tabs)/profile' as any);
     } else {
       try { await upsertSettings(userId, DEFAULT_SETTINGS); } catch (_) {}
-      router.replace('/(tabs)/learn');
+      router.replace('/(tabs)');
     }
   }
 
@@ -100,7 +100,7 @@ export default function AuthScreen() {
     } catch (e) {
       console.warn('[Auth] upsertSettings guest error:', e);
     }
-    router.replace('/(tabs)/learn');
+    router.replace('/(tabs)');
   }
 
   // ── Inscription email ────────────────────────────────────────

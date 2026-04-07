@@ -15,7 +15,8 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "enterpriseProvisioning": "adhoc"
       },
       "android": {
         "buildType": "apk"

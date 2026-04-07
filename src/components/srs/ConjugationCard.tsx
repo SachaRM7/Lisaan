@@ -94,7 +94,7 @@ function RateButton({ label, quality, color, onPress }: {
   label: string; quality: 0 | 1 | 3 | 5; color: string;
   onPress: (q: 0 | 1 | 3 | 5) => void;
 }) {
-  const { colors, typography, spacing, borderRadius } = useTheme();
+  const { typography, spacing, borderRadius } = useTheme();
   return (
     <TouchableOpacity
       onPress={() => onPress(quality)}

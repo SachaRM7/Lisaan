@@ -16,11 +16,13 @@ import { SettingRow } from '../../src/components/settings/SettingRow';
 import { BottomSheet } from '../../src/components/ui/BottomSheet';
 import { RichSelectionRow } from '../../src/components/ui/RichSelectionRow';
 import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
+import { FeedbackWidget } from '../../src/components/ui/FeedbackWidget';
 import ArabicText from '../../src/components/arabic/ArabicText';
 import { clearAudioCache } from '../../src/services/audio-cache-service';
 import { supabase } from '../../src/db/remote';
 import { useBadges } from '../../src/hooks/useBadges';
 import { useAuthStore } from '../../src/stores/useAuthStore';
+import { isAdmin } from '../../src/utils/admin-check';
 import { useOnboardingStore } from '../../src/stores/useOnboardingStore';
 import { getLocalDB } from '../../src/db/local';
 import { devCompleteAllLessons, getCompletedLessonsCount } from '../../src/db/local-queries';
@@ -118,6 +120,7 @@ const SRS_TYPE_CONFIG = [
   { type: 'word',         label: 'Mots',           icon: 'كلمة' },
   { type: 'conjugation',  label: 'Conjugaisons',   icon: 'فعل' },
   { type: 'grammar_rule', label: 'Grammaire',      icon: 'قاعدة' },
+  { type: 'quran_word',   label: 'Coran',          icon: '📖' },
 ] as const;
 
 function SRSStatsSection() {
@@ -214,6 +217,67 @@ function SRSStatsSection() {
   );
 }
 
+function BetaSection({ betaProfile }: { betaProfile: { is_beta_tester: boolean; last_active_at?: string; current_streak?: number; total_xp?: number } | null }) {
+  const { colors, typography, spacing, borderRadius } = useTheme();
+
+  if (!betaProfile?.is_beta_tester) return null;
+
+  const lastActive = betaProfile?.last_active_at
+    ? new Date(betaProfile.last_active_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    : null;
+
+  return (
+    <>
+      {/* Beta badge + stats */}
+      <View style={{
+        backgroundColor: colors.brand.light,
+        borderRadius: borderRadius.lg,
+        padding: spacing.lg,
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.xl,
+        gap: spacing.base,
+        borderWidth: 1,
+        borderColor: colors.brand.primary + '33',
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Ionicons name="flask" size={18} color={colors.brand.primary} />
+          <Text style={{
+            fontFamily: typography.family.uiBold,
+            fontSize: typography.size.tiny,
+            color: colors.brand.dark,
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+          }}>
+            Zone Bêta
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: spacing.base }}>
+          <View style={{ flex: 1, backgroundColor: colors.background.card, borderRadius: borderRadius.md, padding: spacing.base, alignItems: 'center', gap: spacing.xs }}>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.brand.primary }}>
+              {betaProfile?.current_streak ?? 0}
+            </Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary }}>
+              Jours de suite
+            </Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: colors.background.card, borderRadius: borderRadius.md, padding: spacing.base, alignItems: 'center', gap: spacing.xs }}>
+            <Text style={{ fontFamily: typography.family.uiBold, fontSize: typography.size.h2, color: colors.brand.primary }}>
+              {lastActive ?? '—'}
+            </Text>
+            <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.tiny, color: colors.text.secondary }}>
+              Dernière connexion
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Feedback widget */}
+      <FeedbackWidget />
+    </>
+  );
+}
+
 function StatDivider({ height }: { height: number }) {
   const { colors } = useTheme();
   return <View style={{ width: 1, height, backgroundColor: colors.border.subtle, alignSelf: 'center' }} />;
@@ -283,6 +347,21 @@ export default function ProfileScreen() {
       const { data } = await supabase
         .from('users')
         .select('display_name, streak_current, streak_longest, total_xp, daily_goal_minutes, created_at')
+        .eq('id', userId)
+        .single();
+      return data;
+    },
+    enabled: !!userId,
+  });
+
+  // Beta stats from user_profiles table
+  const { data: betaProfile } = useQuery({
+    queryKey: ['beta_profile', userId],
+    queryFn: async () => {
+      if (!userId) return null;
+      const { data } = await supabase
+        .from('user_profiles')
+        .select('is_beta_tester, last_active_at, current_streak, total_xp')
         .eq('id', userId)
         .single();
       return data;
@@ -513,6 +592,9 @@ export default function ProfileScreen() {
         {/* ── PROGRESSION SRS ── */}
         <SRSStatsSection />
 
+        {/* ── BETA ZONE ── */}
+        <BetaSection betaProfile={betaProfile ?? null} />
+
         {/* ── MES ACCOMPLISSEMENTS ── */}
         <View style={{
           backgroundColor: colors.background.group,
@@ -695,6 +777,57 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
+          {/* ── Rappels ── */}
+          <Text style={sectionTitleStyle}>RAPPELS</Text>
+          <View style={sectionCardStyle}>
+            <SettingRow
+              label="Révision quotidienne"
+              type="toggle"
+              isOn={store.notif_review_enabled}
+              onToggle={(v) => store.updateSetting('notif_review_enabled', v)}
+            />
+            {store.notif_review_enabled && (
+              <>
+                <View style={separatorStyle} />
+                <SettingRow
+                  label="Heure du rappel"
+                  type="select"
+                  options={Array.from({ length: 24 }, (_, i) => ({
+                    value: String(i),
+                    label: `${String(i).padStart(2, '0')}h`,
+                  }))}
+                  selectedValue={String(store.notif_hour)}
+                  onSelect={(v) => store.updateSetting('notif_hour', Number(v))}
+                />
+                <View style={separatorStyle} />
+                <SettingRow
+                  label="Minute"
+                  type="select"
+                  options={[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => ({
+                    value: String(m),
+                    label: String(m).padStart(2, '0'),
+                  }))}
+                  selectedValue={String(store.notif_minute)}
+                  onSelect={(v) => store.updateSetting('notif_minute', Number(v))}
+                />
+              </>
+            )}
+            <View style={separatorStyle} />
+            <SettingRow
+              label="Défi quotidien"
+              type="toggle"
+              isOn={store.notif_challenge_enabled}
+              onToggle={(v) => store.updateSetting('notif_challenge_enabled', v)}
+            />
+            <View style={separatorStyle} />
+            <SettingRow
+              label="Alerte streak à risque"
+              type="toggle"
+              isOn={store.notif_streak_risk_enabled}
+              onToggle={(v) => store.updateSetting('notif_streak_risk_enabled', v)}
+            />
+          </View>
+
           {/* ── Objectif ── */}
           <Text style={sectionTitleStyle}>OBJECTIF</Text>
           <View style={sectionCardStyle}>
@@ -708,6 +841,23 @@ export default function ProfileScreen() {
           {/* ── Compte ── */}
           <Text style={sectionTitleStyle}>COMPTE</Text>
           <View style={sectionCardStyle}>
+            {isAdmin(authEmail) && (
+              <>
+                <Pressable
+                  style={accountRowStyle}
+                  onPress={() => router.push('/(tabs)/analytics' as any)}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <Ionicons name="analytics-outline" size={20} color={colors.brand.primary} />
+                    <Text style={{ flex: 1, fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.brand.primary }}>
+                      Statistiques détaillées
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.text.secondary} />
+                  </View>
+                </Pressable>
+                <View style={separatorStyle} />
+              </>
+            )}
             <Pressable style={accountRowStyle} onPress={handleReset}>
               <Text style={{ fontFamily: typography.family.ui, fontSize: typography.size.body, color: colors.text.primary }}>
                 Réinitialiser les réglages

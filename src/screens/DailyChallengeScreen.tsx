@@ -96,7 +96,7 @@ export function DailyChallengeScreen({ onComplete }: DailyChallengeScreenProps) 
 
   const handleContinue = () => {
     if (onComplete) onComplete();
-    else router.replace('/(tabs)/learn');
+    else router.replace('/(tabs)');
   };
 
   if (loading) {

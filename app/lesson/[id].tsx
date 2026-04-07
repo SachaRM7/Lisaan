@@ -403,6 +403,7 @@ export default function LessonScreen() {
         setSessionState(newSession);
         setCurrentSectionIndex(0);
         setMode('playing');
+        track('lesson_started', { lesson_id: lessonId, module_id: lesson?.module_id });
       } else if (session) {
         // Session existante → hub
         setSessionState(session);
@@ -431,6 +432,7 @@ export default function LessonScreen() {
         setSessionState(newSession);
         setCurrentSectionIndex(0);
         setMode('playing');
+        track('lesson_started', { lesson_id: lessonId, module_id: lesson?.module_id });
       }
     }
     init();
@@ -562,6 +564,7 @@ export default function LessonScreen() {
     setReplayMode(undefined);
     setCurrentSectionIndex(sectionIndex);
     setMode('playing');
+    track('lesson_started', { lesson_id: id ?? '', module_id: lesson?.module_id });
   }
 
   function handleReplayTeaching(sectionIndex: number) {
@@ -569,6 +572,7 @@ export default function LessonScreen() {
     setCurrentSectionIndex(sectionIndex);
     setPlayerKey(k => k + 1);
     setMode('playing');
+    track('lesson_started', { lesson_id: id ?? '', module_id: lesson?.module_id });
   }
 
   function handleReplayExercises(sectionIndex: number) {
@@ -601,6 +605,7 @@ export default function LessonScreen() {
     setReplayMode(undefined);
     startTime.current = Date.now();
     setMode('playing');
+    track('lesson_started', { lesson_id: id ?? '', module_id: lesson?.module_id });
   }
 
   // ── SectionPlayer back ────────────────────────────────────
@@ -635,7 +640,7 @@ export default function LessonScreen() {
 
   // ── Résultat de leçon ─────────────────────────────────────
   async function handleContinue() {
-    if (!id) { router.replace('/(tabs)/learn'); return; }
+    if (!id) { router.replace('/(tabs)'); return; }
     const uid = useAuthStore.getState().effectiveUserId();
 
     await completeLesson.mutateAsync({
@@ -644,7 +649,7 @@ export default function LessonScreen() {
       timeSpentSeconds: finalTime,
     });
 
-    if (!uid) { router.replace('/(tabs)/learn'); return; }
+    if (!uid) { router.replace('/(tabs)'); return; }
 
     const moduleId = lesson?.module_id;
     const isModuleComplete = moduleId ? await checkIfModuleComplete(moduleId, uid) : false;
@@ -675,7 +680,7 @@ export default function LessonScreen() {
       pendingBadges.current = [...newBadges];
       setCurrentBadge(pendingBadges.current.shift() ?? null);
     } else {
-      router.replace('/(tabs)/learn');
+      router.replace('/(tabs)');
     }
   }
 
@@ -685,7 +690,7 @@ export default function LessonScreen() {
       setCurrentBadge(next);
     } else {
       setCurrentBadge(null);
-      router.replace('/(tabs)/learn');
+      router.replace('/(tabs)');
     }
   }
 

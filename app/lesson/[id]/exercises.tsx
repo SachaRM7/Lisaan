@@ -45,6 +45,9 @@ import {
   getModuleStats,
 } from '../../../src/db/local-queries';
 import { track } from '../../../src/analytics/posthog';
+import { useQuranEntriesBySurah, type QuranEntry } from '../../../src/hooks/useQuranEntries';
+import { SurahDisplay } from '../../../src/components/arabic/SurahDisplay';
+import { QuranWordCard } from '../../../src/components/arabic/QuranWordCard';
 
 const LESSON_LETTER_RANGES: Record<number, [number, number]> = {
   1: [1, 4], 2: [5, 7], 3: [8, 11], 4: [12, 15],
@@ -60,7 +63,7 @@ function getEncouragement(pct: number): string {
 export default function ExercisesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { colors, typography, borderRadius, shadows } = useTheme();
+  const { colors, typography, borderRadius, shadows, spacing } = useTheme();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<ExerciseResult[]>([]);
   const [phase, setPhase] = useState<'exercises' | 'results'>('exercises');
@@ -77,12 +80,25 @@ export default function ExercisesScreen() {
   const [currentBadge, setCurrentBadge] = useState<BadgeUnlock | null>(null);
   const pendingBadges = useRef<BadgeUnlock[]>([]);
   const [showStreak, setShowStreak] = useState(false);
+  const [selectedQuranWord, setSelectedQuranWord] = useState<QuranEntry | null>(null);
 
   const { data: lesson } = useLesson(id ?? '');
+
+  // Track lesson started
+  useEffect(() => {
+    if (lesson?.id) {
+      track('lesson_started', {
+        lesson_id: lesson.id,
+        module_id: lesson.module_id,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson]);
   const moduleSortOrder = (lesson?.modules as { sort_order: number } | undefined)?.sort_order ?? 1;
   const contentType = moduleSortOrder === 2 ? 'diacritics'
     : moduleSortOrder === 3 ? 'words'
     : moduleSortOrder === 4 ? 'sentences'
+    : lesson?.module_id === 'mod-quran' ? 'quran'
     : 'letters';
 
   // ── Module 1 : lettres ──────────────────────────────────────
@@ -117,6 +133,19 @@ export default function ExercisesScreen() {
   const { data: dial0 } = useDialogueWithTurns(dial0Id);
   const { data: dial1 } = useDialogueWithTurns(dial1Id);
   const { data: dial2 } = useDialogueWithTurns(dial2Id);
+
+  // ── Module coranique : extraire le n° de sourate depuis content_refs ─
+  const quranSurahNumber = useMemo<number | null>(() => {
+    if (contentType !== 'quran' || !lesson?.content_refs) return null;
+    try {
+      const refs: string[] = JSON.parse(lesson.content_refs);
+      return refs.length > 0 ? parseInt(refs[0], 10) : null;
+    } catch {
+      return null;
+    }
+  }, [contentType, lesson?.content_refs]);
+
+  const { data: quranEntries } = useQuranEntriesBySurah(quranSurahNumber ?? 0);
 
   const wordTheme = useMemo(() => {
     if (contentType !== 'words' || !lesson) return null;
@@ -297,7 +326,7 @@ export default function ExercisesScreen() {
         <Text style={{ fontSize: typography.size.body, fontFamily: typography.family.ui, color: colors.text.secondary }}>
           Chargement de la leçon...
         </Text>
-        <Text style={{ fontSize: typography.size.caption, fontFamily: typography.family.ui, color: colors.text.secondary, marginTop: 8 }}>
+        <Text style={{ fontSize: typography.size.tiny, fontFamily: typography.family.ui, color: colors.text.secondary, marginTop: 8 }}>
           ID: {id}
         </Text>
       </SafeAreaView>
@@ -314,7 +343,7 @@ export default function ExercisesScreen() {
     const earnedXP = calculateLessonXP(baseXP, pct);
 
     async function handleContinue() {
-      if (!id) { router.replace('/(tabs)/learn'); return; }
+      if (!id) { router.replace('/(tabs)'); return; }
       const userId = useAuthStore.getState().effectiveUserId();
 
       // 1. Marquer la leçon complétée
@@ -324,7 +353,7 @@ export default function ExercisesScreen() {
         timeSpentSeconds: totalTime,
       });
 
-      if (!userId) { router.replace('/(tabs)/learn'); return; }
+      if (!userId) { router.replace('/(tabs)'); return; }
 
       // 2. Vérifier si le module est complété
       const moduleId = lesson?.module_id;
@@ -339,6 +368,7 @@ export default function ExercisesScreen() {
         completedModuleId: isModuleComplete && moduleId ? moduleId : undefined,
         isPerfectScore: pct === 100,
         streakDays: updatedStreakCurrent ?? undefined,
+        lessonId: id ?? undefined,
       });
 
       // 4. Module complété → écran de célébration
@@ -364,7 +394,7 @@ export default function ExercisesScreen() {
         pendingBadges.current = [...newBadges];
         setCurrentBadge(pendingBadges.current.shift() ?? null);
       } else {
-        router.replace('/(tabs)/learn');
+        router.replace('/(tabs)');
       }
     }
 
@@ -374,7 +404,7 @@ export default function ExercisesScreen() {
         setCurrentBadge(next);
       } else {
         setCurrentBadge(null);
-        router.replace('/(tabs)/learn');
+        router.replace('/(tabs)');
       }
     }
 
@@ -480,6 +510,80 @@ export default function ExercisesScreen() {
   // ── Écran d'exercice ───────────────────────────────────────
   const currentExercise = exercises[currentIndex];
 
+  // ── Écran leçon coranique (lecture de la sourate) ──────────
+  if (contentType === 'quran' && quranEntries && quranEntries.length > 0) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+            <Text style={styles.backArrow}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{lesson?.title_fr}</Text>
+          <View style={styles.backBtn} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{ padding: Layout.screenPaddingH, paddingBottom: 100 }}
+          style={{ flex: 1 }}
+        >
+          <SurahDisplay
+            surahNumber={quranSurahNumber ?? 0}
+            showTransliteration={true}
+            showTranslation={true}
+            onWordTap={(entry) => setSelectedQuranWord(entry)}
+          />
+
+          {/* Bouton pour créer les cartes SRS puis terminer */}
+          <View style={{ marginTop: spacing.xl, alignItems: 'center' }}>
+            <Button
+              label="Créer les cartes de révision"
+              variant="primary"
+              onPress={async () => {
+                const userId = useAuthStore.getState().effectiveUserId();
+                if (userId) {
+                  await createSRSCardsForItems(quranEntries.map(e => e.id), 'quran_word');
+                }
+                // Pour les leçons coraniques : pas d'exercices, completion directe
+                await completeLesson.mutateAsync({
+                  lessonId: id as string,
+                  score: 100,
+                  timeSpentSeconds: Math.round((Date.now() - startTime) / 1000),
+                });
+                router.replace('/(tabs)');
+              }}
+              style={{ width: '100%' }}
+            />
+          </View>
+        </ScrollView>
+
+        {/* Modal mot coranique */}
+        {selectedQuranWord && (
+          <View style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: colors.background.card,
+            borderTopLeftRadius: borderRadius.lg,
+            borderTopRightRadius: borderRadius.lg,
+            padding: spacing.lg,
+            borderTopWidth: 1,
+            borderColor: colors.border.subtle,
+            ...shadows.medium,
+          }}>
+            <TouchableOpacity
+              onPress={() => setSelectedQuranWord(null)}
+              style={{ alignSelf: 'flex-end', marginBottom: spacing.sm }}
+            >
+              <Ionicons name="close-circle" size={28} color={colors.text.secondary} />
+            </TouchableOpacity>
+            <QuranWordCard entry={selectedQuranWord} showTajwidNotes={true} />
+          </View>
+        )}
+      </SafeAreaView>
+    );
+  }
+
   if (!currentExercise) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -509,8 +613,8 @@ export default function ExercisesScreen() {
   );
 }
 
-/** Crée les cartes SRS pour un lot d'items (diacritics ou words) dans SQLite local */
-async function createSRSCardsForItems(itemIds: string[], itemType: 'diacritic' | 'word' | 'sentence'): Promise<void> {
+/** Crée les cartes SRS pour un lot d'items (diacritics, words, sentences ou quran_words) dans SQLite local */
+async function createSRSCardsForItems(itemIds: string[], itemType: 'diacritic' | 'word' | 'sentence' | 'quran_word'): Promise<void> {
   const { useAuthStore } = await import('../../../src/stores/useAuthStore');
   const userId = useAuthStore.getState().effectiveUserId();
   if (!userId) return;

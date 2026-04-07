@@ -21,7 +21,7 @@
 export interface SRSCard {
   id: string;
   user_id: string;
-  item_type: 'letter' | 'diacritic' | 'word' | 'sentence' | 'conjugation' | 'grammar_rule';
+  item_type: 'letter' | 'diacritic' | 'word' | 'sentence' | 'conjugation' | 'grammar_rule' | 'quran_word';
   item_id: string;
   ease_factor: number;      // Défaut: 2.5
   interval_days: number;    // Intervalle avant prochaine révision

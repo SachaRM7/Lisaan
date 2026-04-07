@@ -75,3 +75,38 @@ export async function seedGrammarSRSCards(userId: string): Promise<number> {
   }
   return inserted;
 }
+
+export async function seedQuranSRSCards(userId: string): Promise<number> {
+  const db = getLocalDB();
+  const now = new Date().toISOString();
+
+  const words = await db.getAllAsync<{
+    id: string;
+    arabic_vocalized: string;
+    translation_fr: string;
+    surah_name_fr: string;
+    ayah_number: number;
+  }>(
+    `SELECT qe.id, qe.arabic_vocalized, qe.translation_fr, qe.surah_name_fr, qe.ayah_number
+     FROM quran_entries qe
+     LEFT JOIN srs_cards sc
+       ON sc.item_id = qe.id AND sc.item_type = 'quran_word' AND sc.user_id = ?
+     WHERE sc.id IS NULL`,
+    [userId],
+  );
+
+  let inserted = 0;
+  for (const word of words) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO srs_cards
+         (id, user_id, item_type, item_id,
+          ease_factor, interval_days, repetitions,
+          next_review_at, last_review_at, last_quality,
+          updated_at, synced_at)
+       VALUES (?, ?, 'quran_word', ?, 2.5, 0, 0, ?, NULL, 0, ?, NULL)`,
+      [`${userId}-quran_word-${word.id}`, userId, word.id, now, now],
+    );
+    inserted++;
+  }
+  return inserted;
+}

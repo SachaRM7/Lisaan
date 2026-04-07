@@ -1,3 +1,4 @@
+// @deprecated É20 — Remplacé par index.tsx (naviguation restructurée en 3 onglets)
 // app/(tabs)/learn.tsx
 // Layout Bento : HeroModuleCard (full-width) + grille carrée complétés/verrouillés
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -37,7 +38,7 @@ function isModuleUnlocked(
 ): boolean {
   if (moduleSortOrder === 1) return true;
   const previousModule = modules.find(m => m.sort_order === moduleSortOrder - 1);
-  if (!previousModule) return false;
+  if (!previousModule) return true; // Pas de prédécesseur direct → module bonus, toujours accessible
   const previousProgress = progressByModule[previousModule.id] ?? [];
   const previousCompleted = previousProgress.filter(p => p.status === 'completed').length;
   const previousTotal = lessonCountByModule[previousModule.id] ?? 0;
@@ -350,14 +351,7 @@ export default function LearnScreen() {
           <View style={{ marginTop: spacing.lg, gap: spacing.base }}>
             {gridPairs.map(([m1, m2], pairIndex) => {
               const m1Unlocked = isModuleUnlocked(m1.sort_order, progressByModule, allModules, lessonCountByModule);
-              const m1Total = lessonCountByModule[m1.id] ?? 0;
-              const m1Completed = (progressByModule[m1.id] ?? []).filter(p => p.status === 'completed').length;
-              const m1Done = m1Unlocked && m1Total > 0 && m1Completed >= m1Total;
-
               const m2Unlocked = m2 ? isModuleUnlocked(m2.sort_order, progressByModule, allModules, lessonCountByModule) : false;
-              const m2Total = m2 ? (lessonCountByModule[m2.id] ?? 0) : 0;
-              const m2Completed = m2 ? (progressByModule[m2.id] ?? []).filter(p => p.status === 'completed').length : 0;
-              const m2Done = m2 && m2Unlocked && m2Total > 0 && m2Completed >= m2Total;
 
               return (
                 <View key={`pair-${pairIndex}`} style={{ flexDirection: 'row', gap: spacing.base }}>

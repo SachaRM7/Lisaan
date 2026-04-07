@@ -285,3 +285,58 @@ export const Layout = {
 
 /** @deprecated Utiliser `animation` */
 export const Animation = animation;
+
+// ─── Variant Themes ────────────────────────────────────────
+
+/**
+ * Identité visuelle par univers d'apprentissage.
+ * Les clés correspondent aux valeurs `variant` en base (modules, word_variants).
+ * quranic = arabe coranique (cls/quranic)
+ */
+export const variantThemes = {
+  msa: {
+    accent: '#0F624C',      // Émeraude — identique au brand primary
+    accentLight: '#E5EFEB',
+    label: 'Arabe Standard',
+    labelAr: 'العربية الفصحى',
+    icon: 'book-open' as const,
+  },
+  darija: {
+    accent: '#E2725B',      // Terre cuite
+    accentLight: '#FBEEE8',
+    label: 'Darija',
+    labelAr: 'الدارجة المغربية',
+    icon: 'message-circle' as const,
+  },
+  egyptian: {
+    accent: '#D4944C',      // Ocre chaud
+    accentLight: '#FBF3E8',
+    label: 'Égyptien',
+    labelAr: 'العامية المصرية',
+    icon: 'message-circle' as const,
+  },
+  levantine: {
+    accent: '#5D8AA8',      // Bleu air force
+    accentLight: '#EBF1F5',
+    label: 'Levantin',
+    labelAr: 'الشامي',
+    icon: 'message-circle' as const,
+  },
+  khaliji: {
+    accent: '#8B7355',      // Sable foncé
+    accentLight: '#F5F0E8',
+    label: 'Khaliji',
+    labelAr: 'الخليجي',
+    icon: 'message-circle' as const,
+  },
+  quranic: {
+    accent: '#D4AF37',      // Or
+    accentLight: '#0A3D30',  // Dark emerald (fond sombre)
+    background: '#0A3D30', // Fond sombre dédié
+    label: 'Arabe Coranique',
+    labelAr: 'القرآن الكريم',
+    icon: 'book' as const,
+  },
+} as const;
+
+export type VariantKey = keyof typeof variantThemes;

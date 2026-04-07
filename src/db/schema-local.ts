@@ -420,6 +420,31 @@ export async function initLocalSchema(): Promise<void> {
     `ALTER TABLE grammar_rules ADD COLUMN audio_key TEXT`,
     // É16 — index srs_cards par item_type pour les filtres Réviser
     `CREATE INDEX IF NOT EXISTS idx_srs_item_type ON srs_cards(user_id, item_type)`,
+    // É17 — colonnes notifications dans user_settings
+    `ALTER TABLE user_settings ADD COLUMN notif_review_enabled INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE user_settings ADD COLUMN notif_hour INTEGER NOT NULL DEFAULT 18`,
+    `ALTER TABLE user_settings ADD COLUMN notif_minute INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE user_settings ADD COLUMN notif_challenge_enabled INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE user_settings ADD COLUMN notif_streak_risk_enabled INTEGER NOT NULL DEFAULT 1`,
+    // É17 — table quran_entries
+    `CREATE TABLE IF NOT EXISTS quran_entries (
+      id               TEXT PRIMARY KEY,
+      surah_number     INTEGER NOT NULL,
+      surah_name_ar    TEXT NOT NULL,
+      surah_name_fr    TEXT NOT NULL,
+      ayah_number      INTEGER NOT NULL,
+      word_position    INTEGER NOT NULL,
+      arabic           TEXT NOT NULL,
+      arabic_vocalized TEXT NOT NULL,
+      transliteration  TEXT NOT NULL,
+      translation_fr   TEXT NOT NULL,
+      context_fr       TEXT,
+      root_id          TEXT,
+      tajwid_notes     TEXT,
+      sort_order       INTEGER NOT NULL DEFAULT 0,
+      synced_at        INTEGER
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_quran_surah ON quran_entries(surah_number)`,
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch (_) { /* colonne déjà présente */ }

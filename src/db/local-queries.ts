@@ -368,8 +368,10 @@ export async function upsertSettings(userId: string, settings: Record<string, an
   await db.runAsync(
     `INSERT INTO user_settings (user_id, harakats_mode, transliteration_mode, translation_mode,
       exercise_direction, audio_enabled, audio_autoplay, audio_speed, font_size, haptic_feedback,
-      analytics_enabled, write_tolerance, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      analytics_enabled, write_tolerance,
+      notif_review_enabled, notif_hour, notif_minute, notif_challenge_enabled, notif_streak_risk_enabled,
+      updated_at, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
      ON CONFLICT(user_id) DO UPDATE SET
        harakats_mode = excluded.harakats_mode,
        transliteration_mode = excluded.transliteration_mode,
@@ -382,12 +384,24 @@ export async function upsertSettings(userId: string, settings: Record<string, an
        haptic_feedback = excluded.haptic_feedback,
        analytics_enabled = excluded.analytics_enabled,
        write_tolerance = excluded.write_tolerance,
+       notif_review_enabled = excluded.notif_review_enabled,
+       notif_hour = excluded.notif_hour,
+       notif_minute = excluded.notif_minute,
+       notif_challenge_enabled = excluded.notif_challenge_enabled,
+       notif_streak_risk_enabled = excluded.notif_streak_risk_enabled,
        updated_at = ?,
        synced_at = NULL`,
-    [userId, settings.harakats_mode, settings.transliteration_mode, settings.translation_mode,
+    [userId,
+     settings.harakats_mode, settings.transliteration_mode, settings.translation_mode,
      settings.exercise_direction, settings.audio_enabled ? 1 : 0, settings.audio_autoplay ? 1 : 0,
      settings.audio_speed, settings.font_size, settings.haptic_feedback ? 1 : 0,
-     settings.analytics_enabled !== false ? 1 : 0, settings.write_tolerance ?? 'normal', now, now]
+     settings.analytics_enabled !== false ? 1 : 0, settings.write_tolerance ?? 'normal',
+     settings.notif_review_enabled !== false ? 1 : 0,
+     settings.notif_hour ?? 18,
+     settings.notif_minute ?? 0,
+     settings.notif_challenge_enabled !== false ? 1 : 0,
+     settings.notif_streak_risk_enabled !== false ? 1 : 0,
+     now, now]
   );
 }
 
@@ -974,6 +988,51 @@ export async function devCompleteAllLessons(userId: string): Promise<number> {
     );
   }
   return lessons.length;
+}
+
+// --- Quran Entries (É17) ---
+
+export async function upsertQuranEntries(entries: any[]): Promise<void> {
+  const db = getLocalDB();
+  await db.runAsync('DELETE FROM quran_entries');
+  for (const e of entries) {
+    await db.runAsync(
+      `INSERT INTO quran_entries
+         (id, surah_number, surah_name_ar, surah_name_fr, ayah_number,
+          word_position, arabic, arabic_vocalized, transliteration,
+          translation_fr, context_fr, root_id, tajwid_notes, sort_order, synced_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [e.id, e.surah_number, e.surah_name_ar, e.surah_name_fr, e.ayah_number,
+       e.word_position, e.arabic, e.arabic_vocalized, e.transliteration,
+       e.translation_fr, e.context_fr ?? null, e.root_id ?? null,
+       e.tajwid_notes ?? null, e.sort_order, Date.now()]
+    );
+  }
+}
+
+export async function getAllQuranEntries(): Promise<any[]> {
+  const db = getLocalDB();
+  return db.getAllAsync<any>(
+    'SELECT * FROM quran_entries ORDER BY surah_number, ayah_number, word_position'
+  );
+}
+
+export async function getQuranSurahs(): Promise<{surah_number: number; surah_name_ar: string; surah_name_fr: string; ayah_count: number}[]> {
+  const db = getLocalDB();
+  return db.getAllAsync<any>(
+    `SELECT surah_number, surah_name_ar, surah_name_fr, COUNT(DISTINCT ayah_number) as ayah_count
+     FROM quran_entries
+     GROUP BY surah_number, surah_name_ar, surah_name_fr
+     ORDER BY surah_number ASC`
+  );
+}
+
+export async function getQuranEntriesBySurah(surahNumber: number): Promise<any[]> {
+  const db = getLocalDB();
+  return db.getAllAsync<any>(
+    'SELECT * FROM quran_entries WHERE surah_number = ? ORDER BY ayah_number, word_position',
+    [surahNumber]
+  );
 }
 
 export async function getSyncMetadata(tableName: string) {

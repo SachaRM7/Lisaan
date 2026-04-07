@@ -1,5 +1,5 @@
 // app/review-session.tsx
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -37,7 +37,7 @@ import type { SRSCard } from '../src/engines/srs';
 import type { ReviewSessionConfig, ExamQuestionResult } from '../src/types/review';
 import { CONFUSION_PAIRS } from '../src/constants/confusion-pairs';
 import { ExerciseRenderer } from '../src/components/exercises/ExerciseRenderer';
-import { getSRSCardsByModules, getSRSCardsForUser, getAllConjugations, getAllGrammarRules } from '../src/db/local-queries';
+import { getSRSCardsByModules, getSRSCardsForUser, getAllConjugations, getAllGrammarRules, getAllQuranEntries } from '../src/db/local-queries';
 import { updateStreak } from '../src/engines/streak';
 import { addXP, calculateReviewXP } from '../src/engines/xp';
 import { useTheme } from '../src/contexts/ThemeContext';
@@ -60,6 +60,7 @@ function resolveItemData(
   allSentences: any[],
   allConjugations: any[],
   allGrammarRules: any[],
+  allQuranEntries: any[],
 ): ItemData | null {
   switch (card.item_type) {
     case 'letter': {
@@ -98,6 +99,15 @@ function resolveItemData(
         arabic: g.example_ar_vocalized,
         french: g.concept_fr,
         transliteration: g.example_transliteration,
+      };
+    }
+    case 'quran_word': {
+      const qe = allQuranEntries.find(x => x.id === card.item_id);
+      if (!qe) return null;
+      return {
+        arabic: qe.arabic_vocalized,
+        french: `${qe.translation_fr} (${qe.surah_name_fr}, v.${qe.ayah_number})`,
+        transliteration: qe.transliteration,
       };
     }
     default:
@@ -177,15 +187,17 @@ export default function ReviewSession() {
   const { data: allSentences = [] } = useSentences();
   const [allConjugations, setAllConjugations] = useState<any[]>([]);
   const [allGrammarRules, setAllGrammarRules] = useState<any[]>([]);
+  const [allQuranEntries, setAllQuranEntries] = useState<any[]>([]);
   const updateSRSCard = useUpdateSRSCard();
   const startTime = useMemo(() => Date.now(), []);
 
   const [freeCards, setFreeCards] = useState<SRSCard[] | null>(null);
 
-  // Charger conjugaisons et règles de grammaire pour resolveItemData
+  // Charger conjugaisons, règles de grammaire et entrées coraniques pour resolveItemData
   useEffect(() => {
     getAllConjugations().then(setAllConjugations).catch(console.warn);
     getAllGrammarRules().then(setAllGrammarRules).catch(console.warn);
+    getAllQuranEntries().then(setAllQuranEntries).catch(console.warn);
   }, []);
 
   // Charger les cartes en mode free
@@ -450,7 +462,7 @@ export default function ReviewSession() {
                 addXP(earnedXP);
                 updateStreak();
               }
-              router.replace('/(tabs)/review' as never);
+              router.replace('/(tabs)');
             }}
             style={{ width: '100%' }}
           />
@@ -479,7 +491,7 @@ export default function ReviewSession() {
   let currentExercise: ExerciseConfig | null = null;
 
   if (item.kind === 'single') {
-    const itemData = resolveItemData(item.card, allLetters, allDiacritics, allWords, allSentences, allConjugations, allGrammarRules);
+    const itemData = resolveItemData(item.card, allLetters, allDiacritics, allWords, allSentences, allConjugations, allGrammarRules, allQuranEntries);
     if (itemData) {
       const type = (forcedType ?? modeMap.get(item.card.id) ?? 'mcq') as ExerciseType;
       const distractors = (() => {
@@ -524,7 +536,7 @@ export default function ReviewSession() {
   } else {
     // Match groupé
     const itemsData = item.cards.map(c =>
-      resolveItemData(c, allLetters, allDiacritics, allWords, allSentences, allConjugations, allGrammarRules)
+      resolveItemData(c, allLetters, allDiacritics, allWords, allSentences, allConjugations, allGrammarRules, allQuranEntries)
     ).filter(Boolean) as ItemData[];
     if (itemsData.length >= 2) {
       currentExercise = generateMatchReviewExercise(item.cards, itemsData);

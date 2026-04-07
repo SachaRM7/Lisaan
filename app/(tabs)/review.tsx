@@ -1,3 +1,4 @@
+// @deprecated É20 — Tab bar supprimé, accessible via /review-session. USE from tabs REMOVED.
 // app/(tabs)/review.tsx
 import { useState } from 'react';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from 'react-native';
@@ -8,7 +9,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { Button } from '../../src/components/ui';
 import { Ionicons } from '@expo/vector-icons';
 
-type SRSFilter = 'all' | 'letter' | 'diacritic' | 'word' | 'conjugation' | 'grammar_rule';
+type SRSFilter = 'all' | 'letter' | 'diacritic' | 'word' | 'conjugation' | 'grammar_rule' | 'quran_word';
 
 const FILTER_LABELS: Record<SRSFilter, string> = {
   all: 'Tout',
@@ -17,6 +18,7 @@ const FILTER_LABELS: Record<SRSFilter, string> = {
   word: 'Mots',
   conjugation: 'Conjugaisons',
   grammar_rule: 'Grammaire',
+  quran_word: 'Coran',
 };
 
 function formatNextReview(isoDate: string): string {
@@ -51,6 +53,7 @@ export default function ReviewScreen() {
     word: dueCards.filter((c) => c.item_type === 'word').length,
     conjugation: dueCards.filter((c) => c.item_type === 'conjugation').length,
     grammar_rule: dueCards.filter((c) => c.item_type === 'grammar_rule').length,
+    quran_word: dueCards.filter((c) => c.item_type === 'quran_word').length,
   };
 
   const dueLetters = dueCounts.letter;
@@ -95,7 +98,7 @@ export default function ReviewScreen() {
           <Button
             label="Aller apprendre →"
             variant="primary"
-            onPress={() => router.replace('/(tabs)/learn')}
+            onPress={() => router.replace('/(tabs)')}
             style={{ width: '100%', marginTop: spacing.sm }}
           />
         </View>

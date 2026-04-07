@@ -160,7 +160,7 @@ export default function Recommendation() {
       }).catch(() => {/* silencieux */});
     }
 
-    router.replace('/auth-choice' as any);
+    router.replace('/(onboarding)/beta-code' as any);
   }
 
   const ctaLabel = available
