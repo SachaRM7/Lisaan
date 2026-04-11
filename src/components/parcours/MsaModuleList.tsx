@@ -2,16 +2,15 @@
 // Liste verticale des modules MSA
 
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MsaModuleItem } from './MsaModuleItem';
-import type { Module, Lesson } from '../../hooks/useModules';
+import type { Module } from '../../hooks/useModules';
 import type { LessonProgress } from '../../hooks/useProgress';
 
 interface MsaModuleListProps {
   modules: Module[];
-  lessonsByModuleId: Record<string, Lesson[]>;
   progressByModule: Record<string, LessonProgress[]>;
   lessonCountByModule: Record<string, number>;
   onModulePress?: (module: Module) => void;
@@ -34,13 +33,12 @@ function isModuleUnlocked(
 
 export function MsaModuleList({
   modules,
-  lessonsByModuleId,
   progressByModule,
   lessonCountByModule,
   onModulePress,
 }: MsaModuleListProps) {
   const router = useRouter();
-  const { colors, spacing, borderRadius } = useTheme();
+  const { colors } = useTheme();
 
   const allModules = modules ?? [];
 

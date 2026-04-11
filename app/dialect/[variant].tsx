@@ -42,8 +42,6 @@ export default function DialecteScreen() {
 
   const { data: lessons } = useLessons(dialecteModule?.id ?? '');
 
-  const arabicLineHeight = Math.round(typography.size.arabicSmall * typography.lineHeight.arabic);
-
   // Module 2 MSA complet (prerequis)?
   const module2 = modules?.find(m => m.sort_order === 2);
   const { data: m2Lessons } = useLessons(module2?.id ?? '');

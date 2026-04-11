@@ -29,7 +29,6 @@ function UniverseCard({
   label,
   labelAr,
   accent,
-  accentLight,
   subtitle,
   icon,
   onPress,

@@ -1,6 +1,6 @@
 // app/(tabs)/parcours.tsx
 // Screen: structured MSA + Dialectes + Coranique catalog (Mission 4 E20)
-import React, { useMemo, createElement } from 'react';
+import { useMemo, createElement } from 'react';
 import { View, ScrollView, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,7 +13,7 @@ import { SectionHeader } from '../../src/components/parcours/SectionHeader';
 import { MsaModuleList } from '../../src/components/parcours/MsaModuleList';
 import { DialecteCard } from '../../src/components/parcours/DialecteCard';
 import { QuranicCard } from '../../src/components/parcours/QuranicCard';
-import type { Module } from '../../src/hooks/useModules';
+import type { Lesson } from '../../src/hooks/useLessons';
 import type { LessonProgress } from '../../src/hooks/useProgress';
 
 const DIALECTE_VARIANTS = ['darija', 'egyptian', 'levantine', 'khaliji'] as const;
@@ -37,12 +37,12 @@ export default function ParcoursScreen() {
 
   const allModules = modules ?? [];
 
-  const lessonsByModuleId = useMemo(() => {
-    const map = {};
+  const lessonsByModuleId = useMemo<Record<string, Lesson[]>>(() => {
+    const map: Record<string, Lesson[]> = {};
     allModules.forEach((mod, i) => {
       const lessonSets = [m1Lessons, m2Lessons, m3Lessons, m4Lessons, m5Lessons,
                           m6Lessons, m7Lessons, m8Lessons, m9Lessons, m10Lessons];
-      map[mod.id] = (lessonSets[i] ?? []).filter(l => l.module_id === mod.id);
+      map[mod.id] = (lessonSets[i] ?? []).filter((l: Lesson) => l.module_id === mod.id);
     });
     for (const mod of allModules) {
       if (!map[mod.id]) map[mod.id] = [];
@@ -51,19 +51,19 @@ export default function ParcoursScreen() {
   }, [allModules, m1Lessons, m2Lessons, m3Lessons, m4Lessons, m5Lessons,
       m6Lessons, m7Lessons, m8Lessons, m9Lessons, m10Lessons]);
 
-  const lessonCountByModule = useMemo(() => {
-    const counts = {};
+  const lessonCountByModule = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
     for (const [modId, lessons] of Object.entries(lessonsByModuleId)) {
       counts[modId] = lessons.length;
     }
     return counts;
   }, [lessonsByModuleId]);
 
-  const progressByModule = useMemo(() => {
-    const byMod = {};
+  const progressByModule = useMemo<Record<string, LessonProgress[]>>(() => {
+    const byMod: Record<string, LessonProgress[]> = {};
     for (const mod of allModules) {
-      const modLessonIds = new Set((lessonsByModuleId[mod.id] ?? []).map(l => l.id));
-      byMod[mod.id] = progress.filter(p => modLessonIds.has(p.lesson_id));
+      const modLessonIds = new Set((lessonsByModuleId[mod.id] ?? []).map((l: Lesson) => l.id));
+      byMod[mod.id] = progress.filter((p: LessonProgress) => modLessonIds.has(p.lesson_id));
     }
     return byMod;
   }, [allModules, lessonsByModuleId, progress]);
@@ -85,8 +85,8 @@ export default function ParcoursScreen() {
       (lessonCountByModule[module2.id] ?? 0)
     : false;
 
-  const dialecteProgress = useMemo(() => {
-    const result = {};
+  const dialecteProgress = useMemo<Record<string, { completed: number; total: number }>>(() => {
+    const result: Record<string, { completed: number; total: number }> = {};
     for (const dv of DIALECTE_VARIANTS) {
       const mod = allModules.find(m => m.id.includes(dv));
       if (mod) {
@@ -134,7 +134,6 @@ export default function ParcoursScreen() {
         style: { backgroundColor: colors.background.card, borderRadius: 16, padding: spacing.md, marginBottom: spacing.xl },
       }, createElement(MsaModuleList, {
         modules: msaModules,
-        lessonsByModuleId,
         progressByModule,
         lessonCountByModule,
       })),
@@ -145,7 +144,7 @@ export default function ParcoursScreen() {
         subtitle: 'Les couleurs de l arabe',
       }),
       !module2Completed && createElement(View, {
-        style: { backgroundColor: colors.status.warningLight, borderRadius: 12, padding: spacing.sm, marginBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+        style: { backgroundColor: colors.background.group, borderRadius: 12, padding: spacing.sm, marginBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
       },
         createElement(Text, { style: { fontSize: 14 } }, 'TIP'),
         createElement(Text, {

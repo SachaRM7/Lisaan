@@ -6,7 +6,15 @@
       "mcp__ide__getDiagnostics",
       "Bash(dir \"D:\\\\Documents\\\\Lisaan\\\\app\\\\\\(tabs\\)\")",
       "Bash(rtk grep:*)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "Bash(echo \"DONE:$?\")",
+      "Bash(cmd.exe:*)",
+      "Bash(/mnt/d/Documents/Lisaan/node_modules/.bin/tsc:*)",
+      "Bash(/mnt/d/Documents/Lisaan/node_modules/.bin/tsc.cmd:*)",
+      "Bash(/bin/bash:*)",
+      "Bash(env:*)"
     ]
   }
 }

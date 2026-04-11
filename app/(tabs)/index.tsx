@@ -44,7 +44,7 @@ function isModuleUnlocked(
 // -- Home screen principal --
 
 export default function TodayScreen() {
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { colors, typography, spacing, borderRadius } = useTheme();
   const router = useRouter();
   const streak = useUserStore((s) => s.user?.streak_current ?? 0);
 

@@ -12,7 +12,7 @@ interface QuranicCardProps {
 }
 
 export function QuranicCard({ studiedCount, memorizedCount, onPress }: QuranicCardProps) {
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { typography, spacing, borderRadius, shadows } = useTheme();
   const arabicLineHeight = Math.round(typography.size.arabicHero * typography.lineHeight.arabic);
 
   return (

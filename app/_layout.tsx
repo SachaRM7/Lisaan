@@ -231,7 +231,7 @@ export default function RootLayout() {
             <ContentDownloadScreen />
           ) : !allReady ? (
             <View style={{flex:1,backgroundColor:Colors.bg,justifyContent:"center",alignItems:"center"}}>
-              <ActivityIndicator size="large" color={Colors.brand?.primary ?? "#2D6A4F"} />
+              <ActivityIndicator size="large" color={Colors.primary ?? "#2D6A4F"} />
             </View>
           ) : (
             <ErrorBoundary>

@@ -3,7 +3,6 @@
 
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { variantThemes } from '../../constants/theme';
 import type { VariantKey } from '../../constants/theme';
